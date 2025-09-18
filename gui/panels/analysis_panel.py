@@ -492,6 +492,7 @@ class AnalysisPanel(BasePanel):
             # Prepare analysis configuration
             config = {
                 'method': self.method_var.get(),
+                'analysis_method': self.method_var.get(),  # Add explicit analysis_method
                 'velocity_min': float(self.v_min_var.get()),
                 'velocity_max': float(self.v_max_var.get()),
                 'velocity_points': int(self.points_var.get()),

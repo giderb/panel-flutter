@@ -6,6 +6,7 @@ from tkinter import messagebox
 from typing import Optional, Dict, Any
 import threading
 import json
+from pathlib import Path
 
 from .base_panel import BasePanel
 from python_bridge.analysis_validator import validator

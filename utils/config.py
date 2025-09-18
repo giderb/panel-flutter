@@ -100,6 +100,10 @@ class Config:
 
     def get_nastran_executable(self) -> str:
         """Get NASTRAN executable path."""
+        # Check for MSC NASTRAN installation
+        msc_path = r"C:\MSC.Software\MSC_Nastran\20190\bin\nastran.exe"
+        if os.path.exists(msc_path):
+            return msc_path
         return self.get("nastran.executable", "nastran")
 
     def get_analysis_defaults(self) -> Dict[str, Any]:
