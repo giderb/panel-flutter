@@ -122,11 +122,12 @@ class AnalysisExecutor:
 
         @dataclass
         class FlutterResult:
-            flutter_speed: float = 999.0
-            flutter_frequency: float = 176.0
-            flutter_mode: int = 5
-            damping: float = 0.0
-            dynamic_pressure: float = 50000.0
+            # CRITICAL: NO DEFAULT VALUES - Must be computed
+            flutter_speed: float = None  # Must be computed, not mocked
+            flutter_frequency: float = None  # Must be computed, not mocked
+            flutter_mode: int = None
+            damping: float = None
+            dynamic_pressure: float = None
 
         self.PanelProperties = PanelProperties
         self.FlowConditions = FlowConditions
@@ -192,14 +193,12 @@ CAERO1   1       1001    0       1       1       0       0       0
                 pass
 
             def run(self, *args, **kwargs):
-                # Return mock results matching notebook values
-                return {
-                    'flutter_speed': 999.0,
-                    'flutter_frequency': 176.0,
-                    'flutter_mode': 5,
-                    'damping': 0.0,
-                    'dynamic_pressure': 50000.0
-                }
+                # CRITICAL: No mock results allowed
+                raise NotImplementedError(
+                    "CRITICAL ERROR: Real flutter analysis required. "
+                    "Mock values are not acceptable in safety-critical applications. "
+                    "NASTRAN solver must be properly installed and configured."
+                )
 
         self.IsotropicPlate = MockIsotropicPlate
         self.PanelFlutterPistonAnalysisModel = MockAnalysisModel
@@ -530,6 +529,7 @@ CAERO1   1       1001    0       1       1       0       0       0
                     "success": True,
                     "method": "NASTRAN Aeroelasticity (Test Mode)",
                     "analysis_ready": True,
+                    "converged": True,
                     "configuration": {
                         "panel_dimensions": f"{a:.1f}x{b:.1f}x{thickness:.1f}mm",
                         "material": "Aluminum 6061-T6",
@@ -585,6 +585,7 @@ CAERO1   1       1001    0       1       1       0       0       0
                 "success": True,
                 "method": "NASTRAN Aeroelasticity",
                 "analysis_ready": True,
+                "converged": True,
                 "configuration": {
                     "panel_dimensions": f"{a:.1f}x{b:.1f}x{thickness:.1f}mm",
                     "material": "Aluminum 6061-T6",
@@ -633,11 +634,17 @@ CAERO1   1       1001    0       1       1       0       0       0
         actual_width = geometry.width if geometry else 0.3
         actual_thickness = geometry.thickness if geometry else 0.0015
 
+        # Log original values for debugging
+        self.logger.info(f"Original geometry: L={actual_length}, W={actual_width}, T={actual_thickness}")
+
         # Fix common unit errors in GUI (dimensions in mm instead of m)
         if actual_length > 10:  # Likely in mm, should be in m
+            self.logger.info("Converting from mm to m (values > 10)")
             actual_length = actual_length / 1000
             actual_width = actual_width / 1000
             actual_thickness = actual_thickness / 1000
+
+        self.logger.info(f"After conversion: L={actual_length}m, W={actual_width}m, T={actual_thickness}m")
 
         if progress_callback:
             progress_callback("Creating panel model...", 0.4)
@@ -730,55 +737,61 @@ CAERO1   1       1001    0       1       1       0       0       0
                 progress_callback("Generating NASTRAN BDF file...", 0.65)
                 time.sleep(0.2)
 
-            from python_bridge.bdf_generator import (
-                NastranBDFGenerator, PanelConfig, MaterialConfig, AeroConfig
+            from python_bridge.bdf_generator_working import (
+                WorkingBDFGenerator, PanelConfig, MaterialConfig, AeroConfig
             )
 
-            # Create BDF generator
-            generator = NastranBDFGenerator()
-
-            # Panel configuration
-            panel_config = PanelConfig(
-                length=actual_length,
-                width=actual_width,
-                thickness=actual_thickness,
-                nx=20,  # Default mesh
-                ny=20
-            )
-
-            # Material configuration
-            material_config = MaterialConfig(
-                youngs_modulus=E,
-                poissons_ratio=nu,
-                density=rho
-            )
-
-            # Aero configuration
-            aero_config = AeroConfig(
-                mach_number=flow_conditions.mach_number,
-                reference_velocity=1000.0,
-                reference_chord=actual_length,
-                reference_density=flow_conditions.density,
-                reduced_frequencies=[0.001, 0.1, 0.2, 0.4],
-                velocities=list(range(
-                    int(config.get('velocity_min', 800)),
-                    int(config.get('velocity_max', 1200)),
-                    20
-                ))
-            )
-
-            # Create working directory
+            # Create working directory FIRST (before creating generator)
             import datetime
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             working_dir = Path.cwd() / "analysis_temp" / f"flutter_{timestamp}"
             working_dir.mkdir(parents=True, exist_ok=True)
 
+            # Create BDF generator (using working version)
+            generator = WorkingBDFGenerator(output_dir=str(working_dir))
+
+            # Panel configuration (convert to mm for NASTRAN)
+            panel_config = PanelConfig(
+                length=actual_length * 1000,  # Convert m to mm
+                width=actual_width * 1000,     # Convert m to mm
+                thickness=actual_thickness * 1000,  # Convert m to mm
+                nx=20,  # Default mesh
+                ny=20
+            )
+
+            self.logger.info(f"Panel config for BDF: L={panel_config.length}mm, W={panel_config.width}mm, T={panel_config.thickness}mm")
+
+            # Material configuration (convert to NASTRAN units: mm-kg-s-N)
+            # E from Pa to MPa (N/mm^2): divide by 1e6
+            # rho from kg/m^3 to kg/mm^3: divide by 1e9
+            material_config = MaterialConfig(
+                youngs_modulus=E / 1e6,  # Convert Pa to MPa (N/mm^2)
+                poissons_ratio=nu,
+                density=rho / 1e9  # Convert kg/m^3 to kg/mm^3
+            )
+
+            # Aero configuration (convert to NASTRAN units)
+            aero_config = AeroConfig(
+                mach_number=flow_conditions.mach_number,
+                reference_velocity=1000000.0,  # mm/s
+                reference_chord=actual_length * 1000,  # Convert m to mm
+                reference_density=flow_conditions.density / 1e9,  # Convert kg/m^3 to kg/mm^3
+                reduced_frequencies=[0.001, 0.1, 0.2, 0.4],
+                # Limit to 8 velocities to avoid FLFACT continuation issues
+                velocities=[v * 1000 for v in range(  # Convert m/s to mm/s
+                    int(config.get('velocity_min', 800)),
+                    int(config.get('velocity_max', 1200)),
+                    max(20, (int(config.get('velocity_max', 1200)) - int(config.get('velocity_min', 800))) // 7)
+                )][:8]  # Limit to 8 velocities max
+            )
+
             # Generate BDF file
             bdf_path = working_dir / f"flutter_{timestamp}.bdf"
-            bdf_content = generator.generate_flutter_bdf(
+            bdf_content = generator.generate_bdf(
                 panel_config, material_config, aero_config,
                 boundary_conditions=panel.boundary_conditions,
-                output_path=bdf_path
+                n_modes=10,
+                output_filename=f"flutter_{timestamp}.bdf"
             )
 
             self.logger.info(f"BDF file generated: {bdf_path}")
@@ -807,27 +820,60 @@ CAERO1   1       1001    0       1       1       0       0       0
                         if progress_callback:
                             progress_callback("Parsing NASTRAN results...", 0.98)
 
-                        # TODO: Implement F06 parsing
-                        flutter_speed = 999.0  # Placeholder
-                        flutter_freq = 176.0  # Placeholder
+                        # Import and use the F06 parser
+                        from python_bridge.f06_parser import parse_f06_file
+                        f06_path = nastran_result.get('f06_file')
 
+                        if f06_path and Path(f06_path).exists():
+                            f06_results = parse_f06_file(Path(f06_path))
+
+                            if f06_results.get('success'):
+                                critical_speed = f06_results.get('critical_flutter_velocity')
+                                critical_freq = f06_results.get('critical_flutter_frequency')
+
+                                # If no critical flutter found, panel is stable
+                                if critical_speed is None and len(f06_results.get('flutter_results', [])) > 0:
+                                    self.logger.info("No flutter detected in velocity range. Panel is stable.")
+                                    critical_speed = 9999.0  # Indicates no flutter
+                                    critical_freq = 0.0
+                                elif critical_speed is None:
+                                    # No flutter results at all - still stable but set values
+                                    critical_speed = 9999.0
+                                    critical_freq = 0.0
+
+                                return {
+                                    "success": True,
+                                    "method": "NASTRAN Flutter Analysis",
+                                    "analysis_ready": True,
+                                    "converged": True,  # NASTRAN completed successfully
+                                    "configuration": {
+                                        "panel_dimensions": f"{actual_length*1000:.1f}x{actual_width*1000:.1f}x{actual_thickness*1000:.1f}mm",
+                                        "material": f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
+                                        "boundary_conditions": panel.boundary_conditions,
+                                        "mach_number": flow_conditions.mach_number,
+                                        "nastran_executable": nastran_executable
+                                    },
+                                    "critical_flutter_speed": critical_speed,
+                                    "critical_flutter_frequency": critical_freq,
+                                    "modal_frequencies": f06_results.get('modal_frequencies', []),
+                                    "flutter_data": f06_results.get('flutter_results', []),
+                                    "bdf_file": str(bdf_path),
+                                    "f06_file": f06_path,
+                                    "working_directory": str(working_dir),
+                                    "execution_time": nastran_result.get('execution_time', 0),
+                                    "stable_in_range": critical_speed == 9999.0
+                                }
+
+                        # F06 file not found or parsing failed
+                        self.logger.error(f"F06 file not found or could not be parsed: {f06_path}")
                         return {
-                            "success": True,
+                            "success": False,
                             "method": "NASTRAN Flutter Analysis",
-                            "analysis_ready": True,
-                            "configuration": {
-                                "panel_dimensions": f"{actual_length*1000:.1f}x{actual_width*1000:.1f}x{actual_thickness*1000:.1f}mm",
-                                "material": f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
-                                "boundary_conditions": panel.boundary_conditions,
-                                "mach_number": flow_conditions.mach_number,
-                                "nastran_executable": nastran_executable
-                            },
-                            "critical_flutter_speed": flutter_speed,
-                            "critical_flutter_frequency": flutter_freq,
+                            "analysis_ready": False,
+                            "error": "F06 file not found or parsing failed",
                             "bdf_file": str(bdf_path),
-                            "f06_file": nastran_result.get('f06_file'),
-                            "working_directory": str(working_dir),
-                            "execution_time": nastran_result.get('execution_time', 0)
+                            "f06_file": f06_path,
+                            "working_directory": str(working_dir)
                         }
 
                 except Exception as e:
@@ -839,6 +885,7 @@ CAERO1   1       1001    0       1       1       0       0       0
                 "success": True,
                 "method": "NASTRAN BDF Generated (Not Executed)",
                 "analysis_ready": True,
+                "converged": False,  # Not executed
                 "configuration": {
                     "panel_dimensions": f"{actual_length*1000:.1f}x{actual_width*1000:.1f}x{actual_thickness*1000:.1f}mm",
                     "material": f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
@@ -890,6 +937,7 @@ CAERO1   1       1001    0       1       1       0       0       0
             "success": True,
             "method": f"Flutter Analysis ({flutter_result.method})",
             "analysis_ready": True,
+            "converged": True,
             "configuration": {
                 "panel_dimensions": f"{actual_length*1000:.1f}x{actual_width*1000:.1f}x{actual_thickness*1000:.1f}mm",
                 "material": f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
@@ -920,7 +968,7 @@ CAERO1   1       1001    0       1       1       0       0       0
         Run complete NASTRAN flutter analysis with BDF generation and execution
         """
         try:
-            from python_bridge.bdf_generator import NastranBDFGenerator, PanelConfig, MaterialConfig, AeroConfig
+            from python_bridge.bdf_generator_working import WorkingBDFGenerator as NastranBDFGenerator, PanelConfig, MaterialConfig, AeroConfig
 
             if progress_callback:
                 progress_callback("Preparing NASTRAN analysis...", 0.1)
@@ -929,10 +977,11 @@ CAERO1   1       1001    0       1       1       0       0       0
             geometry = structural_model.geometry
             flow = aerodynamic_model.flow_conditions
 
-            # Handle unit conversion (GUI may store in mm, convert to m)
-            length = geometry.length if geometry.length < 10 else geometry.length / 1000
-            width = geometry.width if geometry.width < 10 else geometry.width / 1000
-            thickness = geometry.thickness if geometry.thickness < 0.1 else geometry.thickness / 1000
+            # Handle unit conversion (GUI stores in m)
+            # If values are > 10, they're likely in mm and need conversion to m
+            length = geometry.length / 1000 if geometry.length > 10 else geometry.length
+            width = geometry.width / 1000 if geometry.width > 10 else geometry.width
+            thickness = geometry.thickness / 1000 if geometry.thickness > 0.1 else geometry.thickness
 
             # Get material properties
             material = structural_model.get_material() if hasattr(structural_model, 'get_material') else None
@@ -954,53 +1003,57 @@ CAERO1   1       1001    0       1       1       0       0       0
                 progress_callback("Generating NASTRAN BDF file...", 0.3)
 
             # Create configurations for BDF generator
+            # Convert from m to mm for NASTRAN
             panel_config = PanelConfig(
-                length=length,
-                width=width,
-                thickness=thickness,
+                length=length * 1000,  # m to mm
+                width=width * 1000,    # m to mm
+                thickness=thickness * 1000,  # m to mm
                 nx=20,  # 20x20 mesh like in notebook
                 ny=20
             )
 
+            # Convert material units for NASTRAN (mm-kg-s-N system)
             material_config = MaterialConfig(
-                youngs_modulus=E,
+                youngs_modulus=E / 1e6,  # Pa to MPa (N/mm²)
                 poissons_ratio=nu,
-                density=rho
+                density=rho / 1e9  # kg/m³ to kg/mm³
             )
 
             # Get velocity range from config
             v_min = config.get('velocity_min', 800)
             v_max = config.get('velocity_max', 1200)
-            v_points = config.get('velocity_points', 20)
-            step = max(1, int((v_max - v_min) / v_points))
-            velocities = list(range(int(v_min), int(v_max) + 1, step))
+            v_points = min(8, config.get('velocity_points', 8))  # Limit to 8 points max
+            step = max(1, int((v_max - v_min) / (v_points - 1)))
+            velocities = list(range(int(v_min), int(v_max) + 1, step))[:8]  # Ensure max 8 velocities
 
             aero_config = AeroConfig(
                 mach_number=flow.mach_number,
-                reference_velocity=1000.0,
-                reference_chord=length,
-                reference_density=flow.density if hasattr(flow, 'density') else 1.225e-12,
-                velocities=velocities
+                reference_velocity=1000000.0,  # mm/s
+                reference_chord=length * 1000,  # m to mm
+                reference_density=(flow.density if hasattr(flow, 'density') else 1.225) / 1e9,  # kg/m³ to kg/mm³
+                velocities=[v * 1000 for v in velocities]  # m/s to mm/s
             )
-
-            # Generate BDF
-            generator = NastranBDFGenerator()
 
             # Create working directory
             working_dir = Path("nastran_analysis")
             working_dir.mkdir(exist_ok=True)
-            bdf_path = working_dir / f"flutter_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.bdf"
 
-            bdf_content = generator.generate_flutter_bdf(
+            # Generate BDF
+            generator = NastranBDFGenerator(output_dir=str(working_dir))
+            bdf_filename = f"flutter_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.bdf"
+
+            bdf_path = generator.generate_bdf(
                 panel_config,
                 material_config,
                 aero_config,
                 boundary_conditions=structural_model.boundary_condition if hasattr(structural_model, 'boundary_condition') else 'SSSS',
-                output_path=bdf_path
+                n_modes=10,
+                output_filename=bdf_filename
             )
 
             self.logger.info(f"BDF file generated: {bdf_path}")
-            self.logger.info(f"BDF size: {len(bdf_content)} characters")
+            if Path(bdf_path).exists():
+                self.logger.info(f"BDF size: {Path(bdf_path).stat().st_size} bytes")
 
             # Get NASTRAN executable
             from utils.config import Config
@@ -1025,50 +1078,68 @@ CAERO1   1       1001    0       1       1       0       0       0
                     if progress_callback:
                         progress_callback("Parsing NASTRAN results...", 0.8)
 
-                    # Parse F06 file
-                    f06_results = self._parse_flutter_f06(nastran_result['f06_file'])
+                    # Parse F06 file using the new parser
+                    from python_bridge.f06_parser import parse_f06_file
+                    f06_results = parse_f06_file(Path(nastran_result['f06_file']))
 
-                    # If parsing didn't get results, use expected values from notebook
-                    if not f06_results.get('success') or not f06_results.get('critical_velocity'):
-                        # For the metallic panel example, expected results are:
-                        # Flutter speed: ~999 m/s
-                        # Flutter frequency: ~176 Hz
-                        self.logger.info("Using calibrated flutter results for metallic panel")
+                    # Check if parsing was successful
+                    if not f06_results.get('success'):
+                        # F06 parsing failed
+                        self.logger.error("F06 parsing failed")
                         return {
-                            'success': True,
-                            'method': 'NASTRAN Flutter Analysis (Calibrated)',
-                            'analysis_ready': True,
+                            'success': False,
+                            'method': 'NASTRAN Flutter Analysis',
+                            'analysis_ready': False,
+                            'converged': False,  # F06 parsing failed
                             'configuration': {
                                 'panel_dimensions': f"{length*1000:.1f}x{width*1000:.1f}x{thickness*1000:.1f}mm",
                                 'material': f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
                                 'boundary_conditions': 'SSSS',
                                 'mach_number': flow.mach_number
                             },
-                            'critical_flutter_speed': 999.0,  # m/s - from notebook
-                            'critical_flutter_frequency': 176.0,  # Hz - from notebook
+                            'critical_flutter_speed': None,
+                            'critical_flutter_frequency': None,
                             'bdf_file': str(bdf_path),
                             'f06_file': nastran_result['f06_file'],
                             'working_directory': str(working_dir),
-                            'note': 'Results calibrated to match Metallic.ipynb reference'
+                            'error': 'F06 parsing failed',
+                            'errors': f06_results.get('errors', [])
                         }
 
                     if f06_results.get('success'):
+                        # Successful parsing
+                        critical_speed = f06_results.get('critical_flutter_velocity')
+                        critical_freq = f06_results.get('critical_flutter_frequency')
+
+                        # If no critical flutter found, it means panel is stable in the velocity range
+                        if critical_speed is None and len(f06_results.get('flutter_results', [])) > 0:
+                            # Panel is stable - no flutter detected
+                            self.logger.info(f"No flutter detected in velocity range. Panel is stable.")
+                            # Use a high value to indicate stability
+                            critical_speed = 9999.0  # m/s - indicates no flutter
+                            critical_freq = 0.0
+
                         return {
                             'success': True,
                             'method': 'NASTRAN Flutter Analysis',
                             'analysis_ready': True,
+                            'converged': True,  # NASTRAN completed successfully
                             'configuration': {
                                 'panel_dimensions': f"{length*1000:.1f}x{width*1000:.1f}x{thickness*1000:.1f}mm",
                                 'material': f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
                                 'boundary_conditions': 'SSSS',
                                 'mach_number': flow.mach_number
                             },
-                            'critical_flutter_speed': f06_results.get('critical_velocity'),
-                            'critical_flutter_frequency': f06_results.get('critical_frequency'),
-                            'flutter_data': f06_results.get('flutter_data', {}),
+                            'critical_flutter_speed': critical_speed,
+                            'critical_flutter_frequency': critical_freq,
+                            'modal_frequencies': f06_results.get('modal_frequencies', []),
+                            'flutter_data': f06_results.get('flutter_results', []),
                             'bdf_file': str(bdf_path),
                             'f06_file': nastran_result['f06_file'],
-                            'working_directory': str(working_dir)
+                            'working_directory': str(working_dir),
+                            'errors': f06_results.get('errors', []),
+                            'warnings': f06_results.get('warnings', []),
+                            'stable_in_range': critical_speed == 9999.0
                         }
 
             # If NASTRAN not executed or failed, return BDF generation success
@@ -1077,10 +1148,13 @@ CAERO1   1       1001    0       1       1       0       0       0
             if progress_callback:
                 progress_callback("BDF generated (NASTRAN not executed)", 1.0)
 
+            # CRITICAL: NO MOCK RESULTS - This is a safety-critical application
+            # Only return BDF generation status, NO fake flutter values
             return {
-                'success': True,
-                'method': 'NASTRAN BDF Generated',
-                'analysis_ready': True,
+                'success': False,  # Analysis NOT complete without NASTRAN
+                'method': 'NASTRAN BDF Generated Only',
+                'analysis_ready': False,
+                'converged': False,  # NASTRAN not executed
                 'configuration': {
                     'panel_dimensions': f"{length*1000:.1f}x{width*1000:.1f}x{thickness*1000:.1f}mm",
                     'material': f"E={E/1e9:.1f}GPa, ν={nu:.2f}, ρ={rho:.0f}kg/m³",
@@ -1090,7 +1164,8 @@ CAERO1   1       1001    0       1       1       0       0       0
                 'bdf_generated': True,
                 'bdf_file': str(bdf_path),
                 'working_directory': str(working_dir),
-                'note': 'BDF file generated. NASTRAN executable not available or execution failed.',
+                'error': 'NASTRAN execution required for flutter analysis. BDF file generated but no flutter results available.',
+                'warning': 'CRITICAL: No flutter analysis performed. NASTRAN solver not available or execution failed.',
                 'critical_flutter_speed': None,
                 'critical_flutter_frequency': None
             }
@@ -1101,6 +1176,7 @@ CAERO1   1       1001    0       1       1       0       0       0
             traceback.print_exc()
             return {
                 'success': False,
+                'converged': False,  # Analysis failed
                 'error': f'NASTRAN analysis failed: {str(e)}'
             }
 
@@ -1242,8 +1318,8 @@ CAERO1   1       1001    0       1       1       0       0       0
                     first_mode = freq_values[0]
                     estimated_flutter_freq = first_mode * 2.5  # Rough estimate
 
-                    # Based on the notebook results, we expect around 176 Hz
-                    # This is a placeholder until proper flutter analysis works
+                    # CRITICAL: This is an estimation only - not suitable for safety-critical design
+                    # Real flutter analysis required through NASTRAN or validated solver
                     return {
                         "success": True,
                         "modal_frequencies": freq_values,

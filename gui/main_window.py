@@ -12,7 +12,6 @@ from .panels.home_panel import HomePanel
 from .panels.material_panel import MaterialPanel
 from .panels.structural_panel import StructuralPanel
 from .panels.aerodynamics_panel import AerodynamicsPanel
-from .panels.thermal_panel import ThermalPanel
 from .panels.analysis_panel import AnalysisPanel
 from .panels.results_panel import ResultsPanel
 from .panels.validation_panel import ValidationPanel
@@ -157,7 +156,6 @@ class MainWindow:
             ("Material", "material", "🔧"),
             ("Structure", "structure", "🏗️"),
             ("Aerodynamics", "aerodynamics", "💨"),
-            ("Thermal", "thermal", "🌡️"),
             ("Analysis", "analysis", "⚙️"),
             ("Results", "results", "📊"),
             ("Validation", "validation", "🔬")
@@ -229,7 +227,6 @@ class MainWindow:
             "material": MaterialPanel(self.content_frame, self),
             "structure": StructuralPanel(self.content_frame, self),
             "aerodynamics": AerodynamicsPanel(self.content_frame, self),
-            "thermal": ThermalPanel(self.content_frame, self),
             "analysis": AnalysisPanel(self.content_frame, self),
             "results": ResultsPanel(self.content_frame, self),
             "validation": ValidationPanel(self.content_frame, self)
@@ -393,9 +390,8 @@ Workflow Steps:
 1. Material: Define material properties (isotropic, orthotropic, or composite)
 2. Geometry: Set plate dimensions and mesh parameters
 3. Aerodynamics: Configure flow conditions and aerodynamic theory
-4. Thermal: Optional thermal effects
-5. Analysis: Run NASTRAN analysis
-6. Results: View V-f and V-g plots, critical flutter points
+4. Analysis: Run NASTRAN analysis
+5. Results: View V-f and V-g plots, critical flutter points
 
 For detailed help, please refer to the README.md file.
         """

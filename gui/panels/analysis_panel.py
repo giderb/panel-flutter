@@ -533,7 +533,31 @@ class AnalysisPanel(BasePanel):
 
         if not self.analysis_results or not self.analysis_results.get("success", False):
             error = self.analysis_results.get("error", "Unknown error") if self.analysis_results else "No results"
-            messagebox.showerror("Analysis Failed", f"Analysis failed:\n{error}")
+            warning = self.analysis_results.get("warning", "") if self.analysis_results else ""
+
+            # CRITICAL WARNING for safety-critical application
+            messagebox.showerror("Analysis Failed - CRITICAL",
+                               f"⚠️ CRITICAL WARNING ⚠️\n\n"
+                               f"Flutter analysis could not be completed.\n\n"
+                               f"ERROR: {error}\n\n"
+                               f"{warning}\n\n"
+                               f"DO NOT USE FOR FLIGHT CERTIFICATION without proper analysis!")
+            return
+
+        # Check for None values in critical results
+        critical_speed = self.analysis_results.get("critical_flutter_speed")
+        critical_freq = self.analysis_results.get("critical_flutter_frequency")
+
+        if critical_speed is None or critical_freq is None:
+            # CRITICAL: No mock values allowed
+            messagebox.showerror("CRITICAL - No Flutter Results",
+                               f"⚠️ CRITICAL SAFETY WARNING ⚠️\n\n"
+                               f"Flutter speed and frequency could not be determined.\n\n"
+                               f"Reason: {self.analysis_results.get('error', 'F06 parser not implemented')}\n\n"
+                               f"This is a safety-critical application.\n"
+                               f"NO mock or placeholder values will be shown.\n\n"
+                               f"Required: Proper NASTRAN installation and F06 parser.\n\n"
+                               f"DO NOT USE FOR AIRCRAFT DESIGN without real analysis!")
             return
 
         # Update summary
@@ -542,16 +566,29 @@ class AnalysisPanel(BasePanel):
         # Update detailed results
         self._update_detailed_display()
 
+        # DEBUG: Log what we're actually getting
+        print("DEBUG: Analysis results received by GUI:")
+        print(f"  success: {self.analysis_results.get('success')}")
+        print(f"  converged: {self.analysis_results.get('converged', 'MISSING!')}")
+        print(f"  method: {self.analysis_results.get('method')}")
+        print(f"  Keys: {list(self.analysis_results.keys())}")
+
+        # Send results to Results Panel
+        if "results" in self.main_window.panels:
+            self.main_window.panels["results"].load_results(self.analysis_results)
+
         # Show success message
-        critical_speed = self.analysis_results.get("critical_flutter_speed", "N/A")
-        critical_freq = self.analysis_results.get("critical_flutter_frequency", "N/A")
         method = self.analysis_results.get("method", "Unknown")
 
         messagebox.showinfo("Analysis Complete",
                           f"Flutter analysis completed successfully!\n\n"
                           f"Method: {method}\n"
-                          f"Critical Flutter Speed: {critical_speed} m/s\n"
-                          f"Critical Flutter Frequency: {critical_freq} Hz")
+                          f"Critical Flutter Speed: {critical_speed:.1f} m/s\n"
+                          f"Critical Flutter Frequency: {critical_freq:.1f} Hz\n\n"
+                          f"View detailed results in the Results panel.")
+
+        # Automatically switch to Results panel
+        self.main_window._show_panel("results")
 
     def _update_summary_display(self):
         """Update summary results display."""
@@ -560,15 +597,16 @@ class AnalysisPanel(BasePanel):
         freq = self.analysis_results.get("critical_flutter_frequency")
         method = self.analysis_results.get("method", "Unknown")
 
+        # CRITICAL: Show clear warning when values are None
         if speed is not None:
             self.flutter_speed_label.configure(text=f"Flutter Speed\n{speed:.1f} m/s")
         else:
-            self.flutter_speed_label.configure(text="Flutter Speed\nN/A")
+            self.flutter_speed_label.configure(text="Flutter Speed\n⚠️ NOT COMPUTED")
 
         if freq is not None:
             self.flutter_freq_label.configure(text=f"Flutter Frequency\n{freq:.1f} Hz")
         else:
-            self.flutter_freq_label.configure(text="Flutter Frequency\nN/A")
+            self.flutter_freq_label.configure(text="Flutter Frequency\n⚠️ NOT COMPUTED")
 
         self.method_result_label.configure(text=f"Analysis Method: {method}")
 

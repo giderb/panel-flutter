@@ -4,6 +4,12 @@ import customtkinter as ctk
 from tkinter import messagebox, simpledialog
 from typing import Optional
 from datetime import datetime
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from example_configurations import ExampleConfigurations
 
 from .base_panel import BasePanel
 from ..project_manager import Project
@@ -150,14 +156,50 @@ class HomePanel(BasePanel):
         )
         header.pack(anchor="w", padx=20, pady=(20, 10))
 
+        # Add quick example buttons
+        example_buttons_frame = ctk.CTkFrame(quick_start_frame, fg_color="transparent")
+        example_buttons_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        quick_label = self.theme_manager.create_styled_label(
+            example_buttons_frame,
+            text="Quick Examples:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        quick_label.pack(anchor="w", pady=(0, 5))
+
+        button_row = ctk.CTkFrame(example_buttons_frame, fg_color="transparent")
+        button_row.pack(fill="x")
+
+        # Create quick example buttons
+        examples = [
+            ("🔩 Metallic", lambda: self._quick_create_example("metallic")),
+            ("🔷 Composite", lambda: self._quick_create_example("composite")),
+            ("🚀 Hypersonic", lambda: self._quick_create_example("hypersonic"))
+        ]
+
+        for text, command in examples:
+            btn = ctk.CTkButton(
+                button_row,
+                text=text,
+                command=command,
+                width=100,
+                height=30,
+                corner_radius=6
+            )
+            btn.pack(side="left", padx=(0, 10))
+
+        # Separator
+        separator = ctk.CTkFrame(quick_start_frame, height=2, fg_color=self.theme_manager.get_color("border"))
+        separator.pack(fill="x", padx=20, pady=(10, 15))
+
         steps = [
             ("1. Material Properties", "Define isotropic, orthotropic, or composite materials"),
             ("2. Geometry Setup", "Configure plate dimensions, thickness, and mesh"),
-            ("3. Boundary Conditions", "Set edge constraints (SSSS, CCCC, etc.)"),
+            ("3. Boundary Conditions", "Set edge constraints (SSSS, CCCC, FFFF, etc.)"),
             ("4. Aerodynamic Configuration", "Choose theory and set flow conditions"),
             ("5. Analysis Parameters", "Configure modal and flutter analysis settings"),
             ("6. Run Analysis", "Execute NASTRAN analysis with progress monitoring"),
-            ("7. View Results", "Analyze V-f diagrams and critical flutter points")
+            ("7. View Results", "Analyze V-g/V-f diagrams and critical flutter points")
         ]
 
         for step_title, step_desc in steps:
@@ -212,9 +254,11 @@ class HomePanel(BasePanel):
     def _show_examples(self):
         """Show example projects dialog."""
         examples = [
-            ("Metallic Panel", "Aluminum panel flutter analysis (from notebook)"),
-            ("Composite Panel", "Carbon fiber panel with thermal effects"),
-            ("Hypersonic Panel", "High-speed panel with thermal loading")
+            ("Metallic Panel", "Standard aluminum aircraft skin panel"),
+            ("Composite Panel", "Carbon fiber composite panel [0/45/-45/90]s"),
+            ("Hypersonic Panel", "High-temperature titanium panel for Mach 5+"),
+            ("Sandwich Panel", "Lightweight honeycomb sandwich panel"),
+            ("Space Panel", "Ultra-high modulus composite for space structures")
         ]
 
         dialog = ExampleSelectionDialog(self.frame, self.theme_manager, examples)
@@ -225,67 +269,68 @@ class HomePanel(BasePanel):
             self._create_example_project(example_name)
 
     def _create_example_project(self, example_name: str):
-        """Create an example project."""
-        if example_name == "Metallic Panel":
-            project = self.project_manager.create_project(
-                "Metallic Panel Example",
-                "Aluminum panel flutter analysis based on nastran-aeroelasticity example"
+        """Create an example project using ExampleConfigurations."""
+        try:
+            # Map display names to config names
+            config_map = {
+                "Metallic Panel": "metallic",
+                "Composite Panel": "composite",
+                "Hypersonic Panel": "hypersonic",
+                "Sandwich Panel": "sandwich",
+                "Space Panel": "space"
+            }
+
+            config_name = config_map.get(example_name)
+            if not config_name:
+                self.show_error("Error", f"Unknown example: {example_name}")
+                return
+
+            # Apply the configuration
+            project = ExampleConfigurations.apply_configuration(
+                self.project_manager,
+                config_name
             )
 
-            # Set aluminum material
-            aluminum = PredefinedMaterials.aluminum_6061()
-            project.material = aluminum
-
-            # Set geometry (matching notebook example)
-            project.geometry = {
-                "length": 300.0,  # mm
-                "width": 300.0,   # mm
-                "thickness": 1.5, # mm
-                "n_chord": 20,
-                "n_span": 20
-            }
-
-            # Set boundary conditions
-            project.boundary_conditions = "SSSS"  # Simply supported
-
-            # Set aerodynamic configuration
-            project.aerodynamic_config = {
-                "theory": "piston",
-                "flow_conditions": {
-                    "mach_numbers": [3.0],
-                    "velocities": list(range(822000, 1066000, 5000)),  # mm/s
-                    "reference_velocity": 1000.0,
-                    "reference_density": 1.225e-12,  # ton/mm³
-                    "reference_chord": 300.0,
-                    "alphas": [0.0, 0.0, 0.0, 0.0],
-                    "density_ratios": [0.5],
-                    "reduced_frequencies": [0.001, 0.1, 0.2, 0.4]
-                }
-            }
-
-            # Set analysis parameters
-            project.analysis_params = {
-                "n_modes": 15,
-                "frequency_limits": [0.0, 1000.0],
-                "method": "PK",
-                "nastran_params": {
-                    "VREF": 1000.0,
-                    "COUPMASS": 1,
-                    "LMODES": 15,
-                    "WTMASS": 1.0,
-                    "GRDPNT": 1,
-                    "OPPHIPA": 1
-                }
-            }
-
-            self.project_manager.save_project(project)
             self.main_window.update_status(f"Created example: {example_name}")
             self._update_project_display()
             self._update_recent_projects_display()
-            self.show_info("Success", f"Example project '{example_name}' created!")
 
-        else:
-            self.show_info("Info", f"Example '{example_name}' will be available in a future update.")
+            # Show details about the example
+            config = ExampleConfigurations.get_all_examples()[config_name]
+            details = f"""Example project '{example_name}' created successfully!
+
+Material: {config['material'].name if hasattr(config['material'], 'name') else 'Custom'}
+Panel Size: {config['geometry']['length']*1000:.0f} x {config['geometry']['width']*1000:.0f} mm
+Thickness: {config['geometry']['thickness']*1000:.1f} mm
+Mach Number: {config['flow']['mach_number']}
+Boundary: {config['boundary_conditions']}
+
+The project is ready for analysis. Navigate through the panels to review and modify the configuration as needed."""
+
+            self.show_info("Example Created", details)
+
+        except Exception as e:
+            self.show_error("Error", f"Failed to create example: {str(e)}")
+
+    def _quick_create_example(self, config_name: str):
+        """Quickly create an example project without dialog."""
+        try:
+            # Apply the configuration
+            project = ExampleConfigurations.apply_configuration(
+                self.project_manager,
+                config_name
+            )
+
+            self.main_window.update_status(f"Created {config_name} example")
+            self._update_project_display()
+            self._update_recent_projects_display()
+
+            # Quick notification
+            config = ExampleConfigurations.get_all_examples()[config_name]
+            self.show_info("Example Created",
+                         f"{config['name']} example created!\nMach {config['flow']['mach_number']}, {config['material'].name}")
+        except Exception as e:
+            self.show_error("Error", f"Failed to create {config_name} example: {str(e)}")
 
     def _update_project_display(self):
         """Update current project display."""
@@ -345,8 +390,7 @@ class HomePanel(BasePanel):
             ("Geometry", project.geometry is not None),
             ("Boundary Conditions", project.boundary_conditions is not None),
             ("Aerodynamics", project.aerodynamic_config is not None),
-            ("Analysis Params", project.analysis_params is not None),
-            ("Thermal", project.thermal_conditions is not None)
+            ("Analysis Params", project.analysis_params is not None)
         ]
 
         components_frame = ctk.CTkFrame(self.project_content, fg_color="transparent")

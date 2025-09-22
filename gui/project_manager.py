@@ -24,8 +24,6 @@ class Project:
     boundary_conditions: Optional[str] = None
     aerodynamic_config: Optional[Dict[str, Any]] = None
     analysis_params: Optional[Dict[str, Any]] = None
-    thermal_conditions: Optional[Dict[str, Any]] = None
-
     # Results
     results: Optional[Dict[str, Any]] = None
 
@@ -46,7 +44,6 @@ class Project:
             "boundary_conditions": self.boundary_conditions,
             "aerodynamic_config": self.aerodynamic_config,
             "analysis_params": self.analysis_params,
-            "thermal_conditions": self.thermal_conditions,
             "results": self.results,
             "project_directory": self.project_directory,
             "bdf_file_path": self.bdf_file_path,
@@ -88,7 +85,6 @@ class Project:
             boundary_conditions=data.get("boundary_conditions"),
             aerodynamic_config=data.get("aerodynamic_config"),
             analysis_params=data.get("analysis_params"),
-            thermal_conditions=data.get("thermal_conditions"),
             results=data.get("results"),
             project_directory=data.get("project_directory"),
             bdf_file_path=data.get("bdf_file_path"),
@@ -112,8 +108,7 @@ class Project:
             self.geometry,
             self.boundary_conditions,
             self.aerodynamic_config,
-            self.analysis_params,
-            self.thermal_conditions  # Optional
+            self.analysis_params
         ]
         completed = sum(1 for comp in components if comp is not None)
         return (completed / len(components)) * 100

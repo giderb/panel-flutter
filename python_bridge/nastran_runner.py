@@ -20,29 +20,21 @@ class NastranRunner:
 
     def validate_nastran_executable(self) -> bool:
         """Validate that NASTRAN executable is available."""
-        try:
-            # Try to get NASTRAN version
-            result = subprocess.run(
-                [self.nastran_exe, "-version"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            # Check if output contains NASTRAN-related keywords
-            output = (result.stdout + result.stderr).lower()
-            nastran_keywords = ["nastran", "msc", "software", "version"]
-
-            if any(keyword in output for keyword in nastran_keywords):
-                self.logger.info(f"NASTRAN executable validated: {self.nastran_exe}")
-                return True
-            else:
-                self.logger.warning(f"NASTRAN executable may not be valid: {self.nastran_exe}")
-                return False
-
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-            self.logger.error(f"Cannot validate NASTRAN executable {self.nastran_exe}: {e}")
+        # First check if the executable exists
+        if not os.path.exists(self.nastran_exe):
+            self.logger.error(f"NASTRAN executable not found at: {self.nastran_exe}")
             return False
+
+        # For MSC Nastran, the executable might not support -version flag
+        # Just check if file exists and is executable
+        if os.path.isfile(self.nastran_exe):
+            self.logger.info(f"NASTRAN executable found: {self.nastran_exe}")
+            # Check if it's actually an executable (Windows .exe)
+            if self.nastran_exe.lower().endswith('.exe'):
+                return True
+
+        self.logger.warning(f"NASTRAN executable validation uncertain: {self.nastran_exe}")
+        return True  # Allow execution anyway as some NASTRAN versions don't support version check
 
     def run_analysis(self,
                     bdf_file_path: str,
@@ -85,14 +77,12 @@ class NastranRunner:
         if progress_callback:
             progress_callback("Starting NASTRAN execution...", 0.1)
 
-        # Prepare NASTRAN command
+        # Prepare NASTRAN command for MSC Nastran
+        # MSC Nastran typically uses format: nastran.exe input.bdf
+        # Use just the filename when running in the working directory
         cmd = [
             self.nastran_exe,
-            str(bdf_path.name),  # Use relative path in working directory
-            "scr=yes",           # Enable scratch directory
-            "bat=no",            # No batch mode
-            "old=no",            # Overwrite old files
-            f"out={job_name}"    # Specify output file prefix
+            bdf_path.name  # Use just the filename, not full path
         ]
 
         self.logger.info(f"Executing NASTRAN: {' '.join(cmd)}")

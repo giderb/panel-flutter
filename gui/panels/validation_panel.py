@@ -360,14 +360,10 @@ Checking available analysis modules...
   Flutter Frequency: {piston_result.get('flutter_frequency', 'N/A'):.1f} Hz
   Method: {piston_result.get('method', 'N/A')}
 
-  Notebook Comparison:
-    Expected Speed: 999 m/s
-    Actual Speed: {piston_result.get('flutter_speed', 0):.1f} m/s
-    Speed Error: {piston_result.get('notebook_comparison', {}).get('speed_error_percent', 0):.1f}%
-
-    Expected Frequency: 176 Hz
-    Actual Frequency: {piston_result.get('flutter_frequency', 0):.1f} Hz
-    Frequency Error: {piston_result.get('notebook_comparison', {}).get('freq_error_percent', 0):.1f}%
+  ⚠️ CRITICAL SAFETY WARNING ⚠️
+  Flutter values must be computed from actual analysis.
+  No reference values provided - this is a safety-critical application.
+  Real NASTRAN solver required for accurate flutter predictions.
 
 """
         else:

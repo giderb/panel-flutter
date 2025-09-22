@@ -46,11 +46,11 @@ class FlowConditions:
 @dataclass
 class FlutterResult:
     """Flutter analysis result"""
-    flutter_speed: float = 999.0  # Mock value from notebook
-    flutter_frequency: float = 176.0  # Mock value from notebook
-    flutter_mode: int = 5
-    damping: float = 0.0
-    dynamic_pressure: float = 50000.0
+    flutter_speed: float = None  # CRITICAL: Must be computed, NOT mocked
+    flutter_frequency: float = None  # CRITICAL: Must be computed, NOT mocked
+    flutter_mode: int = None
+    damping: float = None
+    dynamic_pressure: float = None
     method: str = "piston_theory"
 
 class SolverMethod(Enum):
@@ -67,16 +67,14 @@ class SolverRecommendation:
     reason: str
 
 class PistonTheorySolver:
-    """Mock Piston Theory Solver"""
+    """Piston Theory Solver - CRITICAL: Real implementation required"""
     def find_critical_flutter_speed(self, panel: PanelProperties, flow: FlowConditions) -> FlutterResult:
-        # Return mock results matching the notebook
-        return FlutterResult(
-            flutter_speed=999.0,
-            flutter_frequency=176.0,
-            flutter_mode=5,
-            damping=0.0,
-            dynamic_pressure=50000.0,
-            method="piston_theory"
+        # CRITICAL: NO MOCK RESULTS ALLOWED
+        raise NotImplementedError(
+            "CRITICAL ERROR: Real flutter analysis implementation required.\n"
+            "This is a safety-critical application - mock values are not acceptable.\n"
+            "Piston theory solver must compute actual flutter speeds and frequencies.\n"
+            "Install and configure proper NASTRAN solver or implement analytical solution."
         )
 
 class SolverSelector:
@@ -290,7 +288,7 @@ class AnalysisValidator:
             solver = self.PistonTheorySolver()
             result = solver.find_critical_flutter_speed(panel, flow)
 
-            # Validate against expected results from notebook (~999 m/s, ~176 Hz)
+            # CRITICAL: No comparison with hardcoded values for safety-critical application
             validation = {
                 "success": True,
                 "flutter_speed": result.flutter_speed,
@@ -299,14 +297,9 @@ class AnalysisValidator:
                 "damping": result.damping,
                 "dynamic_pressure": result.dynamic_pressure,
                 "method": result.method,
-                "speed_range_ok": 800 <= result.flutter_speed <= 1200,
-                "freq_range_ok": 100 <= result.flutter_frequency <= 300,
-                "notebook_comparison": {
-                    "expected_speed": 999,
-                    "expected_frequency": 176,
-                    "speed_error_percent": abs(result.flutter_speed - 999) / 999 * 100,
-                    "freq_error_percent": abs(result.flutter_frequency - 176) / 176 * 100
-                }
+                "speed_range_ok": 800 <= result.flutter_speed <= 1200 if result.flutter_speed else False,
+                "freq_range_ok": 100 <= result.flutter_frequency <= 300 if result.flutter_frequency else False,
+                "warning": "CRITICAL: No reference values used - each analysis must be independently validated"
             }
 
             return validation
