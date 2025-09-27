@@ -313,8 +313,8 @@ class AnalysisPanel(BasePanel):
             return
 
         validation = executor.validate_analysis(
-            project.structural_model,
-            project.aerodynamic_model
+            project.geometry,
+            project.aerodynamic_config
         )
 
         if validation['valid']:
@@ -340,8 +340,8 @@ class AnalysisPanel(BasePanel):
             messagebox.showerror("Error", "No project loaded")
             return
 
-        if not project.structural_model or not project.aerodynamic_model:
-            messagebox.showerror("Error", "Please define structural and aerodynamic models first")
+        if not project.geometry or not project.aerodynamic_config:
+            messagebox.showerror("Error", "Please define geometry and aerodynamic configuration first")
             return
 
         # Prepare configuration
@@ -377,12 +377,12 @@ class AnalysisPanel(BasePanel):
 
         thread = threading.Thread(
             target=self._run_analysis_thread,
-            args=(project.structural_model, project.aerodynamic_model, config)
+            args=(project.geometry, project.aerodynamic_config, config)
         )
         thread.daemon = True
         thread.start()
 
-    def _run_analysis_thread(self, structural_model, aerodynamic_model, config):
+    def _run_analysis_thread(self, geometry, aerodynamic_config, config):
         """Run analysis in separate thread."""
         try:
             # Progress callback
@@ -392,8 +392,8 @@ class AnalysisPanel(BasePanel):
 
             # Run analysis
             self.analysis_results = executor.run_analysis(
-                structural_model,
-                aerodynamic_model,
+                geometry,
+                aerodynamic_config,
                 config,
                 progress_callback
             )
@@ -530,8 +530,8 @@ Execution Time: {self.analysis_results.get('execution_time', 0):.2f} seconds
         config['working_dir'].mkdir(exist_ok=True)
 
         result = executor.generate_bdf_only(
-            project.structural_model,
-            project.aerodynamic_model,
+            project.geometry,
+            project.aerodynamic_config,
             config
         )
 

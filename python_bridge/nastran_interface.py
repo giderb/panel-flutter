@@ -228,16 +228,24 @@ PSHELL  {prop_id:<8}{mat_id:<8}{panel.thickness:<8.5f}"""
             # Use SPC1 card for efficiency
             dof = dof_map.get(bc_edges[0], '3')  # Use first edge BC type
             node_list = sorted(constrained_nodes)
-            
-            lines.append(f"SPC1    {spc_id:<8}{dof:<8}", end="")
-            
-            # Add nodes in groups of 8
+
+            # Build SPC1 card with proper NASTRAN formatting
+            # SPC1 can have up to 6 nodes per line, then continuation cards
+            current_line = f"SPC1    {spc_id:<8}{dof:<8}"
+            nodes_on_line = 0
+
             for i, node in enumerate(node_list):
-                if i % 8 == 0 and i > 0:
-                    lines.append("")
-                    lines.append(f"+       {node:<8}", end="")
+                if nodes_on_line >= 6:  # Start continuation line
+                    lines.append(current_line)
+                    current_line = f"+       {node:<8}"
+                    nodes_on_line = 1
                 else:
-                    lines.append(f"{node:<8}", end="")
+                    current_line += f"{node:<8}"
+                    nodes_on_line += 1
+
+            # Add the final line
+            if current_line.strip():
+                lines.append(current_line)
         
         return "\n".join(lines)
     
