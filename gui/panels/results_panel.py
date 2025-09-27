@@ -16,6 +16,14 @@ from report_generator import ReportGenerator
 
 from .base_panel import BasePanel
 
+# Import enhanced plotting capabilities
+try:
+    from gui.plotting.enhanced_plots import aerospace_plotter
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    print("Warning: Enhanced matplotlib plotting not available. Using basic canvas plots.")
+
 class ResultsPanel(BasePanel):
     """Advanced results visualization panel with modern UI."""
 
@@ -228,6 +236,7 @@ class ResultsPanel(BasePanel):
             ("vg_diagram", "📉 V-g Diagram", "Velocity vs damping plot"),
             ("vf_diagram", "📈 V-f Diagram", "Velocity vs frequency plot"),
             ("modes", "🌊 Mode Shapes", "Structural mode visualization"),
+            ("dashboard", "📊 Dashboard", "Professional aerospace dashboard"),
             ("data", "📊 Data Table", "Detailed numerical results"),
             ("comparison", "🔄 Comparison", "Compare multiple analyses")
         ]
@@ -316,6 +325,8 @@ class ResultsPanel(BasePanel):
             self._show_vf_diagram()
         elif tab_id == "modes":
             self._show_mode_shapes()
+        elif tab_id == "dashboard":
+            self._show_dashboard()
         elif tab_id == "data":
             self._show_data_table()
         elif tab_id == "comparison":
@@ -661,16 +672,32 @@ class ResultsPanel(BasePanel):
         )
         title_label.pack(side="left")
 
+        # Plot options
+        options_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        options_frame.pack(side="right")
+
+        # Professional plot toggle
+        if MATPLOTLIB_AVAILABLE:
+            pro_btn = ctk.CTkButton(
+                options_frame,
+                text="📈 Professional",
+                command=lambda: self._show_professional_vg(),
+                width=120,
+                height=30,
+                corner_radius=6
+            )
+            pro_btn.pack(side="left", padx=(0, 10))
+
         # Export button
         export_btn = ctk.CTkButton(
-            header_frame,
+            options_frame,
             text="📥 Export",
             command=self._export_diagram,
             width=100,
             height=30,
             corner_radius=6
         )
-        export_btn.pack(side="right")
+        export_btn.pack(side="left")
 
         # Diagram placeholder
         diagram_frame = self.theme_manager.create_styled_frame(
@@ -890,6 +917,18 @@ class ResultsPanel(BasePanel):
             font=ctk.CTkFont(size=18, weight="bold")
         )
         title_label.pack(side="left")
+
+        # Professional plot option
+        if MATPLOTLIB_AVAILABLE:
+            pro_btn = ctk.CTkButton(
+                header_frame,
+                text="📈 Professional",
+                command=lambda: self._show_professional_vf(),
+                width=120,
+                height=30,
+                corner_radius=6
+            )
+            pro_btn.pack(side="right")
 
         # Diagram placeholder
         diagram_frame = self.theme_manager.create_styled_frame(
@@ -1378,6 +1417,119 @@ class ResultsPanel(BasePanel):
                 )
                 value_label.grid(row=0, column=i, padx=5, pady=8, sticky="w")
 
+    def _show_dashboard(self):
+        """Show professional aerospace dashboard."""
+        container = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        if not self.analysis_results:
+            self._show_no_data_message(container)
+            return
+
+        # Check if matplotlib is available
+        if not MATPLOTLIB_AVAILABLE:
+            # Fallback message
+            fallback_frame = self.theme_manager.create_styled_frame(
+                container,
+                elevated=True
+            )
+            fallback_frame.pack(fill="both", expand=True)
+
+            fallback_label = self.theme_manager.create_styled_label(
+                fallback_frame,
+                text="Professional Dashboard requires matplotlib.\nPlease install: pip install matplotlib seaborn",
+                font=ctk.CTkFont(size=14),
+                text_color=self.theme_manager.get_color("text_secondary")
+            )
+            fallback_label.pack(pady=50)
+            return
+
+        # Header with plot options
+        header_frame = ctk.CTkFrame(container, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 20))
+
+        title_label = self.theme_manager.create_styled_label(
+            header_frame,
+            text="Professional Aerospace Dashboard",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        title_label.pack(side="left")
+
+        # Plot type selector
+        plot_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        plot_frame.pack(side="right")
+
+        plot_label = self.theme_manager.create_styled_label(
+            plot_frame,
+            text="View:",
+            font=ctk.CTkFont(size=12)
+        )
+        plot_label.pack(side="left", padx=(0, 10))
+
+        self.plot_type_var = ctk.StringVar(value="Dashboard")
+        plot_combo = ctk.CTkComboBox(
+            plot_frame,
+            variable=self.plot_type_var,
+            values=["Dashboard", "V-g Professional", "V-f Professional", "Mode Shapes"],
+            width=150,
+            command=self._on_plot_type_changed
+        )
+        plot_combo.pack(side="left")
+
+        # Professional plot container
+        self.plot_container = ctk.CTkFrame(
+            container,
+            corner_radius=12,
+            fg_color=self.theme_manager.get_color("background")
+        )
+        self.plot_container.pack(fill="both", expand=True)
+
+        # Show initial dashboard
+        self._show_matplotlib_plot("Dashboard")
+
+    def _on_plot_type_changed(self, selection):
+        """Handle plot type selection change."""
+        self._show_matplotlib_plot(selection)
+
+    def _show_matplotlib_plot(self, plot_type):
+        """Show the selected matplotlib plot."""
+        # Clear existing plot
+        for widget in self.plot_container.winfo_children():
+            widget.destroy()
+
+        if not MATPLOTLIB_AVAILABLE or not self.analysis_results:
+            return
+
+        try:
+            if plot_type == "Dashboard":
+                plot_frame = aerospace_plotter.create_summary_dashboard(
+                    self.plot_container, self.analysis_results
+                )
+            elif plot_type == "V-g Professional":
+                plot_frame = aerospace_plotter.create_vg_diagram(
+                    self.plot_container, self.analysis_results
+                )
+            elif plot_type == "V-f Professional":
+                plot_frame = aerospace_plotter.create_vf_diagram(
+                    self.plot_container, self.analysis_results
+                )
+            elif plot_type == "Mode Shapes":
+                plot_frame = aerospace_plotter.create_mode_shapes_plot(
+                    self.plot_container, self.analysis_results
+                )
+
+            if plot_frame:
+                plot_frame.pack(fill="both", expand=True)
+
+        except Exception as e:
+            error_label = self.theme_manager.create_styled_label(
+                self.plot_container,
+                text=f"Error creating plot: {str(e)}",
+                font=ctk.CTkFont(size=12),
+                text_color="red"
+            )
+            error_label.pack(pady=50)
+
     def _show_comparison(self):
         """Show comparison view."""
         container = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -1529,6 +1681,52 @@ class ResultsPanel(BasePanel):
         )
         if file_path:
             self.show_info("Export", f"Diagram would be exported to: {file_path}")
+
+    def _show_professional_vg(self):
+        """Show professional V-g diagram using matplotlib."""
+        if not MATPLOTLIB_AVAILABLE or not self.analysis_results:
+            return
+
+        # Create new window for professional plot
+        pro_window = ctk.CTkToplevel(self.main_window.root)
+        pro_window.title("Professional V-g Diagram - NASTRAN Panel Flutter Analysis")
+        pro_window.geometry("1200x800")
+
+        # Create the professional plot
+        try:
+            plot_frame = aerospace_plotter.create_vg_diagram(pro_window, self.analysis_results)
+            plot_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        except Exception as e:
+            error_label = ctk.CTkLabel(
+                pro_window,
+                text=f"Error creating professional plot: {str(e)}",
+                font=ctk.CTkFont(size=12),
+                text_color="red"
+            )
+            error_label.pack(pady=50)
+
+    def _show_professional_vf(self):
+        """Show professional V-f diagram using matplotlib."""
+        if not MATPLOTLIB_AVAILABLE or not self.analysis_results:
+            return
+
+        # Create new window for professional plot
+        pro_window = ctk.CTkToplevel(self.main_window.root)
+        pro_window.title("Professional V-f Diagram - NASTRAN Panel Flutter Analysis")
+        pro_window.geometry("1200x800")
+
+        # Create the professional plot
+        try:
+            plot_frame = aerospace_plotter.create_vf_diagram(pro_window, self.analysis_results)
+            plot_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        except Exception as e:
+            error_label = ctk.CTkLabel(
+                pro_window,
+                text=f"Error creating professional plot: {str(e)}",
+                font=ctk.CTkFont(size=12),
+                text_color="red"
+            )
+            error_label.pack(pady=50)
 
     def _export_data(self, format):
         """Export data in specified format."""
