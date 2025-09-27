@@ -1,61 +1,64 @@
-"""
-WORKING NASTRAN BDF File Generator for Flutter Analysis
-========================================================
+"""Robust NASTRAN BDF generator used by the GUI flutter workflow."""
 
-Generates proper NASTRAN Bulk Data Files for panel flutter analysis
-with correct 8-character fixed field formatting.
-"""
+from __future__ import annotations
 
-import numpy as np
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
-import datetime
+from typing import Dict, Any, Iterable, List, Optional
+from dataclasses import dataclass, field
 import logging
+
+from pyNastran.bdf.bdf import BDF
+from pyNastran.bdf.case_control_deck import CaseControlDeck
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PanelConfig:
-    """Panel configuration for BDF generation"""
-    length: float  # mm
-    width: float   # mm
-    thickness: float  # mm
-    nx: int  # elements in x direction
-    ny: int  # elements in y direction
+    """Panel configuration for BDF generation (lengths in mm)."""
+
+    length: float
+    width: float
+    thickness: float
+    nx: int
+    ny: int
     material_id: int = 1
     property_id: int = 1
 
 
 @dataclass
 class MaterialConfig:
-    """Material properties for BDF (SI units: mm-kg-s-N)"""
-    youngs_modulus: float  # MPa (N/mm^2)
-    poissons_ratio: float  # dimensionless
-    density: float  # kg/mm^3 = original_kg_per_m3 * 1e-9
-    shear_modulus: Optional[float] = None  # MPa (N/mm^2)
+    """Material properties for BDF (SI units: mm-kg-s-N)."""
+
+    youngs_modulus: float
+    poissons_ratio: float
+    density: float
+    shear_modulus: Optional[float] = None
     material_id: int = 1
 
 
 @dataclass
 class AeroConfig:
-    """Aerodynamic configuration for BDF (SI units: mm-kg-s-N)"""
+    """Aerodynamic configuration for BDF (SI units: mm-kg-s-N)."""
+
     mach_number: float
     reference_velocity: float  # mm/s
     reference_chord: float  # mm
     reference_density: float  # kg/mm^3
-    reduced_frequencies: List[float] = None
-    velocities: List[float] = None  # mm/s
+    reduced_frequencies: List[float] = field(default_factory=list)
+    velocities: List[float] = field(default_factory=list)  # mm/s
 
 
 class WorkingBDFGenerator:
-    """Working NASTRAN BDF file generator for flutter analysis"""
+    """Create NASTRAN bulk data files ready for flutter analysis."""
 
-    def __init__(self, output_dir: str = "."):
+    def __init__(self, output_dir: str = ".") -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    # ------------------------------------------------------------------
+    # High level API
+    # ------------------------------------------------------------------
     def generate_bdf(
         self,
         panel: PanelConfig,
@@ -63,261 +66,212 @@ class WorkingBDFGenerator:
         aero: AeroConfig,
         boundary_conditions: str = "SSSS",
         n_modes: int = 10,
-        output_filename: str = "flutter_analysis.bdf"
+        output_filename: str = "flutter_analysis.bdf",
     ) -> str:
-        """Generate a working NASTRAN BDF file for flutter analysis"""
+        """Generate a fully validated BDF file for SOL 145 flutter analysis."""
+
+        self._validate_inputs(panel, material, aero, n_modes)
+
+        bdf_model = BDF()
+        bdf_model.sol = 145
+        bdf_model.case_control_deck = self._build_case_control()
+        self._add_global_parameters(bdf_model)
+        self._add_material_and_property(bdf_model, panel, material)
+        grid_ids = self._add_structural_model(bdf_model, panel)
+        self._apply_boundary_conditions(bdf_model, panel, boundary_conditions, grid_ids)
+        self._add_modal_extraction(bdf_model, n_modes)
+        self._add_aero_model(bdf_model, panel, aero, grid_ids)
+        self._add_flutter_cards(bdf_model, aero)
 
         filepath = self.output_dir / output_filename
-        lines = []
+        logger.debug("Writing BDF to %s", filepath)
+        bdf_model.write_bdf(str(filepath), interspersed=False)
+        logger.info("Generated BDF file: %s", filepath)
+        return str(filepath)
 
-        # Header comments
-        lines.append("$ WORKING NASTRAN FLUTTER ANALYSIS")
-        lines.append(f"$ Generated: {datetime.datetime.now()}")
-        lines.append(f"$ Panel: {panel.length}mm x {panel.width}mm")
-        lines.append("$")
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _validate_inputs(
+        self,
+        panel: PanelConfig,
+        material: MaterialConfig,
+        aero: AeroConfig,
+        n_modes: int,
+    ) -> None:
+        if panel.nx < 1 or panel.ny < 1:
+            raise ValueError("Panel mesh must have at least 1 element in both directions")
+        if panel.length <= 0 or panel.width <= 0:
+            raise ValueError("Panel dimensions must be positive")
+        if panel.thickness <= 0:
+            raise ValueError("Panel thickness must be positive")
+        if material.youngs_modulus <= 0 or material.density <= 0:
+            raise ValueError("Material properties must be positive")
+        if n_modes < 1:
+            raise ValueError("At least one mode must be requested for eigenvalue extraction")
+        if aero.reference_chord <= 0 or aero.reference_velocity <= 0:
+            raise ValueError("Aerodynamic reference values must be positive")
+        if aero.reference_density <= 0:
+            raise ValueError("Aerodynamic reference density must be positive")
 
-        # Executive control
-        lines.append("SOL 145")
-        lines.append("CEND")
+    def _build_case_control(self) -> CaseControlDeck:
+        """Create a case control deck that requests flutter output."""
 
-        # Case control
-        lines.append("TITLE = Panel Flutter Analysis")
-        lines.append("ECHO = NONE")
-        lines.append("SPC = 1")
-        lines.append("METHOD = 1")
-        lines.append("FMETHOD = 1")
-        lines.append("BEGIN BULK")
-        lines.append("$")
+        case_control = [
+            "TITLE = Panel Flutter Analysis",
+            "ECHO = NONE",
+            "SUBCASE 1",
+            "    LABEL = Flutter Analysis",
+            "    METHOD = 1",
+            "    FMETHOD = 1",
+            "    SPC = 1",
+            "    FLUTTER = 1",
+            "    DISPLACEMENT(PLOT) = ALL",
+            "    SPCFORCES = ALL",
+        ]
+        return CaseControlDeck(case_control)
 
-        # Parameters
-        lines.append("PARAM   COUPMASS1")
-        lines.append("PARAM   GRDPNT  0")
-        # WTMASS not needed when density is specified directly in MAT1
-        # For SI units in mm, if needed: WTMASS = 1/g = 1/9810 = 1.019e-4
-        lines.append("$")
+    def _add_global_parameters(self, model: BDF) -> None:
+        model.add_param("POST", -2)
+        model.add_param("COUPMASS", 1.0)
+        model.add_param("GRDPNT", 0)
 
-        # Material (convert to NASTRAN units)
-        # Calculate shear modulus if not provided
-        if material.shear_modulus is None:
-            G = material.youngs_modulus / (2 * (1 + material.poissons_ratio))
-        else:
-            G = material.shear_modulus
+    def _add_material_and_property(self, model: BDF, panel: PanelConfig, material: MaterialConfig) -> None:
+        shear_modulus = material.shear_modulus
+        if shear_modulus is None:
+            shear_modulus = material.youngs_modulus / (2.0 * (1.0 + material.poissons_ratio))
+        model.add_mat1(
+            material.material_id,
+            material.youngs_modulus,
+            shear_modulus,
+            material.poissons_ratio,
+            material.density,
+        )
+        model.add_pshell(panel.property_id, material.material_id, t=panel.thickness)
 
-        lines.append("$ Material Properties (SI units in mm)")
-        # Format: MAT1 MID E G NU RHO
-        # Note: E and G should be in MPa (N/mm^2), density in ton/mm^3
-        # Use scientific notation for large values to fit in 8 characters
-        mat1_line = "MAT1    "
-        mat1_line += f"{1:8d}"  # MID (field 2)
-        # Use scientific notation for E and G to fit in 8 characters
-        mat1_line += f"{material.youngs_modulus:8.2e}"  # E (field 3)
-        mat1_line += f"{G:8.2e}"  # G (field 4)
-        mat1_line += f"{material.poissons_ratio:8.3f}"  # NU (field 5)
-        mat1_line += f"{material.density:8.2e}"  # RHO (field 6)
-        lines.append(mat1_line)
-        lines.append("$")
-
-        # Shell property
-        lines.append("$ Shell Property")
-        lines.append(f"PSHELL  1       1       {panel.thickness:.1f}")
-        lines.append("$")
-
-        # Grid points
-        lines.append("$ Grid Points")
-        grid_id = 1
+    def _add_structural_model(self, model: BDF, panel: PanelConfig) -> List[int]:
+        grid_ids: List[int] = []
         dx = panel.length / panel.nx
         dy = panel.width / panel.ny
-
+        node_id = 1
         for j in range(panel.ny + 1):
             for i in range(panel.nx + 1):
                 x = i * dx
                 y = j * dy
-                z = 0.0
-                lines.append(f"GRID    {grid_id:<8}        {x:<8.1f}{y:<8.1f}{z:<8.1f}")
-                grid_id += 1
-        lines.append("$")
+                model.add_grid(node_id, [x, y, 0.0])
+                grid_ids.append(node_id)
+                node_id += 1
 
-        # Elements
-        lines.append("$ Elements")
-        elem_id = 1
+        element_id = 1
         for j in range(panel.ny):
             for i in range(panel.nx):
                 n1 = j * (panel.nx + 1) + i + 1
                 n2 = n1 + 1
                 n3 = n1 + panel.nx + 2
                 n4 = n1 + panel.nx + 1
-                lines.append(f"CQUAD4  {elem_id:<8}{panel.property_id:<8}{n1:<8}{n2:<8}{n3:<8}{n4:<8}")
-                elem_id += 1
-        lines.append("$")
+                model.add_cquad4(element_id, panel.property_id, [n1, n2, n3, n4])
+                element_id += 1
+        return grid_ids
 
-        # Boundary conditions
-        lines.append("$ Boundary Conditions (Simply Supported)")
-        # Handle both string and Enum types
-        if hasattr(boundary_conditions, 'value'):
-            bc_str = boundary_conditions.value
+    def _apply_boundary_conditions(
+        self,
+        model: BDF,
+        panel: PanelConfig,
+        boundary_conditions: str,
+        grid_ids: List[int],
+    ) -> None:
+        if hasattr(boundary_conditions, "value"):
+            bc_string = boundary_conditions.value
         else:
-            bc_str = str(boundary_conditions)
+            bc_string = str(boundary_conditions or "SSSS")
+        bc_string = bc_string.upper()
+        if len(bc_string) != 4:
+            raise ValueError("Boundary condition string must contain 4 characters (one per edge)")
 
-        if bc_str.upper() == "SSSS":
-            # Simply supported - constrain Z displacement on all edges
-            edge_nodes = []
+        edge_nodes = self._collect_edge_nodes(panel)
+        dof_map = {"C": "123456", "S": "3", "F": ""}
+        dof_to_nodes: dict[str, set[int]] = {}
+        for edge, code in zip(("bottom", "right", "top", "left"), bc_string):
+            dofs = dof_map.get(code)
+            if dofs is None:
+                raise ValueError(f"Unsupported boundary condition code: {code}")
+            if not dofs:
+                continue
+            dof_to_nodes.setdefault(dofs, set()).update(edge_nodes[edge])
 
-            # Bottom edge (j=0)
-            for i in range(panel.nx + 1):
-                edge_nodes.append(i + 1)
+        spc_id = 1
+        for dof_string, nodes in dof_to_nodes.items():
+            model.add_spc1(spc_id, dof_string, sorted(nodes))
+            spc_id += 1
 
-            # Top edge (j=ny)
-            for i in range(panel.nx + 1):
-                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+        # Remove rigid body motion by pinning in-plane DOF at reference nodes
+        anchor = grid_ids[0]
+        model.add_spc1(spc_id, "12", [anchor])
+        spc_id += 1
+        if len(grid_ids) > 1:
+            model.add_spc1(spc_id, "2", [grid_ids[1]])
+            spc_id += 1
+        row_step = panel.nx + 1
+        if len(grid_ids) > row_step:
+            model.add_spc1(spc_id, "1", [grid_ids[row_step]])
 
-            # Left edge (i=0) - skip corners
-            for j in range(1, panel.ny):
-                edge_nodes.append(j * (panel.nx + 1) + 1)
+    def _collect_edge_nodes(self, panel: PanelConfig) -> Dict[str, Iterable[int]]:
+        bottom = [i + 1 for i in range(panel.nx + 1)]
+        top = [panel.ny * (panel.nx + 1) + i + 1 for i in range(panel.nx + 1)]
+        left = [j * (panel.nx + 1) + 1 for j in range(1, panel.ny)]
+        right = [j * (panel.nx + 1) + panel.nx + 1 for j in range(1, panel.ny)]
+        return {
+            "bottom": bottom,
+            "top": top,
+            "left": left,
+            "right": right,
+        }
 
-            # Right edge (i=nx) - skip corners
-            for j in range(1, panel.ny):
-                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+    def _add_modal_extraction(self, model: BDF, n_modes: int) -> None:
+        model.add_eigrl(1, nd=n_modes, msglvl=0)
 
-            # Remove duplicates and sort
-            edge_nodes = sorted(set(edge_nodes))
+    def _add_aero_model(self, model: BDF, panel: PanelConfig, aero: AeroConfig, grid_ids: List[int]) -> None:
+        model.add_aero(aero.reference_velocity, aero.reference_chord, aero.reference_density)
+        model.add_paero1(1)
+        model.add_caero1(
+            1001,
+            1,
+            0,
+            [0.0, 0.0, 0.0],
+            panel.length,
+            [0.0, panel.width, 0.0],
+            panel.length,
+            cp=0,
+            nspan=panel.ny,
+            nchord=panel.nx,
+        )
+        model.add_set1(1, grid_ids)
+        model.add_spline1(1, 1001, 1, panel.nx * panel.ny, 1)
 
-            # Write a single SPC1 card with continuation
-            spc_line = "SPC1    1       3       "
-            for i, node in enumerate(edge_nodes):
-                if i > 0 and i % 6 == 0:
-                    lines.append(spc_line)
-                    spc_line = "+       "  # Use + marker for continuation
-                spc_line += f"{node:<8}"
-            if spc_line.strip():
-                lines.append(spc_line)
-        lines.append("$")
+    def _add_flutter_cards(self, model: BDF, aero: AeroConfig) -> None:
+        density_values = [1.0]
+        mach_values = [aero.mach_number]
+        velocity_values = self._prepare_velocity_list(aero.velocities)
+        reduced_freqs = self._prepare_reduced_frequency_list(aero.reduced_frequencies)
 
-        # Eigenvalue extraction
-        lines.append("$ Eigenvalue Extraction")
-        # EIGRL with MSGLVL field to avoid fatal error
-        sid = 1
-        msglvl = 0  # Set to 0 to avoid MSGLVL:10 <= 4 error
-        # Format: field 1=EIGRL, field 2=SID, fields 3-4 blank, field 5=ND, field 6=MSGLVL
-        lines.append(f"EIGRL   {sid:8d}{'':16}{n_modes:8d}{msglvl:8d}")
-        lines.append("$")
+        model.add_flfact(1, density_values)
+        model.add_flfact(2, mach_values)
+        model.add_flfact(3, velocity_values)
+        model.add_flutter(1, "PK", 1, 2, 3, "L")
+        model.add_mkaero1(mach_values, reduced_freqs)
 
-        # Aerodynamic reference
-        lines.append("$ Aerodynamic Reference")
-        # AERO card: Field 3=velocity scale, Field 4=chord, Field 5=density, Fields 6-7=symmetry
-        # Use actual reference values from aero config
-        # Format density in scientific notation for NASTRAN
-        rho_ref = aero.reference_density if aero.reference_density else 1.225e-9  # kg/mm³
-        chord_ref = aero.reference_chord if aero.reference_chord else panel.length  # mm
-        # Ensure proper formatting for small numbers
-        rho_str = f"{rho_ref:.3e}".replace('e-0', 'e-').replace('e+0', 'e+')
-        lines.append(f"AERO    0       1.0e6   {chord_ref:<8.1f}{rho_str:<8}1       0")
-        lines.append("$")
+    def _prepare_velocity_list(self, velocities: Iterable[float]) -> List[float]:
+        values = [float(v) for v in velocities if float(v) > 0]
+        if not values:
+            # Default sweep from 500 m/s to 1500 m/s (converted to mm/s)
+            values = [v * 1.0e5 for v in range(5, 16)]
+        return sorted(values)
 
-        # Aerodynamic panel property
-        lines.append("PAERO1  1")
-        lines.append("$")
-
-        # CAERO1 panel - needs proper continuation format
-        lines.append("$ Aerodynamic Panel")
-        # CAERO1 with blank CP field (not 0)
-        lines.append(f"CAERO1  1001    1               {panel.ny:<8}{panel.nx:<8}        0       1")
-        # Single continuation line with proper field widths (8 chars each)
-        x1, y1, z1 = 0.0, 0.0, 0.0
-        x12 = panel.length
-        x4, y4, z4 = 0.0, panel.width, 0.0
-        x43 = panel.length
-        # Format with exactly 8 characters per field
-        cont_line = "+       "
-        cont_line += f"{x1:8.1f}{y1:8.1f}{z1:8.1f}{x12:8.1f}"
-        cont_line += f"{x4:8.1f}{y4:8.1f}{z4:8.1f}{x43:8.1f}"
-        lines.append(cont_line)
-        lines.append("$")
-
-        # Spline - use SPLINE1 to avoid singular matrix error
-        lines.append("$ Spline")
-        n_aero_boxes = panel.nx * panel.ny
-        lines.append(f"SPLINE1 1       1001    1001    {1001 + n_aero_boxes - 1:<8}1")
-        lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
-        lines.append("$")
-
-        # Flutter cards
-        lines.append("$ Flutter Analysis")
-        # FLUTTER card: PK method with density (1), Mach (2), reduced freq/velocity (3)
-        # The last field should be interpolation method (L, S, or TCUB), not a FLFACT ID
-        lines.append("FLUTTER 1       PK      1       2       3       L")
-
-        # Density ratio list (FLFACT 1)
-        lines.append("FLFACT  1       1.0")
-
-        # Mach number (FLFACT 2)
-        lines.append(f"FLFACT  2       {aero.mach_number:.1f}")
-
-        # For V-g/PK method, FLFACT 3 contains velocities (not reduced frequencies)
-        # Velocities are the key for flutter speed detection
-        if aero.velocities:
-            # Write velocities in multiple lines if needed
-            vel_idx = 0
-            while vel_idx < len(aero.velocities):
-                if vel_idx == 0:
-                    vel_line = "FLFACT  3       "
-                else:
-                    vel_line = "+       "
-                # Add up to 8 velocities per line
-                for i in range(8):
-                    if vel_idx < len(aero.velocities):
-                        vel = aero.velocities[vel_idx]
-                        # Format for 8-character field - use simple notation
-                        if vel >= 1e7:
-                            vel_str = f"{vel:.1e}"
-                        elif vel >= 1e6:
-                            # Format with +6 notation, ensuring 8 characters
-                            vel_str = f"{vel/1e6:.2f}+6"
-                            if len(vel_str) < 8:
-                                vel_str = vel_str.ljust(8)
-                        else:
-                            vel_str = f"{vel:.0f}."
-                        # Make sure it's exactly 8 characters
-                        vel_str = vel_str[:8].ljust(8)
-                        vel_line += vel_str
-                        vel_idx += 1
-                    else:
-                        break
-                # Don't strip trailing spaces - NASTRAN needs fixed 8-char fields
-                lines.append(vel_line)
-        else:
-            # Default velocity range in mm/s (500-1500 m/s)
-            lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 1.2E+06")
-            lines.append("+       1.3E+06 1.4E+06 1.5E+06")
-        lines.append("$")
-
-        # MKAERO1
-        lines.append("$ Aerodynamic Matrices")
-        # Always use the actual Mach number from aero config
-        mkaero_line = "MKAERO1 "
-        mkaero_line += f"{aero.mach_number:8.1f}"
-        lines.append(mkaero_line)
-
-        # Continuation line with reduced frequencies
-        cont_line = "+       "
-        if aero.reduced_frequencies:
-            for k in aero.reduced_frequencies[:8]:
-                cont_line += f"{k:8.3f}"
-        else:
-            # Default reduced frequencies if not provided
-            for k in [0.001, 0.010, 0.100, 0.200]:
-                cont_line += f"{k:8.3f}"
-        lines.append(cont_line)
-        lines.append("$")
-
-        # End of data
-        lines.append("ENDDATA")
-
-        # Write file
-        with open(filepath, 'w') as f:
-            f.write('\n'.join(lines))
-
-        logger.info(f"Generated BDF file: {filepath}")
-        return str(filepath)
+    def _prepare_reduced_frequency_list(self, reduced_freqs: Iterable[float]) -> List[float]:
+        values = [float(k) for k in reduced_freqs if float(k) > 0]
+        if not values:
+            values = [0.001, 0.01, 0.05, 0.1, 0.2]
+        return sorted(values)
 
 
 def create_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") -> str:
