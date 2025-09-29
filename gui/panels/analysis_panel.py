@@ -73,7 +73,7 @@ class AnalysisPanel(BasePanel):
         )
         method_label.pack(side="left", padx=(0, 10))
         
-        self.method_var = tk.StringVar(value="physics")
+        self.method_var = tk.StringVar(value="both")
         
         methods = [
             ("Physics-Based", "physics"),

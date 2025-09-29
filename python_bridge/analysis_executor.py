@@ -19,9 +19,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import the validated flutter analysis components
 try:
-    from flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions as FlowCond
-    from nastran_interface import NastranBDFGenerator, F06Parser
-    from integrated_analysis_executor import IntegratedFlutterExecutor
+    from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions as FlowCond
+    from .pynastran_bdf_generator import PyNastranBDFGenerator, create_pynastran_flutter_bdf
+    from .nastran_interface import F06Parser
+    from .integrated_analysis_executor import IntegratedFlutterExecutor
     ANALYSIS_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import analysis modules: {e}")
@@ -124,23 +125,38 @@ class AnalysisExecutor:
             # Convert models
             panel = self._convert_structural_model(structural_model)
             flow = self._convert_aerodynamic_model(aerodynamic_model)
-            
-            # Generate BDF
-            generator = NastranBDFGenerator()
-            bdf_path = Path(config.get('working_dir', '.')) / 'flutter_analysis.bdf'
-            
-            bdf_content = generator.generate_flutter_bdf(
-                panel, flow,
-                mesh_nx=config.get('mesh_nx', 20),
-                mesh_ny=config.get('mesh_ny', 20),
-                n_modes=config.get('n_modes', 20),
-                v_range=(config.get('velocity_min', 100), config.get('velocity_max', 2000)),
-                output_path=bdf_path
-            )
+
+            # Generate BDF using pyNastran generator
+            working_dir = config.get('working_dir', '.')
+            generator = PyNastranBDFGenerator(output_dir=working_dir)
+            bdf_path = Path(working_dir) / 'flutter_analysis.bdf'
+
+            # Create config dict for pyNastran generator
+            bdf_config = {
+                'panel_length': panel.length,
+                'panel_width': panel.width,
+                'thickness': panel.thickness,
+                'nx': config.get('mesh_nx', 20),
+                'ny': config.get('mesh_ny', 20),
+                'youngs_modulus': panel.youngs_modulus,
+                'poissons_ratio': panel.poissons_ratio,
+                'density': panel.density,
+                'mach_number': flow.mach_number,
+                'velocity': getattr(flow, 'velocity', 1000),
+                'boundary_conditions': panel.boundary_conditions,
+                'n_modes': config.get('n_modes', 20),
+                'output_filename': bdf_path.name
+            }
+
+            bdf_file_path = create_pynastran_flutter_bdf(bdf_config, working_dir)
+
+            # Read BDF content for return
+            with open(bdf_file_path, 'r') as f:
+                bdf_content = f.read()
             
             return {
                 'success': True,
-                'bdf_file': str(bdf_path),
+                'bdf_file': str(bdf_file_path),
                 'bdf_content': bdf_content,
                 'bdf_lines': len(bdf_content.split('\n'))
             }

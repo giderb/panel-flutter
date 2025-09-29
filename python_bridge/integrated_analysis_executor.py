@@ -17,7 +17,7 @@ from dataclasses import asdict
 # Import validated components
 from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions, FlutterResult
 from .nastran_interface import F06Parser
-from .bdf_generator_sol145_fixed import Sol145BDFGenerator, PanelConfig, MaterialConfig, AeroConfig
+from .pynastran_bdf_generator import PyNastranBDFGenerator, create_pynastran_flutter_bdf
 
 
 class IntegratedFlutterExecutor:
@@ -45,43 +45,44 @@ class IntegratedFlutterExecutor:
         
         self.logger.info(f"Initialized executor. NASTRAN: {'Available' if self.nastran_path else 'Not found'}")
 
-    def _convert_to_bdf_configs(self, panel: PanelProperties, flow: FlowConditions, mesh_nx: int, mesh_ny: int) -> tuple:
-        """Convert PanelProperties and FlowConditions to Sol145BDFGenerator config objects"""
+    def _create_bdf_config(self, panel: PanelProperties, flow: FlowConditions, mesh_nx: int, mesh_ny: int) -> Dict[str, Any]:
+        """Create configuration dict for PyNastranBDFGenerator"""
 
-        # Convert to mm-kg-s-N units for NASTRAN
-        panel_config = PanelConfig(
-            length=panel.length * 1000,  # m to mm
-            width=panel.width * 1000,    # m to mm
-            thickness=panel.thickness * 1000,  # m to mm
-            nx=mesh_nx,
-            ny=mesh_ny,
-            material_id=1,
-            property_id=1
-        )
-
-        material_config = MaterialConfig(
-            youngs_modulus=panel.youngs_modulus / 1e6,  # Pa to MPa (N/mm^2)
-            poissons_ratio=panel.poissons_ratio,
-            density=panel.density * 1e-9,  # kg/m^3 to kg/mm^3
-            material_id=1
-        )
-
-        # Calculate velocity list in mm/s
+        # Calculate velocity list in m/s for pyNastran generator
         velocities = []
         for i in range(10):  # Create velocity sweep
             v_ms = 500 + i * 100  # 500 to 1400 m/s
-            v_mms = v_ms * 1000   # Convert to mm/s
-            velocities.append(v_mms)
+            velocities.append(v_ms)
 
-        aero_config = AeroConfig(
-            mach_number=flow.mach_number,
-            reference_velocity=flow.velocity * 1000 if hasattr(flow, 'velocity') else 1000000,  # m/s to mm/s
-            reference_chord=panel.length * 1000,  # m to mm
-            reference_density=flow.density * 1e-9,  # kg/m^3 to kg/mm^3
-            velocities=velocities
-        )
+        config = {
+            # Panel geometry (m)
+            'panel_length': panel.length,
+            'panel_width': panel.width,
+            'thickness': panel.thickness,
 
-        return panel_config, material_config, aero_config
+            # Mesh parameters
+            'nx': mesh_nx,
+            'ny': mesh_ny,
+
+            # Material properties (SI units)
+            'youngs_modulus': panel.youngs_modulus,  # Pa
+            'poissons_ratio': panel.poissons_ratio,
+            'density': panel.density,  # kg/m^3
+
+            # Aerodynamic conditions
+            'mach_number': flow.mach_number,
+            'velocity': flow.velocity if hasattr(flow, 'velocity') else 1000,  # m/s
+            'velocities': velocities,  # m/s
+
+            # Boundary conditions
+            'boundary_conditions': panel.boundary_conditions,
+
+            # Analysis parameters
+            'reduced_frequencies': [0.001, 0.01, 0.1, 0.2],
+            'output_filename': 'flutter_analysis.bdf'
+        }
+
+        return config
 
     def execute_analysis(self, 
                         structural_model: Any,
@@ -127,28 +128,25 @@ class IntegratedFlutterExecutor:
                 if progress_callback:
                     progress_callback("Generating NASTRAN BDF file...", 0.4)
 
-                # Initialize BDF generator with proper working directory
+                # Initialize pyNastran BDF generator with proper working directory
                 working_dir = config.get('working_dir', '.')
-                self.bdf_generator = Sol145BDFGenerator(output_dir=working_dir)
+                self.bdf_generator = PyNastranBDFGenerator(output_dir=working_dir)
 
                 bdf_path = Path(working_dir) / 'flutter_analysis.bdf'
 
-                # Convert to Sol145BDFGenerator config objects
+                # Create config for pyNastran generator
                 mesh_nx = config.get('mesh_nx', 20)
                 mesh_ny = config.get('mesh_ny', 20)
-                panel_config, material_config, aero_config = self._convert_to_bdf_configs(
-                    panel, flow, mesh_nx, mesh_ny
-                )
+                bdf_config = self._create_bdf_config(panel, flow, mesh_nx, mesh_ny)
 
-                # Generate BDF using corrected Sol145 generator
-                bdf_content = self.bdf_generator.generate_bdf(
-                    panel=panel_config,
-                    material=material_config,
-                    aero=aero_config,
-                    boundary_conditions=panel.boundary_conditions,
-                    n_modes=config.get('n_modes', 20),
-                    output_filename=bdf_path.name
-                )
+                # Update config with additional analysis parameters
+                bdf_config.update({
+                    'n_modes': config.get('n_modes', 20),
+                    'output_filename': bdf_path.name
+                })
+
+                # Generate BDF using validated pyNastran generator
+                bdf_file_path = create_pynastran_flutter_bdf(bdf_config, working_dir)
                 
                 # Step 4: Execute NASTRAN if requested
                 if config.get('execute_nastran', False):

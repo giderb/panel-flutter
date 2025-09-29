@@ -238,21 +238,20 @@ class Sol145BDFGenerator:
                 if vel_idx == 0:
                     vel_line = "FLFACT  3       "
                 else:
-                    vel_line = "+       "
-                # Add up to 8 velocities per line
-                for i in range(8):
+                    # NASTRAN continuation line - must start in column 1 with proper spacing
+                    vel_line = "+               "  # 16 spaces to reach field 3 (8 chars for '+', 8 for blank field 2)
+                # Add up to 8 velocities per line (6 velocities for continuation lines)
+                max_velocities = 8 if vel_idx == 0 else 6  # First line has more space
+                for i in range(max_velocities):
                     if vel_idx < len(aero.velocities):
                         vel = aero.velocities[vel_idx]
                         # Format for 8-character field
                         if vel >= 1e7:
-                            vel_str = f"{vel:.1e}"
+                            vel_str = f"{vel:.1e}".ljust(8)
                         elif vel >= 1e6:
-                            vel_str = f"{vel/1e6:.2f}+6"
-                            if len(vel_str) < 8:
-                                vel_str = vel_str.ljust(8)
+                            vel_str = f"{vel/1e6:.2f}+6".ljust(8)
                         else:
-                            vel_str = f"{vel:.0f}."
-                        vel_str = vel_str[:8].ljust(8)
+                            vel_str = f"{vel:.0f}.".ljust(8)
                         vel_line += vel_str
                         vel_idx += 1
                     else:
@@ -261,7 +260,7 @@ class Sol145BDFGenerator:
         else:
             # Default velocity range in mm/s
             lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 1.2E+06")
-            lines.append("+       1.3E+06 1.4E+06 1.5E+06")
+            lines.append("+               1.3E+06 1.4E+06 1.5E+06")
         lines.append("$")
 
         # CORRECTED MKAERO1 card for piston theory - VALIDATED FORMAT
@@ -273,7 +272,7 @@ class Sol145BDFGenerator:
 
         # Continuation card with validated reduced frequencies
         # Use exact format from working example: .001 .1 .2 .4
-        lines.append("+       .001    .1      .2      .4")
+        lines.append("+               .001    .1      .2      .4")
         lines.append("$")
 
         # End of data
