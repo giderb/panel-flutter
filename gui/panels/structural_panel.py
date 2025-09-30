@@ -378,6 +378,10 @@ class StructuralPanel(BasePanel):
                 self.project_manager.current_project.structural_model = self.current_model
             else:
                 self.current_model = self.project_manager.current_project.structural_model
+                # If structural_model is None, create a new one
+                if self.current_model is None:
+                    self.current_model = StructuralModel(1, "Panel Structure")
+                    self.project_manager.current_project.structural_model = self.current_model
         else:
             self.current_model = StructuralModel(1, "Panel Structure")
 

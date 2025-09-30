@@ -90,17 +90,7 @@ class AerodynamicsPanel(BasePanel):
         )
         self.mach_entry.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=5)
 
-        # Dynamic pressure
-        q_label = self.theme_manager.create_styled_label(flow_frame, text="Dynamic Pressure [Pa]:")
-        q_label.grid(row=2, column=0, sticky="w", padx=(20, 10), pady=5)
-
-        self.q_var = ctk.StringVar(value="50000")
-        self.q_entry = self.theme_manager.create_styled_entry(
-            flow_frame,
-            textvariable=self.q_var,
-            placeholder_text="Dynamic pressure in Pascals"
-        )
-        self.q_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=5)
+        # REMOVED: Dynamic pressure input - calculated automatically from Mach and altitude
 
         # Altitude
         alt_label = self.theme_manager.create_styled_label(flow_frame, text="Altitude [m]:")
@@ -273,10 +263,17 @@ class AerodynamicsPanel(BasePanel):
 
         title_label = self.theme_manager.create_styled_label(
             mesh_frame,
-            text="Aerodynamic Mesh Parameters",
+            text="STREAMLINED: Aerodynamic Mesh Uses Structural Mesh",
             style="subheading"
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(15, 10))
+
+        info_label = self.theme_manager.create_styled_label(
+            mesh_frame,
+            text="Aerodynamic mesh is automatically generated from structural mesh.\nSeparate aero mesh parameters removed for simplicity.",
+            style="body"
+        )
+        info_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=20, pady=(5, 15))
 
         # Number of boxes in X (chordwise)
         nx_aero_label = self.theme_manager.create_styled_label(mesh_frame, text="Chordwise Boxes:")
@@ -550,11 +547,28 @@ class AerodynamicsPanel(BasePanel):
 
             # Create flow conditions
             mach = float(self.mach_var.get())
-            q = float(self.q_var.get())
             alt = float(self.alt_var.get())
             temp = float(self.temp_var.get())
 
-            flow_conditions = FlowConditions(mach, q, alt, temp)
+            # Calculate dynamic pressure from atmospheric conditions
+            # Standard atmosphere approximation
+            if alt == 0:
+                density = 1.225  # kg/m³ at sea level
+                pressure = 101325  # Pa at sea level
+            else:
+                # Simple altitude correction (more accurate would use ISA model)
+                density = 1.225 * (1 - 0.0065 * alt / 288.15)**4.256
+                pressure = 101325 * (1 - 0.0065 * alt / 288.15)**5.256
+
+            # Calculate velocity from Mach number: V = M * sqrt(gamma * R * T)
+            gamma = 1.4  # specific heat ratio for air
+            R = 287.0  # specific gas constant for air (J/kg·K)
+            velocity = mach * (gamma * R * temp)**0.5
+
+            # Calculate dynamic pressure: q = 0.5 * rho * V²
+            q = 0.5 * density * velocity**2
+
+            flow_conditions = FlowConditions(mach, q, alt, temp, pressure, density)
             self.current_model.set_flow_conditions(flow_conditions)
 
             # Set theory parameters

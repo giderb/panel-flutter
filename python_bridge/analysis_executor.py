@@ -132,6 +132,19 @@ class AnalysisExecutor:
             bdf_path = Path(working_dir) / 'flutter_analysis.bdf'
 
             # Create config dict for pyNastran generator
+            # Generate velocity array for flutter analysis from GUI settings or defaults
+            velocity_min = config.get('velocity_min', 500)  # Default: 500 m/s
+            velocity_max = config.get('velocity_max', 1400)  # Default: 1400 m/s
+            velocity_points = config.get('velocity_points', 10)  # Default: 10 points
+
+            velocities = []
+            if velocity_points > 1:
+                for i in range(velocity_points):
+                    v_ms = velocity_min + (velocity_max - velocity_min) * i / (velocity_points - 1)
+                    velocities.append(v_ms)
+            else:
+                velocities = [velocity_min]
+
             bdf_config = {
                 'panel_length': panel.length,
                 'panel_width': panel.width,
@@ -143,6 +156,7 @@ class AnalysisExecutor:
                 'density': panel.density,
                 'mach_number': flow.mach_number,
                 'velocity': getattr(flow, 'velocity', 1000),
+                'velocities': velocities,  # CRITICAL: Pass realistic velocities to NASTRAN
                 'boundary_conditions': panel.boundary_conditions,
                 'n_modes': config.get('n_modes', 20),
                 'output_filename': bdf_path.name
@@ -223,8 +237,8 @@ class AnalysisExecutor:
         # Extract geometry
         panel = getattr(model, 'panel', None)
         if panel:
-            length = getattr(panel, 'length', 0.3)
-            width = getattr(panel, 'width', 0.3)
+            length = getattr(panel, 'length', 1.0)
+            width = getattr(panel, 'width', 0.5)
             thickness = getattr(panel, 'thickness', 0.0015)
         else:
             length, width, thickness = 0.3, 0.3, 0.0015

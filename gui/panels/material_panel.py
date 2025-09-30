@@ -309,8 +309,7 @@ class MaterialPanel(BasePanel):
         # Density
         self._create_input_field(props_frame, "Density (kg/m³):", "rho_entry", "2810")
 
-        # Thermal expansion (optional)
-        self._create_input_field(props_frame, "Thermal Expansion (1/K):", "alpha_entry", "21e-6 (optional)")
+        # REMOVED: Thermal expansion - not used in flutter analysis
 
         # Save button
         save_btn = ctk.CTkButton(
@@ -681,8 +680,8 @@ class MaterialPanel(BasePanel):
             g = float(self.g_entry.get()) * 1e9  # GPa to Pa
             rho = float(self.rho_entry.get())
 
-            alpha_text = self.alpha_entry.get().strip()
-            alpha = float(alpha_text.replace("(optional)", "").strip()) if alpha_text and "optional" not in alpha_text else None
+            # REMOVED: Thermal expansion processing - not used in flutter analysis
+            alpha = None
 
             # Create material
             material = IsotropicMaterial(

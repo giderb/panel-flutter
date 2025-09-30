@@ -20,6 +20,7 @@ class Project:
 
     # Analysis components
     material: Optional[Any] = None
+    structural_model: Optional[Any] = None
     geometry: Optional[Dict[str, Any]] = None
     boundary_conditions: Optional[str] = None
     aerodynamic_config: Optional[Dict[str, Any]] = None
@@ -57,6 +58,13 @@ class Project:
             else:
                 data["material"] = self.material
 
+        # Handle structural model serialization
+        if self.structural_model:
+            if hasattr(self.structural_model, 'to_dict'):
+                data["structural_model"] = self.structural_model.to_dict()
+            else:
+                data["structural_model"] = str(self.structural_model)  # Convert to string if no to_dict
+
         return data
 
     @classmethod
@@ -74,6 +82,9 @@ class Project:
             except Exception:
                 material = data["material"]  # Keep as dict if parsing fails
 
+        # Parse structural model (for now, keep as None - will be created by structural panel)
+        structural_model = data.get("structural_model")  # Keep as raw data for now
+
         return cls(
             id=data["id"],
             name=data["name"],
@@ -81,6 +92,7 @@ class Project:
             modified_at=modified_at,
             description=data.get("description"),
             material=material,
+            structural_model=structural_model,
             geometry=data.get("geometry"),
             boundary_conditions=data.get("boundary_conditions"),
             aerodynamic_config=data.get("aerodynamic_config"),

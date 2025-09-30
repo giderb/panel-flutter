@@ -45,14 +45,25 @@ class IntegratedFlutterExecutor:
         
         self.logger.info(f"Initialized executor. NASTRAN: {'Available' if self.nastran_path else 'Not found'}")
 
-    def _create_bdf_config(self, panel: PanelProperties, flow: FlowConditions, mesh_nx: int, mesh_ny: int) -> Dict[str, Any]:
+    def _create_bdf_config(self, panel: PanelProperties, flow: FlowConditions, mesh_nx: int, mesh_ny: int, config: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create configuration dict for PyNastranBDFGenerator"""
+
+        # Get velocity settings from config (GUI) or use defaults
+        if config:
+            velocity_min = config.get('velocity_min', 500)  # m/s
+            velocity_max = config.get('velocity_max', 1400)  # m/s
+            velocity_points = config.get('velocity_points', 10)
+        else:
+            velocity_min, velocity_max, velocity_points = 500, 1400, 10
 
         # Calculate velocity list in m/s for pyNastran generator
         velocities = []
-        for i in range(10):  # Create velocity sweep
-            v_ms = 500 + i * 100  # 500 to 1400 m/s
-            velocities.append(v_ms)
+        if velocity_points > 1:
+            for i in range(velocity_points):
+                v_ms = velocity_min + (velocity_max - velocity_min) * i / (velocity_points - 1)
+                velocities.append(v_ms)
+        else:
+            velocities = [velocity_min]
 
         config = {
             # Panel geometry (m)
@@ -137,7 +148,7 @@ class IntegratedFlutterExecutor:
                 # Create config for pyNastran generator
                 mesh_nx = config.get('mesh_nx', 20)
                 mesh_ny = config.get('mesh_ny', 20)
-                bdf_config = self._create_bdf_config(panel, flow, mesh_nx, mesh_ny)
+                bdf_config = self._create_bdf_config(panel, flow, mesh_nx, mesh_ny, config)
 
                 # Update config with additional analysis parameters
                 bdf_config.update({
@@ -260,8 +271,8 @@ class IntegratedFlutterExecutor:
             thickness = model.panel.thickness
         else:
             # Default dimensions
-            length = 0.3
-            width = 0.3
+            length = 1.0
+            width = 0.5
             thickness = 0.0015
         
         # Extract boundary conditions
@@ -492,8 +503,8 @@ def run_complete_validation():
             density = 2810
         
         class Panel:
-            length = 0.3
-            width = 0.3
+            length = 1.0
+            width = 0.5
             thickness = 0.0015
         
         material = Material()

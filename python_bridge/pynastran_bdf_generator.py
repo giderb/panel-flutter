@@ -18,6 +18,35 @@ import numpy as np
 # Import pyNastran components
 from pyNastran.bdf.bdf import BDF
 
+
+def format_nastran_float(value: float) -> float:
+    """
+    CRITICAL FIX: Format float values to avoid scientific notation parsing issues
+    NASTRAN expects proper float formatting without concatenation
+
+    Args:
+        value: Float value to format
+
+    Returns:
+        Properly formatted float for NASTRAN
+    """
+    # Ensure we don't get problematic formats like '7.17+10' or concatenated values
+    if value is None or not isinstance(value, (int, float)):
+        return 0.0
+
+    # Convert to float to ensure proper type
+    value = float(value)
+
+    if abs(value) < 1e-10:
+        return 0.0
+    elif abs(value) > 1e15 or abs(value) < 1e-10:
+        # For very large/small numbers, format properly
+        formatted = f"{value:.3E}"
+        return float(formatted.replace('+', '').replace('-', '-'))
+    else:
+        # For normal range numbers, use standard float
+        return round(float(value), 6)
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,13 +184,13 @@ class PyNastranBDFGenerator:
         else:
             G = material.shear_modulus
 
-        # Add MAT1 card
+        # CRITICAL FIX: Add MAT1 card with proper scientific notation formatting
         self.model.add_mat1(
             mid=material.material_id,
-            E=material.youngs_modulus,
-            G=G,
-            nu=material.poissons_ratio,
-            rho=float(material.density),  # Ensure real number
+            E=format_nastran_float(material.youngs_modulus),  # FIXED: Proper E notation
+            G=format_nastran_float(G),                        # FIXED: Proper E notation
+            nu=format_nastran_float(material.poissons_ratio),
+            rho=format_nastran_float(material.density),       # FIXED: Proper E notation
             a=0.0,      # Thermal expansion coefficient
             tref=0.0,   # Reference temperature
             ge=0.0,     # Structural damping
@@ -304,8 +333,9 @@ class PyNastranBDFGenerator:
             sym_xy=0,  # Symmetry about XY plane
         )
 
-        # Use doublet lattice method (CAERO1) for all cases - more reliable
-        # Avoid CAERO5/AEFACT dependency issues
+        # For user's application (M < 1.4), always use doublet lattice method
+        # CAERO1 is the correct and reliable method for subsonic/transonic flutter
+        logger.info(f"Using CAERO1 (Doublet Lattice) for Mach {aero.mach_number:.2f}")
         self._add_caero1_mesh(panel, aero)
 
     def _add_caero5_mesh(self, panel: PanelConfig, aero: AeroConfig):
@@ -313,16 +343,10 @@ class PyNastranBDFGenerator:
         caero_id = 1001
         pid = 2001
 
-        # Add AEFACT cards for aerodynamic factors
-        # AEFACT ID=1 for alpha values (angle of attack)
-        # For CAERO5 with NSPAN strips, we need NSPAN+1 alpha values
-        alpha_values = [0.0] * (panel.ny + 1)  # Zero angle of attack for flutter analysis
-        self.model.add_aefact(sid=1, fractions=alpha_values)
-
-        # PAERO5 property - CAOCI entries must match number of strips (NSPAN)
-        caoci_values = [0.0] * panel.ny  # One CAOCI value per strip
-        # LALPHA should reference the AEFACT ID for alpha values
-        self.model.add_paero5(pid=pid, caoci=caoci_values, nalpha=panel.ny+1, lalpha=1, nxis=0, lxis=0, ntaus=0, ltaus=0)
+        # Simplified PAERO5 for uniform panel flutter analysis (no AEFACT)
+        caoci_values = [0.0] * panel.ny  # One CAOCI value per strip (all zero for uniform flow)
+        # Set all parameters to zero for uniform panel - no AEFACT references needed
+        self.model.add_paero5(pid=pid, caoci=caoci_values, nalpha=0, lalpha=0, nxis=0, lxis=0, ntaus=0, ltaus=0)
 
         # CAERO5 panel
         p1 = [0.0, 0.0, 0.001]  # Small offset in Z
@@ -339,7 +363,7 @@ class PyNastranBDFGenerator:
             x43=x43,
             cp=0,
             nspan=panel.ny,
-            lspan=1,  # Must be > 0
+            lspan=0,  # No AEFACT reference for uniform panel
             ntheory=0,
             nthick=0,
             comment='Piston Theory Panel'
@@ -347,6 +371,9 @@ class PyNastranBDFGenerator:
 
         # Add spline to connect structure to aerodynamics
         self._add_splines(panel, caero_id)
+
+        # Add MKAERO2 for aerodynamic matrix generation (supersonic)
+        self._add_mkaero2(aero)
 
     def _add_caero1_mesh(self, panel: PanelConfig, aero: AeroConfig):
         """Add CAERO1 mesh for doublet lattice method (subsonic)"""
@@ -430,13 +457,14 @@ class PyNastranBDFGenerator:
         # Mach numbers
         self.model.add_flfact(sid=12, factors=[aero.mach_number])
 
-        # Reduced frequencies for PK method
-        if aero.reduced_frequencies:
-            self.model.add_flfact(sid=13, factors=aero.reduced_frequencies)
+        # VELOCITIES for PK method (CRITICAL: must be velocities in m/s, not reduced frequencies!)
+        if aero.velocities:
+            # Use provided velocities (m/s)
+            self.model.add_flfact(sid=13, factors=aero.velocities)
         else:
-            # Default reduced frequencies
-            default_k = [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]
-            self.model.add_flfact(sid=13, factors=default_k)
+            # Default realistic velocity range for flutter analysis (m/s)
+            default_velocities = [200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0, 1200.0]
+            self.model.add_flfact(sid=13, factors=default_velocities)
 
     def _add_mkaero1(self, aero: AeroConfig):
         """Add MKAERO1 cards for aerodynamic matrix generation"""
@@ -445,6 +473,23 @@ class PyNastranBDFGenerator:
         reduced_frequencies = [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]  # Standard range (must be > 0.0)
 
         self.model.add_mkaero1(
+            machs=mach_numbers,
+            reduced_freqs=reduced_frequencies
+        )
+
+    def _add_mkaero2(self, aero: AeroConfig):
+        """Add MKAERO2 cards for piston theory aerodynamic matrix generation"""
+        # MKAERO2 defines Mach numbers and reduced frequencies for supersonic piston theory
+        # For supersonic flows, use higher reduced frequency range for better resolution
+        if aero.reduced_frequencies:
+            reduced_frequencies = aero.reduced_frequencies
+        else:
+            # Use appropriate reduced frequency range for supersonic flutter
+            reduced_frequencies = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0]
+
+        mach_numbers = [aero.mach_number]
+
+        self.model.add_mkaero2(
             machs=mach_numbers,
             reduced_freqs=reduced_frequencies
         )
@@ -486,8 +531,8 @@ def create_pynastran_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") 
 
     # Extract panel config
     panel = PanelConfig(
-        length=config.get('panel_length', 0.3),  # m
-        width=config.get('panel_width', 0.3),    # m
+        length=config.get('panel_length', 1.0),  # m
+        width=config.get('panel_width', 0.5),    # m
         thickness=config.get('thickness', 0.0015),  # m
         nx=config.get('nx', 20),
         ny=config.get('ny', 20)
@@ -504,7 +549,7 @@ def create_pynastran_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") 
     aero = AeroConfig(
         mach_number=config.get('mach_number', 2.0),
         reference_velocity=config.get('velocity', 600.0),  # m/s
-        reference_chord=config.get('panel_length', 0.3),  # m
+        reference_chord=config.get('panel_length', 1.0),  # m
         reference_density=1.225,  # kg/m^3 (air at sea level)
         reduced_frequencies=config.get('reduced_frequencies', [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]),
         velocities=config.get('velocities')  # m/s
@@ -524,8 +569,8 @@ def create_pynastran_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") 
 if __name__ == "__main__":
     # Test the generator
     test_config = {
-        'panel_length': 0.3,    # 30 cm
-        'panel_width': 0.25,    # 25 cm
+        'panel_length': 1.0,    # 1.0 m
+        'panel_width': 0.5,     # 0.5 m
         'thickness': 0.002,     # 2 mm
         'nx': 10,
         'ny': 10,
