@@ -270,6 +270,10 @@ class PyNastranBDFGenerator:
             bc_str = str(boundary_conditions)
 
         if bc_str.upper() == "SSSS":  # Simply supported on all edges
+            # For SSSS boundary conditions on a plate:
+            # - All edge nodes: W = 0 (out-of-plane deflection)
+            # - Corner nodes: Additional in-plane constraints for stability
+
             # Collect edge nodes
             edge_nodes = []
 
@@ -292,18 +296,28 @@ class PyNastranBDFGenerator:
             # Remove duplicates and sort
             edge_nodes = sorted(set(edge_nodes))
 
-            # Add SPC1 card to constrain Z displacement (DOF 3) on all edge nodes
+            # SSSS: Simply supported - W = 0 on all edges
             self.model.add_spc1(
                 conid=1,
-                components='3',  # Z displacement
+                components='3',  # W (out-of-plane deflection)
                 nodes=edge_nodes
             )
 
-            # Add constraint to prevent rigid body modes (fix one corner fully)
+            # Corner constraints for rigid body mode prevention
+            # Bottom-left corner: fix U, V (in-plane motion)
+            corner_bl = 1
             self.model.add_spc1(
                 conid=1,
-                components='123456',  # All DOFs
-                nodes=[1]  # First node
+                components='12',  # U, V (in-plane)
+                nodes=[corner_bl]
+            )
+
+            # Bottom-right corner: fix V only (prevent Y-direction rigid body)
+            corner_br = panel.nx + 1
+            self.model.add_spc1(
+                conid=1,
+                components='2',  # V (Y-direction)
+                nodes=[corner_br]
             )
 
     def _add_eigenvalue_extraction(self, n_modes: int):
@@ -459,8 +473,9 @@ class PyNastranBDFGenerator:
 
         # VELOCITIES for PK method (CRITICAL: must be velocities in m/s, not reduced frequencies!)
         if aero.velocities:
-            # Use provided velocities (m/s)
-            self.model.add_flfact(sid=13, factors=aero.velocities)
+            # Use provided velocities (m/s) - ensure they are floats for NASTRAN
+            velocity_floats = [float(v) for v in aero.velocities]
+            self.model.add_flfact(sid=13, factors=velocity_floats)
         else:
             # Default realistic velocity range for flutter analysis (m/s)
             default_velocities = [200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0, 1200.0]

@@ -154,7 +154,7 @@ class MainWindow:
         nav_items = [
             ("Home", "home", "🏠"),
             ("Material", "material", "🔧"),
-            ("Structure", "structure", "🏗️"),
+            ("Structure", "structure", "🔲"),
             ("Aerodynamics", "aerodynamics", "💨"),
             ("Analysis", "analysis", "⚙️"),
             ("Results", "results", "📊"),

@@ -169,7 +169,7 @@ class AerodynamicsPanel(BasePanel):
         theory_type_label = self.theme_manager.create_styled_label(theory_frame, text="Theory:")
         theory_type_label.grid(row=1, column=0, sticky="w", padx=(20, 10), pady=5)
 
-        self.theory_var = ctk.StringVar(value="PISTON_THEORY")
+        self.theory_var = ctk.StringVar(value="DOUBLET_LATTICE")
         theory_options = ["PISTON_THEORY", "DOUBLET_LATTICE", "ZAERO"]
         self.theory_combo = ctk.CTkComboBox(
             theory_frame,
@@ -183,7 +183,7 @@ class AerodynamicsPanel(BasePanel):
         # Theory description
         self.theory_description = self.theme_manager.create_styled_label(
             theory_frame,
-            text=self._get_theory_description("PISTON_THEORY"),
+            text=self._get_theory_description("DOUBLET_LATTICE"),
             style="caption",
             wraplength=500
         )
