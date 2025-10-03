@@ -377,11 +377,17 @@ class StructuralPanel(BasePanel):
                 self.current_model = StructuralModel(1, "Panel Structure")
                 self.project_manager.current_project.structural_model = self.current_model
             else:
-                self.current_model = self.project_manager.current_project.structural_model
-                # If structural_model is None, create a new one
-                if self.current_model is None:
+                existing_model = self.project_manager.current_project.structural_model
+                # Check if it's a proper StructuralModel object (not serialized string/dict from JSON)
+                if existing_model is None or not isinstance(existing_model, StructuralModel):
+                    # Create new model if None or if it's serialized data
+                    if existing_model is not None:
+                        self.logger.warning(f"Structural model was serialized as {type(existing_model)}, creating new instance")
                     self.current_model = StructuralModel(1, "Panel Structure")
                     self.project_manager.current_project.structural_model = self.current_model
+                else:
+                    # Valid StructuralModel object
+                    self.current_model = existing_model
         else:
             self.current_model = StructuralModel(1, "Panel Structure")
 

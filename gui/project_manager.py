@@ -212,6 +212,10 @@ class ProjectManager:
             print(f"Error saving project: {e}")
             return False
 
+    def save_current_project(self) -> bool:
+        """Save the current project to file (convenience method)."""
+        return self.save_project(self.current_project)
+
     def load_project(self, project_file: str) -> Optional[Project]:
         """Load project from file."""
         try:

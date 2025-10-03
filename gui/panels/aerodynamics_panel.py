@@ -639,7 +639,22 @@ class AerodynamicsPanel(BasePanel):
 
         try:
             if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                # Save to both aerodynamic_model AND aerodynamic_config for compatibility
                 self.project_manager.current_project.aerodynamic_model = self.current_model
+
+                # Also save as aerodynamic_config (dict format) for analysis panel
+                if self.current_model.flow_conditions:
+                    self.project_manager.current_project.aerodynamic_config = {
+                        'flow_conditions': {
+                            'mach_number': self.current_model.flow_conditions.mach_number,
+                            'altitude': self.current_model.flow_conditions.altitude,
+                            'temperature': getattr(self.current_model.flow_conditions, 'temperature', None),
+                            'pressure': getattr(self.current_model.flow_conditions, 'pressure', None),
+                            'density': getattr(self.current_model.flow_conditions, 'density', None)
+                        }
+                    }
+                    self.logger.info(f"Saved aerodynamic config: M={self.current_model.flow_conditions.mach_number}")
+
                 self.project_manager.save_current_project()
                 messagebox.showinfo("Success", "Aerodynamic model saved successfully!")
                 self.logger.info("Aerodynamic model saved to project")

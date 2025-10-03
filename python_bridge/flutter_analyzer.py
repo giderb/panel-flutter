@@ -80,17 +80,20 @@ class FlutterAnalyzer:
             }
         }
     
-    def analyze(self, panel: 'PanelProperties', flow: 'FlowConditions', 
-                method: str = 'auto', validate: bool = True) -> FlutterResult:
+    def analyze(self, panel: 'PanelProperties', flow: 'FlowConditions',
+                method: str = 'auto', validate: bool = True,
+                velocity_range: Optional[tuple] = None, velocity_points: int = 200) -> FlutterResult:
         """
         Main flutter analysis with automatic method selection and validation
-        
+
         Args:
             panel: Panel structural properties
             flow: Flow conditions
             method: 'auto', 'piston', 'doublet', or 'nastran'
             validate: Perform validation against known solutions
-        
+            velocity_range: Optional (v_min, v_max) tuple in m/s. If None, uses default range.
+            velocity_points: Number of velocity points to analyze (default: 200)
+
         Returns:
             FlutterResult with validated critical flutter parameters
         """
@@ -109,11 +112,11 @@ class FlutterAnalyzer:
         
         # Perform analysis based on method
         if method == 'piston':
-            result = self._piston_theory_analysis(panel, flow)
+            result = self._piston_theory_analysis(panel, flow, velocity_range, velocity_points)
         elif method == 'piston_corrected':
-            result = self._piston_theory_corrected(panel, flow)
+            result = self._piston_theory_corrected(panel, flow, velocity_range, velocity_points)
         elif method == 'doublet':
-            result = self._doublet_lattice_analysis(panel, flow)
+            result = self._doublet_lattice_analysis(panel, flow, velocity_range, velocity_points)
         else:
             raise ValueError(f"Unknown method: {method}")
         
@@ -123,20 +126,28 @@ class FlutterAnalyzer:
         
         return result
     
-    def _piston_theory_analysis(self, panel: 'PanelProperties', flow: 'FlowConditions') -> FlutterResult:
+    def _piston_theory_analysis(self, panel: 'PanelProperties', flow: 'FlowConditions',
+                                velocity_range: Optional[tuple] = None, velocity_points: int = 200) -> FlutterResult:
         """
         Piston Theory flutter analysis for supersonic flow
         Based on linear piston theory aerodynamics
         """
-        
+
         # Calculate panel natural frequencies
         frequencies, mode_shapes = self._modal_analysis(panel)
-        
+
         # Non-dimensional parameters
         mu = panel.mass_ratio(flow)  # Mass ratio
-        
-        # Initialize V-g data storage - CRITICAL FIX: Start from lower velocities
-        velocities = np.linspace(10, 3000, 200)  # m/s - Extended range to capture flutter at ~139 m/s
+
+        # Initialize V-g data storage - Use provided range or default
+        if velocity_range:
+            v_min, v_max = velocity_range
+            self.logger.info(f"Using velocity range: {v_min:.0f}-{v_max:.0f} m/s with {velocity_points} points")
+        else:
+            v_min, v_max = 10, 3000  # Default range
+            self.logger.info(f"Using default velocity range: {v_min}-{v_max} m/s")
+
+        velocities = np.linspace(v_min, v_max, velocity_points)
         
         # Storage for all modes
         all_damping = []
@@ -227,15 +238,29 @@ class FlutterAnalyzer:
         if not converged or flutter_speed > 2500:
             # Calculate Dowell analytical estimate for comparison
             dowell_estimate = self._calculate_dowell_flutter_speed(panel, flow)
-            self.logger.warning(f"No flutter found in numerical range. Dowell estimate: {dowell_estimate:.1f} m/s")
 
-            # If analytical estimate suggests flutter should exist, algorithm has failed
-            if 10 <= dowell_estimate <= 2500:
-                self.logger.error("CRITICAL: Algorithm failed to find flutter when analytical solution predicts it exists")
-                flutter_speed = dowell_estimate
-                flutter_frequency = frequencies[0]
-                flutter_mode = 1
-                converged = False  # Mark as failed convergence
+            # Check if Dowell estimate is within the searched velocity range
+            v_min_search = velocities[0]
+            v_max_search = velocities[-1]
+
+            if v_min_search <= dowell_estimate <= v_max_search:
+                # Dowell estimate is in range - use it as fallback
+                self.logger.warning(f"No flutter found in numerical range. Dowell estimate: {dowell_estimate:.1f} m/s")
+
+                if 10 <= dowell_estimate <= 2500:
+                    self.logger.error("CRITICAL: Algorithm failed to find flutter when analytical solution predicts it exists")
+                    flutter_speed = dowell_estimate
+                    flutter_frequency = frequencies[0]
+                    flutter_mode = 1
+                    converged = False  # Mark as failed convergence
+            else:
+                # Dowell estimate is outside search range - report no flutter in range
+                self.logger.info(f"No flutter in searched range {v_min_search:.0f}-{v_max_search:.0f} m/s. "
+                               f"Dowell analytical estimate: {dowell_estimate:.1f} m/s (outside range)")
+                flutter_speed = 9999.0  # No flutter in specified range
+                flutter_frequency = 0.0
+                flutter_mode = 0
+                converged = True  # Successfully determined no flutter in range
         
         # Calculate flutter parameters
         if flutter_speed < 9999:
@@ -261,34 +286,42 @@ class FlutterAnalyzer:
             validation_status='pending'
         )
     
-    def _piston_theory_corrected(self, panel: 'PanelProperties', flow: 'FlowConditions') -> FlutterResult:
+    def _piston_theory_corrected(self, panel: 'PanelProperties', flow: 'FlowConditions',
+                                 velocity_range: Optional[tuple] = None, velocity_points: int = 200) -> FlutterResult:
         """Piston theory with transonic corrections"""
-        # Get basic piston theory result
-        result = self._piston_theory_analysis(panel, flow)
-        
+        # Get basic piston theory result with velocity range
+        result = self._piston_theory_analysis(panel, flow, velocity_range, velocity_points)
+
         # Apply transonic correction factors
         if 0.8 <= flow.mach_number <= 1.2:
             # Transonic dip correction
             correction_factor = 1.0 - 0.3 * np.exp(-((flow.mach_number - 1.0) / 0.1)**2)
             result.flutter_speed *= correction_factor
             result.method = 'piston_theory_corrected'
-        
+
         return result
     
-    def _doublet_lattice_analysis(self, panel: 'PanelProperties', flow: 'FlowConditions') -> FlutterResult:
+    def _doublet_lattice_analysis(self, panel: 'PanelProperties', flow: 'FlowConditions',
+                                  velocity_range: Optional[tuple] = None, velocity_points: int = 200) -> FlutterResult:
         """
         Doublet Lattice Method for subsonic flow
         Uses potential flow theory with doublet singularities
         """
-        
+
         # Calculate natural frequencies
         frequencies, mode_shapes = self._modal_analysis(panel)
-        
+
         # Create aerodynamic influence coefficients matrix
         n_panels = 10  # Simplified - use 10x10 aerodynamic panels
-        
-        # Velocity range for analysis
-        velocities = np.linspace(200, 1000, 50)  # Realistic flutter velocity range
+
+        # Velocity range for analysis - Use provided range or default
+        if velocity_range:
+            v_min, v_max = velocity_range
+            self.logger.info(f"DLM using velocity range: {v_min:.0f}-{v_max:.0f} m/s")
+        else:
+            v_min, v_max = 200, 1000  # Default for subsonic
+
+        velocities = np.linspace(v_min, v_max, min(velocity_points, 50))  # Cap at 50 for DLM efficiency
         
         # Storage for V-g and V-f data
         all_damping = []

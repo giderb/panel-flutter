@@ -126,11 +126,21 @@ class IntegratedFlutterExecutor:
             # Step 2: Perform physics-based analysis
             if progress_callback:
                 progress_callback("Running physics-based flutter analysis...", 0.2)
-            
+
+            # Extract velocity range from config for physics analysis
+            velocity_range = None
+            velocity_points = 200  # Default
+            if 'velocity_min' in config and 'velocity_max' in config:
+                velocity_range = (config['velocity_min'], config['velocity_max'])
+                velocity_points = config.get('velocity_points', 8)
+                self.logger.info(f"Physics analysis using GUI velocity range: {velocity_range[0]:.0f}-{velocity_range[1]:.0f} m/s")
+
             physics_result = self.flutter_analyzer.analyze(
-                panel, flow, 
+                panel, flow,
                 method='auto',  # Automatic method selection
-                validate=True
+                validate=True,
+                velocity_range=velocity_range,
+                velocity_points=velocity_points
             )
             
             # Step 3: Generate NASTRAN BDF if available
@@ -158,16 +168,8 @@ class IntegratedFlutterExecutor:
                     v_max = config['velocity_max']
                     n_points = config.get('velocity_points', 8)
 
-                    # Validate/adjust range based on flow conditions
-                    v_flow = flow.velocity  # V = M * a
-
-                    # If range is too wide or doesn't make sense, auto-adjust
-                    if (v_max - v_min) > 3.0 * v_flow or v_min < 0.2 * v_flow:
-                        # Range is unrealistic - use estimated flutter range
-                        self.logger.warning(f"Velocity range ({v_min:.0f}-{v_max:.0f} m/s) seems unrealistic for M={flow.mach_number:.2f}")
-                        self.logger.warning(f"Auto-adjusting to bracket expected flutter speed around {v_flow:.0f} m/s")
-                        v_min = max(100, v_flow * 0.5)
-                        v_max = v_flow * 1.5
+                    # Use user-specified velocity range directly
+                    self.logger.info(f"Using velocity range: {v_min:.1f}-{v_max:.1f} m/s with {n_points} points")
 
                     # Generate linearly spaced velocity points
                     import numpy as np
@@ -296,34 +298,50 @@ class IntegratedFlutterExecutor:
     
     def _convert_structural_model(self, model: Any) -> PanelProperties:
         """Convert GUI structural model to analysis format"""
-        
+
         # Extract material properties
+        # Try multiple paths: model.material, model.materials[0], or project.material
+        material = None
         if hasattr(model, 'material') and model.material:
-            E = model.material.youngs_modulus
-            nu = model.material.poissons_ratio
-            rho = model.material.density
+            material = model.material
+        elif hasattr(model, 'materials') and model.materials:
+            material = model.materials[0] if isinstance(model.materials, list) else model.materials
+
+        if material:
+            E = getattr(material, 'youngs_modulus', 71.7e9)
+            nu = getattr(material, 'poissons_ratio', 0.33)
+            rho = getattr(material, 'density', 2810)
         else:
             # Default aluminum properties
             E = 71.7e9
             nu = 0.33
             rho = 2810
-        
-        # Extract geometry
-        if hasattr(model, 'panel') and model.panel:
-            length = model.panel.length
-            width = model.panel.width
-            thickness = model.panel.thickness
+            self.logger.warning("No material found in structural model, using aluminum defaults")
+
+        # Extract geometry - try multiple paths
+        geometry = None
+        if hasattr(model, 'geometry') and model.geometry:
+            geometry = model.geometry
+        elif hasattr(model, 'panel') and model.panel:
+            geometry = model.panel
+
+        if geometry:
+            length = getattr(geometry, 'length', 1.0)
+            width = getattr(geometry, 'width', 0.5)
+            thickness = getattr(geometry, 'thickness', 0.0015)
+            self.logger.info(f"Extracted geometry: L={length}m, W={width}m, t={thickness}m")
         else:
             # Default dimensions
             length = 1.0
             width = 0.5
             thickness = 0.0015
-        
+            self.logger.warning("No geometry found in structural model, using defaults")
+
         # Extract boundary conditions
         bc = getattr(model, 'boundary_condition', 'SSSS')
         if hasattr(bc, 'value'):
             bc = bc.value
-        
+
         return PanelProperties(
             length=length,
             width=width,
@@ -336,18 +354,50 @@ class IntegratedFlutterExecutor:
     
     def _convert_aerodynamic_model(self, model: Any) -> FlowConditions:
         """Convert GUI aerodynamic model to analysis format"""
-        
-        if hasattr(model, 'flow_conditions') and model.flow_conditions:
-            flow = model.flow_conditions
+
+        # Model can be:
+        # 1. An object with flow_conditions attribute
+        # 2. A dictionary from project.aerodynamic_config (from JSON)
+        # 3. None
+
+        flow_data = None
+
+        # Try to extract flow conditions
+        if isinstance(model, dict):
+            # It's a dictionary (from JSON)
+            flow_data = model.get('flow_conditions', model)
+            self.logger.info(f"Aerodynamic model is dict: {model}")
+        elif hasattr(model, 'flow_conditions'):
+            # It's an object with flow_conditions attribute
+            flow_data = model.flow_conditions
+
+        if flow_data:
+            # Extract values from either dict or object
+            if isinstance(flow_data, dict):
+                mach = flow_data.get('mach_number', 2.0)
+                alt = flow_data.get('altitude', 10000)
+                temp = flow_data.get('temperature', None)
+                press = flow_data.get('pressure', None)
+                dens = flow_data.get('density', None)
+            else:
+                # It's an object
+                mach = getattr(flow_data, 'mach_number', 2.0)
+                alt = getattr(flow_data, 'altitude', 10000)
+                temp = getattr(flow_data, 'temperature', None)
+                press = getattr(flow_data, 'pressure', None)
+                dens = getattr(flow_data, 'density', None)
+
+            self.logger.info(f"Extracted aero: M={mach}, alt={alt}m")
             return FlowConditions(
-                mach_number=flow.mach_number,
-                altitude=flow.altitude,
-                temperature=getattr(flow, 'temperature', None),
-                pressure=getattr(flow, 'pressure', None),
-                density=getattr(flow, 'density', None)
+                mach_number=mach,
+                altitude=alt,
+                temperature=temp,
+                pressure=press,
+                density=dens
             )
         else:
             # Default conditions
+            self.logger.warning("No aerodynamic model found, using defaults: M=2.0")
             return FlowConditions(
                 mach_number=2.0,
                 altitude=10000
