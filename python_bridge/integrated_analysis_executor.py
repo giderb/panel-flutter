@@ -17,7 +17,7 @@ from dataclasses import asdict
 # Import validated components
 from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions, FlutterResult
 from .nastran_interface import F06Parser
-from .pynastran_bdf_generator import PyNastranBDFGenerator, create_pynastran_flutter_bdf
+from .simple_bdf_generator import SimpleBDFGenerator
 
 
 class IntegratedFlutterExecutor:
@@ -139,25 +139,33 @@ class IntegratedFlutterExecutor:
                 if progress_callback:
                     progress_callback("Generating NASTRAN BDF file...", 0.4)
 
-                # Initialize pyNastran BDF generator with proper working directory
+                # Initialize SimpleBDFGenerator (no pyNastran formatting bugs)
                 working_dir = config.get('working_dir', '.')
-                self.bdf_generator = PyNastranBDFGenerator(output_dir=working_dir)
+                self.bdf_generator = SimpleBDFGenerator()
 
                 bdf_path = Path(working_dir) / 'flutter_analysis.bdf'
 
-                # Create config for pyNastran generator
+                # Get mesh parameters
                 mesh_nx = config.get('mesh_nx', 20)
                 mesh_ny = config.get('mesh_ny', 20)
-                bdf_config = self._create_bdf_config(panel, flow, mesh_nx, mesh_ny, config)
 
-                # Update config with additional analysis parameters
-                bdf_config.update({
-                    'n_modes': config.get('n_modes', 20),
-                    'output_filename': bdf_path.name
-                })
+                # Get velocity range from config
+                velocities = config.get('velocities', [v*0.9 for v in [flow.velocity] + [flow.velocity*1.1*i for i in range(1, 8)]])
 
-                # Generate BDF using validated pyNastran generator
-                bdf_file_path = create_pynastran_flutter_bdf(bdf_config, working_dir)
+                # Generate BDF using validated SimpleBDFGenerator
+                bdf_file_path = self.bdf_generator.generate_flutter_bdf(
+                    length=panel.length,
+                    width=panel.width,
+                    thickness=panel.thickness,
+                    nx=mesh_nx,
+                    ny=mesh_ny,
+                    youngs_modulus=panel.youngs_modulus,
+                    poissons_ratio=panel.poissons_ratio,
+                    density=panel.density,
+                    mach_number=flow.mach_number,
+                    velocities=velocities,
+                    output_file=str(bdf_path)
+                )
                 
                 # Step 4: Execute NASTRAN if requested
                 if config.get('execute_nastran', False):

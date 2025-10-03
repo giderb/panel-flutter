@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import the validated flutter analysis components
 try:
     from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions as FlowCond
-    from .pynastran_bdf_generator import PyNastranBDFGenerator, create_pynastran_flutter_bdf
+    from .simple_bdf_generator import SimpleBDFGenerator
     from .nastran_interface import F06Parser
     from .integrated_analysis_executor import IntegratedFlutterExecutor
     ANALYSIS_AVAILABLE = True
