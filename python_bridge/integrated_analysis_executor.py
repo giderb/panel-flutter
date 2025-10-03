@@ -150,7 +150,43 @@ class IntegratedFlutterExecutor:
                 mesh_ny = config.get('mesh_ny', 20)
 
                 # Get velocity range from config
-                velocities = config.get('velocities', [v*0.9 for v in [flow.velocity] + [flow.velocity*1.1*i for i in range(1, 8)]])
+                if 'velocities' in config:
+                    velocities = config['velocities']
+                elif 'velocity_min' in config and 'velocity_max' in config:
+                    # GUI provides velocity_min, velocity_max, velocity_points
+                    v_min = config['velocity_min']
+                    v_max = config['velocity_max']
+                    n_points = config.get('velocity_points', 8)
+
+                    # Validate/adjust range based on flow conditions
+                    v_flow = flow.velocity  # V = M * a
+
+                    # If range is too wide or doesn't make sense, auto-adjust
+                    if (v_max - v_min) > 3.0 * v_flow or v_min < 0.2 * v_flow:
+                        # Range is unrealistic - use estimated flutter range
+                        self.logger.warning(f"Velocity range ({v_min:.0f}-{v_max:.0f} m/s) seems unrealistic for M={flow.mach_number:.2f}")
+                        self.logger.warning(f"Auto-adjusting to bracket expected flutter speed around {v_flow:.0f} m/s")
+                        v_min = max(100, v_flow * 0.5)
+                        v_max = v_flow * 1.5
+
+                    # Generate linearly spaced velocity points
+                    import numpy as np
+                    velocities = list(np.linspace(v_min, v_max, n_points))
+                else:
+                    # Fallback: estimate flutter speed range from panel properties
+                    # For thin panels, flutter typically occurs at 0.5-1.5 times flow velocity
+                    v_ref = flow.velocity
+                    velocities = [
+                        v_ref * 0.50,
+                        v_ref * 0.70,
+                        v_ref * 0.85,
+                        v_ref * 0.95,
+                        v_ref * 1.00,
+                        v_ref * 1.05,
+                        v_ref * 1.15,
+                        v_ref * 1.30,
+                        v_ref * 1.50
+                    ]
 
                 # Generate BDF using validated SimpleBDFGenerator
                 bdf_file_path = self.bdf_generator.generate_flutter_bdf(

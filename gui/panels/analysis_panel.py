@@ -143,13 +143,15 @@ class AnalysisPanel(BasePanel):
         config_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=10)
 
         # Configuration grid
+        # Note: 10x10 mesh is optimal for most analyses
+        # Higher densities (15x15, 20x20) can cause NASTRAN crashes
         params = [
-            ("Number of Modes:", "n_modes", "20"),
-            ("Mesh Density (NX):", "mesh_nx", "20"),
-            ("Mesh Density (NY):", "mesh_ny", "20"),
-            ("Min Velocity (m/s):", "velocity_min", "100"),
-            ("Max Velocity (m/s):", "velocity_max", "2000"),
-            ("Velocity Points:", "velocity_points", "50")
+            ("Number of Modes:", "n_modes", "15"),
+            ("Mesh Density (NX):", "mesh_nx", "10"),
+            ("Mesh Density (NY):", "mesh_ny", "10"),
+            ("Min Velocity (m/s):", "velocity_min", "200"),
+            ("Max Velocity (m/s):", "velocity_max", "800"),
+            ("Velocity Points:", "velocity_points", "8")
         ]
 
         self.config_vars = {}
@@ -165,6 +167,54 @@ class AnalysisPanel(BasePanel):
 
             entry = ctk.CTkEntry(config_frame, textvariable=var, width=100)
             entry.grid(row=row, column=col+1, sticky="w", padx=5, pady=5)
+
+        # Add "Auto-Calculate Velocities" button
+        auto_btn = ctk.CTkButton(
+            config_frame,
+            text="Auto-Calculate Velocity Range",
+            command=self._auto_calculate_velocities,
+            width=200
+        )
+        auto_btn.grid(row=2, column=0, columnspan=6, pady=10)
+
+    def _auto_calculate_velocities(self):
+        """Auto-calculate velocity range based on flow conditions."""
+        project = self.project_manager.current_project
+        if not project or not project.aerodynamic_config:
+            messagebox.showwarning("Warning", "Please configure aerodynamic conditions first")
+            return
+
+        # Get flow conditions
+        aero = project.aerodynamic_config
+        mach = aero.get('mach_number', 2.0)
+        altitude = aero.get('altitude', 0)
+
+        # Calculate flow velocity (V = M * a)
+        # Speed of sound at sea level: ~340 m/s
+        # Simple ISA model: a = a0 - 0.00649 * h (for h < 11000m)
+        a0 = 340.29  # m/s at sea level
+        if altitude < 11000:
+            a = a0 - 0.00649 * altitude
+        else:
+            a = 295.07  # constant in stratosphere
+
+        v_flow = mach * a
+
+        # Set velocity range: 50% to 150% of flow velocity
+        v_min = v_flow * 0.5
+        v_max = v_flow * 1.5
+
+        # Update GUI fields
+        self.config_vars['velocity_min'].set(f"{v_min:.0f}")
+        self.config_vars['velocity_max'].set(f"{v_max:.0f}")
+        self.config_vars['velocity_points'].set("8")
+
+        messagebox.showinfo(
+            "Velocity Range Updated",
+            f"Velocity range set to {v_min:.0f}-{v_max:.0f} m/s\n"
+            f"(Based on M={mach:.2f} at {altitude:.0f}m altitude)\n"
+            f"Flow velocity: {v_flow:.0f} m/s"
+        )
 
     def _setup_results_display(self, parent):
         """Setup results display section."""
