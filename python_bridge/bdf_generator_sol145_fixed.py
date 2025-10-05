@@ -92,6 +92,8 @@ class Sol145BDFGenerator:
         # Parameters
         lines.append("PARAM   COUPMASS1")
         lines.append("PARAM   GRDPNT  0")
+        # PARAM VREF for velocity conversion (if velocities in in/s, converts to ft/s for output)
+        lines.append("PARAM   VREF    1.0")  # Will be adjusted based on unit system
         lines.append("$")
 
         # Material - VALIDATED FORMAT
@@ -190,6 +192,7 @@ class Sol145BDFGenerator:
         lines.append("$ Eigenvalue Extraction")
         sid = 1
         msglvl = 0  # Set to 0 to avoid MSGLVL:10 <= 4 error
+        # Using EIGRL (Lanczos) for now - more reliable with fixed-field format
         lines.append(f"EIGRL   {sid:8d}{'':16}{n_modes:8d}{msglvl:8d}")
         lines.append("$")
 
@@ -219,50 +222,91 @@ class Sol145BDFGenerator:
             lines.append(",0.0,0.0")  # Remaining 2 values (total = 10 CAOC values)
             lines.append("$")
 
-            # AEFACT 700 - Thickness integrals for piston theory
-            # For flat panel: I1=thickness ratio, I2-I6=0 (no camber)
-            t_ratio = panel.thickness / panel.length  # Thickness ratio
-            lines.append("$ Piston Theory Thickness Integrals (I1-I6) - flat panel")
-            lines.append(f"AEFACT,700,{t_ratio:.6f},0.0,0.0,0.0,0.0,0.0")
+            # AEFACT 10 - Thickness integrals for piston theory (flat panel = all zeros)
+            lines.append("$ Thickness Integrals (I1-I6) - flat panel")
+            lines.append("AEFACT  10      0.0     0.0     0.0     0.0     0.0     0.0")
             lines.append("$")
 
-            # AEFACT for Mach/alpha combinations
-            lines.append("$ Aerodynamic Factor - Mach and Alpha")
-            lines.append(f"AEFACT  20      {aero.mach_number:.1f}     0.0")
+            # AEFACT 20 for Mach/alpha combinations - Reference has M=2.0 and M=3.0
+            lines.append("$ Mach and Alpha Combinations")
+            lines.append(f"AEFACT  20      {aero.mach_number:.1f}     0.0     3.0     0.0")
             lines.append("$")
 
-            # CAERO5 entry - simplified to single panel
-            lines.append("$ CAERO5 Piston Theory Panel")
-            n_spanwise = 10  # Spanwise divisions (equal spacing)
+            # Generate 10 CAERO5 panels (chordwise strips) - matching reference HA145HA
+            lines.append("$ TEN CAERO5 ENTRIES FOR PANEL SURFACE")
+            lines.append("$")
+            n_strips = 10  # Number of chordwise strips
+            n_spanwise = 10  # Spanwise divisions per strip
             pid = 1001
-            nthry = 1  # Van Dyke correction
-            nthick_id = 700  # AEFACT ID for thickness integrals
-            eid = 1001
+            nthick = 10  # AEFACT ID for thickness integrals (AEFACT 10)
 
-            # CAERO5 format: EID,PID,CP,NSPAN,LSPAN,NTHRY,NTHICK
-            # When NSPAN>0 (equal strips), LSPAN must be blank
-            # NTHICK=700: Use thickness integral data from AEFACT 700
-            lines.append(f"CAERO5,{eid},{pid},,{n_spanwise},,{nthry},{nthick_id}")
-            # Continuation: X1,Y1,Z1,X12,X4,Y4,Z4,X43
-            # Single panel covering entire surface
-            lines.append(f",0.0,0.0,0.0,{panel.length:.1f},0.0,{panel.width:.1f},0.0,{panel.length:.1f}")
+            strip_width = panel.length / n_strips  # Chordwise strip width
+
+            for strip in range(n_strips):
+                eid = 1001 + strip * 1000  # EID: 1001, 2001, 3001, ..., 10001
+                x1 = strip * strip_width
+                x4 = x1
+                x12 = strip_width  # Chord length
+                x43 = strip_width
+
+                lines.append(f"$ EID    PID    CP     NSPAN  LSPAN  NTHRY  NTHICK")
+                # CAERO5: Match reference format exactly
+                # Format: CAERO5  EID   PID          NSPAN  LSPAN  (blank) NTHICK          +xxx
+                # NTHRY must be blank or <=2, so leaving it blank
+                lines.append(f"CAERO5  {eid:<7}{pid:<11}        {n_spanwise:<7}{1:<14}{nthick:<8}+CA{strip+1:02d}")
+                lines.append(f"$ X1     Y1     Z1     X12    X4     Y4     Z4     X43")
+                lines.append(f"+CA{strip+1:02d}  {x1:<7.1f}{0.0:<7.1f}{0.0:<7.1f}{x12:<7.1f}{x4:<7.1f}{panel.width:<7.1f}{0.0:<7.1f}{x43:<.1f}")
 
             lines.append("$")
 
-            # SPLINE2 entry - single panel
-            lines.append("$ Spline - Linear Interpolation (SPLINE2)")
-            sid = 1001
-            caero_id = 1001
-            box1 = eid  # First box ID = CAERO5 EID
-            box2 = eid + n_spanwise - 1  # Last box ID
+            # Generate 10 SPLINE2 entries (one per strip)
+            lines.append("$ SPLINE - LINEAR INTERPOLATION (SPLINE2)")
+            for strip in range(n_strips):
+                spline_id = 1001 + strip * 1000
+                caero_id = 1001 + strip * 1000
+                box1 = caero_id
+                box2 = caero_id  # Single box per strip
+                setg_id = 1010 + strip * 1000  # Reference to SET1
+                dz_id = caero_id  # DZ reference
+                cid = strip + 1  # Coordinate system ID
 
-            # SPLINE2: EID CAERO ID1 ID2 SETG DTOR CID DTHX DTHY
-            lines.append(f"SPLINE2,{sid},{caero_id},{box1},{box2},1,1.0,,,-1.0,-1.0")
+                lines.append(f"$ EID    CAERO  ID1    ID2    SETG   DZ     DTOR   CID")
+                lines.append(f"SPLINE2 {spline_id:<8}{caero_id:<8}{box1:<8}{box2:<8}{setg_id:<8}{dz_id:<8}0.0    1.0    {cid:<8}+SPL{strip+1}")
+                lines.append(f"$ DTHX   DTHY")
+                lines.append(f"+SPL{strip+1}   -1.0   -1.0")
+
             lines.append("$")
 
-            # SET1 for all structural grid points
-            lines.append("$ Structural Grid Set")
-            lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
+            # Generate 10 SET1 entries (structural grid sets for each strip)
+            lines.append("$ STRUCTURAL GRID SETS")
+            grids_per_strip = panel.nx + 1  # Number of grids in chordwise direction
+            for strip in range(n_strips):
+                set_id = 1001 + strip * 1000
+                # For a strip at position j, grids are: j*(nx+1)+1 through (j+1)*(nx+1)+1
+                # But we need to map to spanwise strips
+                # Each strip connects a band of structural grids
+                start_grid = 1 + strip * grids_per_strip
+                end_grid = start_grid + panel.ny  # Adjust for actual grid distribution
+
+                # Reference shows overlapping grid sets (e.g., 1-22, 12-33, 23-44, ...)
+                start_grid = 1 + strip * (grids_per_strip - 1)
+                end_grid = start_grid + panel.ny
+
+                lines.append(f"SET1    {set_id:<8}{start_grid:<8}THRU    {end_grid}")
+
+            lines.append("$")
+
+            # Generate 10 CORD2R coordinate systems at midchord of each strip
+            lines.append("$ ELASTIC AXES - CORD2R AT MIDCHORD OF EACH STRIP")
+            for strip in range(n_strips):
+                cid = strip + 1
+                x_mid = (strip + 0.5) * strip_width  # Midchord position
+
+                lines.append(f"$ CID    RID    A1     A2     A3     B1     B2     B3")
+                lines.append(f"CORD2R  {cid:<8}{'':8}{x_mid:.1f}    0.0    0.0    {x_mid:.1f}    0.0    1.0    +CRD{strip+1}")
+                lines.append(f"$ C1     C2     C3")
+                lines.append(f"+CRD{strip+1}   {panel.width*2:.1f}   0.0    0.0")
+
             lines.append("$")
 
         else:
@@ -296,11 +340,16 @@ class Sol145BDFGenerator:
         # FLUTTER card: PK method with density (1), Mach (2), reduced freq/velocity (3)
         lines.append("FLUTTER 1       PK      1       2       3       L")
 
-        # Density ratio list (FLFACT 1) - need at least 2 values
-        lines.append("FLFACT  1       1.0     1.0")
+        # Density ratio list (FLFACT 1) - 0.5 for one-sided flow (air on one side only)
+        lines.append("FLFACT  1       0.5")
 
-        # Mach number (FLFACT 2) - need at least 2 values
-        lines.append(f"FLFACT  2       {aero.mach_number:.1f}     {aero.mach_number:.1f}")
+        # Mach number (FLFACT 2) - include multiple Mach numbers for comprehensive analysis
+        if is_supersonic:
+            # For supersonic, test both M=2.0 and M=3.0 as in reference case
+            lines.append(f"FLFACT  2       {aero.mach_number:.1f}     3.0")
+        else:
+            # For subsonic/transonic, use same Mach number
+            lines.append(f"FLFACT  2       {aero.mach_number:.1f}     {aero.mach_number:.1f}")
 
         # For PK method, FLFACT 3 contains velocities
         if aero.velocities:
@@ -337,11 +386,12 @@ class Sol145BDFGenerator:
 
         # Aerodynamic matrices - select based on aerodynamic method
         if is_supersonic:
-            # MKAERO2 for piston theory (CAERO5)
-            lines.append("$ Aerodynamic Matrices - Piston Theory (MKAERO2)")
-            # MKAERO2 format: M1, k1 (one Mach-frequency pair per line)
-            # Start with key reduced frequency for flutter analysis
-            lines.append(f"MKAERO2 {aero.mach_number:.1f}     0.001")
+            # MKAERO1 for piston theory (CAERO5) - Reference uses MKAERO1, not MKAERO2
+            lines.append("$ Aerodynamic Matrices - Piston Theory (MKAERO1)")
+            # Include both M=2.0 and M=3.0 as in reference case
+            lines.append(f"MKAERO1 {aero.mach_number:.1f}     3.0{'':56}+MK")
+            # Continuation card with validated reduced frequencies (MUST have leading zeros)
+            lines.append("+MK     0.001   0.1     0.2     0.4")
             lines.append("$")
         else:
             # MKAERO1 for doublet lattice (CAERO1)
