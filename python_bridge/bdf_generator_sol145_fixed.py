@@ -211,21 +211,19 @@ class Sol145BDFGenerator:
 
             # PAERO5 card for piston theory - based on paero5.pdf Table 9-32 Row 1
             lines.append("$ Piston Theory Property")
-            # PAERO5 format: PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS
-            # Row 1: NTHICK>0 on CAERO5, so LXIS=0 on PAERO5
-            # NALPHA=1, NXIS=0, LXIS=0, NTAUS=0, LTAUS=0
-            # Continuation: CAOCi values (one per strip) = 0.0 for no control surface
+            # PAERO5 format: PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS, CAOC1, CAOC2, ...
+            # NALPHA=1, LALPHA=20 (AEFACT for Mach/alpha), NXIS=0, LXIS=0
+            # CAOC values: one per strip (NSPAN=10), all 0.0 (no control surface deflection)
             lines.append(f"PAERO5,1001,1,20,0,0,0,0")
-            # 10 CAOC values (one per strip, NSPAN=10), all 0.0 for no control surface
-            lines.append(",0.0,0.0,0.0,0.0,0.0,0.0,0.0")  # 7 values (max per line)
-            lines.append(",0.0,0.0,0.0")  # Remaining 3 values
+            lines.append(",0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0")  # 8 values
+            lines.append(",0.0,0.0")  # Remaining 2 values (total = 10 CAOC values)
             lines.append("$")
 
-            # AEFACT 700 - Minimal non-zero thickness integrals for aerodynamic coupling
-            # For thin cambered panel, use small values to enable piston theory coupling
+            # AEFACT 700 - Thickness integrals for piston theory
+            # For flat panel: I1=thickness ratio, I2-I6=0 (no camber)
             t_ratio = panel.thickness / panel.length  # Thickness ratio
-            lines.append("$ Piston Theory Thickness Integrals (I1-I6) - thin panel approximation")
-            lines.append(f"AEFACT,700,{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f}")
+            lines.append("$ Piston Theory Thickness Integrals (I1-I6) - flat panel")
+            lines.append(f"AEFACT,700,{t_ratio:.6f},0.0,0.0,0.0,0.0,0.0")
             lines.append("$")
 
             # AEFACT for Mach/alpha combinations
@@ -243,7 +241,7 @@ class Sol145BDFGenerator:
 
             # CAERO5 format: EID,PID,CP,NSPAN,LSPAN,NTHRY,NTHICK
             # When NSPAN>0 (equal strips), LSPAN must be blank
-            # NTHICK=700: Use external thickness integral data from AEFACT 700
+            # NTHICK=700: Use thickness integral data from AEFACT 700
             lines.append(f"CAERO5,{eid},{pid},,{n_spanwise},,{nthry},{nthick_id}")
             # Continuation: X1,Y1,Z1,X12,X4,Y4,Z4,X43
             # Single panel covering entire surface
@@ -341,9 +339,9 @@ class Sol145BDFGenerator:
         if is_supersonic:
             # MKAERO2 for piston theory (CAERO5)
             lines.append("$ Aerodynamic Matrices - Piston Theory (MKAERO2)")
-            # MKAERO2 format: M1 k1 k2 k3... (all on one line for simplicity)
-            # Using key reduced frequencies for flutter analysis
-            lines.append(f"MKAERO2 {aero.mach_number:<8.1f}0.001")
+            # MKAERO2 format: M1, k1 (one Mach-frequency pair per line)
+            # Start with key reduced frequency for flutter analysis
+            lines.append(f"MKAERO2 {aero.mach_number:.1f}     0.001")
             lines.append("$")
         else:
             # MKAERO1 for doublet lattice (CAERO1)
