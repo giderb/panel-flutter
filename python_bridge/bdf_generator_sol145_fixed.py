@@ -62,7 +62,8 @@ class Sol145BDFGenerator:
         aero: AeroConfig,
         boundary_conditions: str = "SSSS",
         n_modes: int = 10,
-        output_filename: str = "flutter_analysis.bdf"
+        output_filename: str = "flutter_analysis.bdf",
+        aerodynamic_theory: Optional[str] = None
     ) -> str:
         """Generate a NASTRAN BDF file for SOL145 flutter analysis with correct cards"""
 
@@ -203,10 +204,16 @@ class Sol145BDFGenerator:
         lines.append("$")
 
         # AERODYNAMIC MODEL - Select based on Mach number
-        # CAERO5 (Piston Theory) for M >= 1.5, CAERO1 (Doublet Lattice) for M < 1.5
-        is_supersonic = aero.mach_number >= 1.5
+        # Determine aerodynamic theory based on user selection or Mach number
+        # User selection takes priority, otherwise use Mach-based logic
+        if aerodynamic_theory:
+            # Explicit user choice
+            use_piston_theory = (aerodynamic_theory == "PISTON_THEORY")
+        else:
+            # Auto-select based on Mach number: CAERO5 for M >= 1.5, CAERO1 for M < 1.5
+            use_piston_theory = (aero.mach_number >= 1.5)
 
-        if is_supersonic:
+        if use_piston_theory:
             # CAERO5 - Piston Theory for supersonic flow (M >= 1.5)
             lines.append("$ Piston Theory (CAERO5) - Supersonic Aerodynamics")
             lines.append("$ Reference: MSC Nastran Aeroelastic Analysis User's Guide, Example HA145HA")
@@ -214,22 +221,22 @@ class Sol145BDFGenerator:
 
             # PAERO5 card for piston theory - based on paero5.pdf Table 9-32 Row 1
             lines.append("$ Piston Theory Property")
-            # PAERO5 format: PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS, CAOC1, CAOC2, ...
+            # PAERO5 format (8-char fields): PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS, CAOC1, +cont
             # NALPHA=1, LALPHA=20 (AEFACT for Mach/alpha), NXIS=0, LXIS=0
             # CAOC values: one per strip (NSPAN=10), all 0.0 (no control surface deflection)
-            lines.append(f"PAERO5,1001,1,20,0,0,0,0")
-            lines.append(",0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0")  # 8 values
-            lines.append(",0.0,0.0")  # Remaining 2 values (total = 10 CAOC values)
+            lines.append(f"PAERO5  {1001:<8}{1:<8}{20:<8}{0:<8}{0:<8}{0:<8}{0:<8}{0.0:<8}+PA5")
+            lines.append(f"+PA5    {0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}+PA51")
+            lines.append(f"+PA51   {0.0:<8}{0.0:<8}")  # Remaining 2 values (total = 10 CAOC values)
             lines.append("$")
 
             # AEFACT 10 - Thickness integrals for piston theory (flat panel = all zeros)
             lines.append("$ Thickness Integrals (I1-I6) - flat panel")
-            lines.append("AEFACT  10      0.0     0.0     0.0     0.0     0.0     0.0")
+            lines.append(f"AEFACT  {10:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}")
             lines.append("$")
 
             # AEFACT 20 for Mach/alpha combinations - Reference has M=2.0 and M=3.0
             lines.append("$ Mach and Alpha Combinations")
-            lines.append(f"AEFACT  20      {aero.mach_number:.1f}     0.0     3.0     0.0")
+            lines.append(f"AEFACT  {20:<8}{aero.mach_number:<8.1f}{0.0:<8}{3.0:<8}{0.0:<8}")
             lines.append("$")
 
             # Generate 10 CAERO5 panels (chordwise strips) - matching reference HA145HA
@@ -250,12 +257,13 @@ class Sol145BDFGenerator:
                 x43 = strip_width
 
                 lines.append(f"$ EID    PID    CP     NSPAN  LSPAN  NTHRY  NTHICK")
-                # CAERO5: Match reference format exactly
-                # Format: CAERO5  EID   PID          NSPAN  LSPAN  (blank) NTHICK          +xxx
-                # NTHRY must be blank or <=2, so leaving it blank
-                lines.append(f"CAERO5  {eid:<7}{pid:<11}        {n_spanwise:<7}{1:<14}{nthick:<8}+CA{strip+1:02d}")
+                # CAERO5: 8-character fixed field format (NASTRAN requirement)
+                # Field 1: CAERO5, Field 2: EID, Field 3: PID, Field 4: CP (blank)
+                # Field 5: NSPAN, Field 6: LSPAN, Field 7: NTHRY (blank), Field 8: NTHICK, Field 9: +cont
+                lines.append(f"CAERO5  {eid:<8}{pid:<8}        {n_spanwise:<8}{1:<8}        {nthick:<8}+CA{strip+1:02d}")
                 lines.append(f"$ X1     Y1     Z1     X12    X4     Y4     Z4     X43")
-                lines.append(f"+CA{strip+1:02d}  {x1:<7.1f}{0.0:<7.1f}{0.0:<7.1f}{x12:<7.1f}{x4:<7.1f}{panel.width:<7.1f}{0.0:<7.1f}{x43:<.1f}")
+                # Continuation: Field 1: +CA##, then 8 data fields of 8 chars each
+                lines.append(f"+CA{strip+1:02d}    {x1:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{x12:<8.1f}{x4:<8.1f}{panel.width:<8.1f}{0.0:<8.1f}{x43:<8.1f}")
 
             lines.append("$")
 
@@ -271,9 +279,11 @@ class Sol145BDFGenerator:
                 cid = strip + 1  # Coordinate system ID
 
                 lines.append(f"$ EID    CAERO  ID1    ID2    SETG   DZ     DTOR   CID")
-                lines.append(f"SPLINE2 {spline_id:<8}{caero_id:<8}{box1:<8}{box2:<8}{setg_id:<8}{dz_id:<8}0.0    1.0    {cid:<8}+SPL{strip+1}")
+                # SPLINE2: 8-character fixed field format
+                lines.append(f"SPLINE2 {spline_id:<8}{caero_id:<8}{box1:<8}{box2:<8}{setg_id:<8}{dz_id:<8}{0.0:<8}{1.0:<8}{cid:<8}+SPL{strip+1}")
                 lines.append(f"$ DTHX   DTHY")
-                lines.append(f"+SPL{strip+1}   -1.0   -1.0")
+                # Continuation: Field 1: +SPL#, then data fields of 8 chars each
+                lines.append(f"+SPL{strip+1}   {-1.0:<8}{-1.0:<8}")
 
             lines.append("$")
 

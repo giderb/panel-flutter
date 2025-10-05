@@ -190,6 +190,18 @@ class IntegratedFlutterExecutor:
                         v_ref * 1.50
                     ]
 
+                # Extract aerodynamic theory from model if available
+                aero_theory = None
+                if hasattr(aerodynamic_model, 'theory'):
+                    # It's an AerodynamicModel object with theory attribute
+                    theory_enum = aerodynamic_model.theory
+                    aero_theory = theory_enum.value if hasattr(theory_enum, 'value') else str(theory_enum)
+                elif isinstance(aerodynamic_model, dict) and 'theory' in aerodynamic_model:
+                    # It's a dictionary with theory key
+                    aero_theory = aerodynamic_model['theory']
+
+                self.logger.info(f"Aerodynamic theory from model: {aero_theory}")
+
                 # Generate BDF using validated SimpleBDFGenerator
                 bdf_file_path = self.bdf_generator.generate_flutter_bdf(
                     length=panel.length,
@@ -202,7 +214,8 @@ class IntegratedFlutterExecutor:
                     density=panel.density,
                     mach_number=flow.mach_number,
                     velocities=velocities,
-                    output_file=str(bdf_path)
+                    output_file=str(bdf_path),
+                    aerodynamic_theory=aero_theory
                 )
                 
                 # Step 4: Execute NASTRAN if requested

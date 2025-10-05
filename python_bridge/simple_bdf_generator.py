@@ -45,7 +45,8 @@ class SimpleBDFGenerator:
         velocities: List[float],
         output_file: str,
         boundary_conditions: str = "SSSS",
-        n_modes: int = 20
+        n_modes: int = 20,
+        aerodynamic_theory: Optional[str] = None
     ) -> str:
         """
         Generate NASTRAN BDF file for flutter analysis.
@@ -64,6 +65,7 @@ class SimpleBDFGenerator:
             output_file: Output filename
             boundary_conditions: Boundary condition type (default "SSSS")
             n_modes: Number of modes for analysis (default 20)
+            aerodynamic_theory: Aerodynamic theory ('PISTON_THEORY' or 'DOUBLET_LATTICE', None=auto)
 
         Returns:
             Path to generated BDF file
@@ -72,6 +74,7 @@ class SimpleBDFGenerator:
         logger.info(f"Generating BDF: {length}m x {width}m x {thickness}m, {nx}x{ny} mesh")
         logger.info(f"Material: E={youngs_modulus/1e9:.1f}GPa, rho={density:.0f}kg/m³")
         logger.info(f"Flow: M={mach_number:.2f}, velocities={len(velocities)} points")
+        logger.info(f"Aerodynamic theory: {aerodynamic_theory if aerodynamic_theory else 'AUTO (based on Mach)'}")
 
         # Convert SI units (m, kg, Pa) to Sol145 units (mm, kg, s, N)
         # Sol145BDFGenerator uses mm-kg-s-N system
@@ -124,7 +127,8 @@ class SimpleBDFGenerator:
                 aero=aero,
                 boundary_conditions=boundary_conditions,
                 n_modes=n_modes,
-                output_filename=output_file
+                output_filename=output_file,
+                aerodynamic_theory=aerodynamic_theory
             )
 
             logger.info(f"BDF file generated successfully: {bdf_path}")
