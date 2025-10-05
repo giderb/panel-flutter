@@ -102,13 +102,15 @@ class Sol145BDFGenerator:
             G = material.shear_modulus
 
         lines.append("$ Material Properties (SI units in mm)")
-        # Match validated working format
-        lines.append(f"MAT1    1       {material.youngs_modulus:.0f}.  {G:.0f}.  .{material.poissons_ratio*100:.0f}     {material.density:.2E}{2.1E-05:.1E}")
+        # MAT1: MID E G NU RHO A TREF GE
+        # CRITICAL: Must have proper spacing between all fields
+        lines.append(f"MAT1    1       {material.youngs_modulus:.0f}.  {G:.0f}.  .{material.poissons_ratio*100:.0f}     {material.density:.2E} {2.1E-05:.1E}")
         lines.append("$")
 
         # Shell property
         lines.append("$ Shell Property")
-        lines.append(f"PSHELL  1       1       {panel.thickness:.1f}")
+        # Use sufficient precision for thin panels
+        lines.append(f"PSHELL  1       1       {panel.thickness:.4f}")
         lines.append("$")
 
         # Grid points
@@ -197,27 +199,99 @@ class Sol145BDFGenerator:
         lines.append(f"AERO    0       1.      {panel.length:<8.1f}1.225-12")
         lines.append("$")
 
-        # AERODYNAMIC MODEL - Use doublet lattice method (more reliable than piston theory)
-        lines.append("$ Doublet Lattice Method Property")
-        lines.append("PAERO1  1")
-        lines.append("$")
+        # AERODYNAMIC MODEL - Select based on Mach number
+        # CAERO5 (Piston Theory) for M >= 1.5, CAERO1 (Doublet Lattice) for M < 1.5
+        is_supersonic = aero.mach_number >= 1.5
 
-        # CAERO1 card for doublet lattice method - CORRECTED GEOMETRY
-        lines.append("$ Doublet Lattice Method Panel")
-        # CAERO1 format: EID PID CP NSPAN NCHORD LSPAN LCHORD IGD
-        aero_nx = 4  # 4x4 aerodynamic mesh for better interpolation
-        aero_ny = 4
-        lines.append(f"CAERO1  1       1               {aero_nx:<8}{aero_ny:<8}{'':8}{'':8}1       +")
-        # Correct corner coordinates: (0,0,0), (L,0,0), (L,W,0), (0,W,0)
-        lines.append(f"+       0.      0.      0.      {panel.length:<8.1f}0.      {panel.width:<8.1f}{panel.length:<8.1f}{panel.width:<8.1f}0.")
-        lines.append("$")
+        if is_supersonic:
+            # CAERO5 - Piston Theory for supersonic flow (M >= 1.5)
+            lines.append("$ Piston Theory (CAERO5) - Supersonic Aerodynamics")
+            lines.append("$ Reference: MSC Nastran Aeroelastic Analysis User's Guide, Example HA145HA")
+            lines.append("$")
 
-        # SPLINE1 for surface interpolation - MUCH MORE ROBUST
-        lines.append("$ Spline - Surface Interpolation")
-        aero_panels = aero_nx * aero_ny
-        lines.append(f"SPLINE1 1       1       1       {aero_panels:<8}1")
-        lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
-        lines.append("$")
+            # PAERO5 card for piston theory - based on paero5.pdf Table 9-32 Row 1
+            lines.append("$ Piston Theory Property")
+            # PAERO5 format: PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS
+            # Row 1: NTHICK>0 on CAERO5, so LXIS=0 on PAERO5
+            # NALPHA=1, NXIS=0, LXIS=0, NTAUS=0, LTAUS=0
+            # Continuation: CAOCi values (one per strip) = 0.0 for no control surface
+            lines.append(f"PAERO5,1001,1,20,0,0,0,0")
+            # 10 CAOC values (one per strip, NSPAN=10), all 0.0 for no control surface
+            lines.append(",0.0,0.0,0.0,0.0,0.0,0.0,0.0")  # 7 values (max per line)
+            lines.append(",0.0,0.0,0.0")  # Remaining 3 values
+            lines.append("$")
+
+            # AEFACT 700 - Minimal non-zero thickness integrals for aerodynamic coupling
+            # For thin cambered panel, use small values to enable piston theory coupling
+            t_ratio = panel.thickness / panel.length  # Thickness ratio
+            lines.append("$ Piston Theory Thickness Integrals (I1-I6) - thin panel approximation")
+            lines.append(f"AEFACT,700,{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f},{t_ratio:.6f}")
+            lines.append("$")
+
+            # AEFACT for Mach/alpha combinations
+            lines.append("$ Aerodynamic Factor - Mach and Alpha")
+            lines.append(f"AEFACT  20      {aero.mach_number:.1f}     0.0")
+            lines.append("$")
+
+            # CAERO5 entry - simplified to single panel
+            lines.append("$ CAERO5 Piston Theory Panel")
+            n_spanwise = 10  # Spanwise divisions (equal spacing)
+            pid = 1001
+            nthry = 1  # Van Dyke correction
+            nthick_id = 700  # AEFACT ID for thickness integrals
+            eid = 1001
+
+            # CAERO5 format: EID,PID,CP,NSPAN,LSPAN,NTHRY,NTHICK
+            # When NSPAN>0 (equal strips), LSPAN must be blank
+            # NTHICK=700: Use external thickness integral data from AEFACT 700
+            lines.append(f"CAERO5,{eid},{pid},,{n_spanwise},,{nthry},{nthick_id}")
+            # Continuation: X1,Y1,Z1,X12,X4,Y4,Z4,X43
+            # Single panel covering entire surface
+            lines.append(f",0.0,0.0,0.0,{panel.length:.1f},0.0,{panel.width:.1f},0.0,{panel.length:.1f}")
+
+            lines.append("$")
+
+            # SPLINE2 entry - single panel
+            lines.append("$ Spline - Linear Interpolation (SPLINE2)")
+            sid = 1001
+            caero_id = 1001
+            box1 = eid  # First box ID = CAERO5 EID
+            box2 = eid + n_spanwise - 1  # Last box ID
+
+            # SPLINE2: EID CAERO ID1 ID2 SETG DTOR CID DTHX DTHY
+            lines.append(f"SPLINE2,{sid},{caero_id},{box1},{box2},1,1.0,,,-1.0,-1.0")
+            lines.append("$")
+
+            # SET1 for all structural grid points
+            lines.append("$ Structural Grid Set")
+            lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
+            lines.append("$")
+
+        else:
+            # CAERO1 - Doublet Lattice Method for subsonic/transonic (M < 1.5)
+            lines.append("$ Doublet Lattice Method (CAERO1) - Subsonic/Transonic")
+            lines.append("$")
+
+            lines.append("$ Doublet Lattice Method Property")
+            lines.append("PAERO1  1")
+            lines.append("$")
+
+            # CAERO1 card for doublet lattice method - CORRECTED GEOMETRY
+            lines.append("$ Doublet Lattice Method Panel")
+            # CAERO1 format: EID PID CP NSPAN NCHORD LSPAN LCHORD IGD
+            aero_nx = 4  # 4x4 aerodynamic mesh for better interpolation
+            aero_ny = 4
+            lines.append(f"CAERO1  1       1               {aero_nx:<8}{aero_ny:<8}{'':8}{'':8}1       +")
+            # Correct corner coordinates: (0,0,0), (L,0,0), (L,W,0), (0,W,0)
+            lines.append(f"+       0.      0.      0.      {panel.length:<8.1f}0.      {panel.width:<8.1f}{panel.length:<8.1f}{panel.width:<8.1f}0.")
+            lines.append("$")
+
+            # SPLINE1 for surface interpolation - MUCH MORE ROBUST
+            lines.append("$ Spline - Surface Interpolation")
+            aero_panels = aero_nx * aero_ny
+            lines.append(f"SPLINE1 1       1       1       {aero_panels:<8}1")
+            lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
+            lines.append("$")
 
         # Flutter cards
         lines.append("$ Flutter Analysis")
@@ -263,17 +337,22 @@ class Sol145BDFGenerator:
             lines.append("+               1.3E+06 1.4E+06 1.5E+06")
         lines.append("$")
 
-        # CORRECTED MKAERO1 card for piston theory - VALIDATED FORMAT
-        lines.append("$ Aerodynamic Matrices - Piston Theory")
-        # MKAERO1 format exactly matching validated working example
-
-        # Main card with Mach number only
-        lines.append(f"MKAERO1 {aero.mach_number:<8.1f}{'':56}+")
-
-        # Continuation card with validated reduced frequencies
-        # Use exact format from working example: .001 .1 .2 .4
-        lines.append("+               .001    .1      .2      .4")
-        lines.append("$")
+        # Aerodynamic matrices - select based on aerodynamic method
+        if is_supersonic:
+            # MKAERO2 for piston theory (CAERO5)
+            lines.append("$ Aerodynamic Matrices - Piston Theory (MKAERO2)")
+            # MKAERO2 format: M1 k1 k2 k3... (all on one line for simplicity)
+            # Using key reduced frequencies for flutter analysis
+            lines.append(f"MKAERO2 {aero.mach_number:<8.1f}0.001")
+            lines.append("$")
+        else:
+            # MKAERO1 for doublet lattice (CAERO1)
+            lines.append("$ Aerodynamic Matrices - Doublet Lattice (MKAERO1)")
+            # Main card with Mach number only
+            lines.append(f"MKAERO1 {aero.mach_number:<8.1f}{'':56}+")
+            # Continuation card with validated reduced frequencies (MUST have leading zeros)
+            lines.append("+       0.001   0.1     0.2     0.4")
+            lines.append("$")
 
         # End of data
         lines.append("ENDDATA")
