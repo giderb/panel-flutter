@@ -247,6 +247,9 @@ class HomePanel(BasePanel):
                 self.main_window.update_status(f"Opened: {project.name}")
                 self._update_project_display()
                 self._update_recent_projects_display()
+                # Refresh all panels with loaded project data
+                if hasattr(self.main_window, '_refresh_panels'):
+                    self.main_window._refresh_panels()
                 self.show_info("Success", f"Project '{project.name}' loaded!")
             else:
                 self.show_error("Error", "Failed to load project file.")

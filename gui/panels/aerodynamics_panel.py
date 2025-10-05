@@ -277,7 +277,7 @@ class AerodynamicsPanel(BasePanel):
 
         # Number of boxes in X (chordwise)
         nx_aero_label = self.theme_manager.create_styled_label(mesh_frame, text="Chordwise Boxes:")
-        nx_aero_label.grid(row=1, column=0, sticky="w", padx=(20, 10), pady=5)
+        nx_aero_label.grid(row=2, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.nx_aero_var = ctk.StringVar(value="4")
         self.nx_aero_entry = self.theme_manager.create_styled_entry(
@@ -285,11 +285,11 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.nx_aero_var,
             placeholder_text="Number of aerodynamic boxes in chord direction"
         )
-        self.nx_aero_entry.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.nx_aero_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=5)
 
         # Number of boxes in Y (spanwise)
         ny_aero_label = self.theme_manager.create_styled_label(mesh_frame, text="Spanwise Boxes:")
-        ny_aero_label.grid(row=2, column=0, sticky="w", padx=(20, 10), pady=5)
+        ny_aero_label.grid(row=3, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.ny_aero_var = ctk.StringVar(value="2")
         self.ny_aero_entry = self.theme_manager.create_styled_entry(
@@ -297,11 +297,11 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.ny_aero_var,
             placeholder_text="Number of aerodynamic boxes in span direction"
         )
-        self.ny_aero_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.ny_aero_entry.grid(row=3, column=1, sticky="ew", padx=(0, 20), pady=5)
 
         # Z-offset for aerodynamic mesh
         z_offset_label = self.theme_manager.create_styled_label(mesh_frame, text="Z-Offset [m]:")
-        z_offset_label.grid(row=3, column=0, sticky="w", padx=(20, 10), pady=5)
+        z_offset_label.grid(row=4, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.z_offset_var = ctk.StringVar(value="0.0")
         self.z_offset_entry = self.theme_manager.create_styled_entry(
@@ -309,7 +309,7 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.z_offset_var,
             placeholder_text="Z-offset from structural mesh"
         )
-        self.z_offset_entry.grid(row=3, column=1, sticky="ew", padx=(0, 20), pady=(5, 15))
+        self.z_offset_entry.grid(row=4, column=1, sticky="ew", padx=(0, 20), pady=(5, 15))
 
         # Mesh statistics
         stats_frame = self.theme_manager.create_styled_frame(self.mesh_tab, elevated=True)

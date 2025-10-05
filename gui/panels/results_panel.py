@@ -237,20 +237,25 @@ class ResultsPanel(BasePanel):
         damping = flutter_data.get('damping', [])
 
         if velocities and damping:
+            # Convert to numpy arrays for safer operations
+            velocities_arr = np.array(velocities)
+            damping_arr = np.array(damping)
+
             # Plot damping curve
-            ax.plot(velocities, damping, 'b-', linewidth=2, label='Damping')
-            
+            ax.plot(velocities_arr, damping_arr, 'b-', linewidth=2, label='Damping')
+
             # Add zero line
             ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-            
+
             # Mark flutter point
             critical_v = flutter_data.get('critical_velocity')
             if critical_v and critical_v < 9000:
                 ax.axvline(x=critical_v, color='r', linestyle='--', alpha=0.7, label=f'Flutter: {critical_v:.1f} m/s')
-                
+
                 # Find damping at flutter
-                idx = np.argmin(np.abs(np.array(velocities) - critical_v))
-                ax.plot(critical_v, damping[idx] if idx < len(damping) else 0, 'ro', markersize=10)
+                idx = np.argmin(np.abs(velocities_arr - critical_v))
+                if idx < len(damping_arr):
+                    ax.plot(critical_v, damping_arr[idx], 'ro', markersize=10)
 
             ax.set_xlabel('Velocity (m/s)', fontsize=12)
             ax.set_ylabel('Damping (g)', fontsize=12)
@@ -258,11 +263,21 @@ class ResultsPanel(BasePanel):
             ax.grid(True, alpha=0.3)
             ax.legend()
 
-            # Add stability regions
-            ax.fill_between(velocities, -10, 0, where=np.array(damping) < 0,
-                           color='green', alpha=0.1, label='Stable')
-            ax.fill_between(velocities, 0, 10, where=np.array(damping) > 0,
-                           color='red', alpha=0.1, label='Unstable')
+            # Add stability regions - only if data length matches
+            if len(velocities_arr) == len(damping_arr):
+                try:
+                    # Stable region (negative damping)
+                    stable_mask = damping_arr < 0
+                    if np.any(stable_mask):
+                        ax.fill_between(velocities_arr, -10, 0, where=stable_mask,
+                                       color='green', alpha=0.1, interpolate=True)
+                    # Unstable region (positive damping)
+                    unstable_mask = damping_arr > 0
+                    if np.any(unstable_mask):
+                        ax.fill_between(velocities_arr, 0, 10, where=unstable_mask,
+                                       color='red', alpha=0.1, interpolate=True)
+                except Exception as e:
+                    self.logger.warning(f"Could not draw stability regions: {e}")
 
         # Embed in tkinter
         canvas = FigureCanvasTkAgg(fig, self.content_container)
@@ -284,16 +299,20 @@ class ResultsPanel(BasePanel):
         frequencies = flutter_data.get('frequencies', [])
 
         if velocities and frequencies:
+            # Convert to numpy arrays for safer operations
+            velocities_arr = np.array(velocities)
+            frequencies_arr = np.array(frequencies)
+
             # Plot frequency curve
-            ax.plot(velocities, frequencies, 'g-', linewidth=2, label='Frequency')
-            
+            ax.plot(velocities_arr, frequencies_arr, 'g-', linewidth=2, label='Frequency')
+
             # Mark flutter point
             critical_v = flutter_data.get('critical_velocity')
             critical_f = flutter_data.get('critical_frequency')
-            
+
             if critical_v and critical_v < 9000 and critical_f:
                 ax.axvline(x=critical_v, color='r', linestyle='--', alpha=0.7)
-                ax.plot(critical_v, critical_f, 'ro', markersize=10, 
+                ax.plot(critical_v, critical_f, 'ro', markersize=10,
                        label=f'Flutter: {critical_f:.1f} Hz @ {critical_v:.1f} m/s')
 
             ax.set_xlabel('Velocity (m/s)', fontsize=12)
@@ -486,49 +505,73 @@ class ResultsPanel(BasePanel):
     def _export_csv(self, filepath: str):
         """Export results as CSV."""
         import csv
-        
-        with open(filepath, 'w', newline='') as f:
+
+        with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            
+
             # Header
             writer.writerow(['Flutter Analysis Results'])
             writer.writerow(['Generated', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
             writer.writerow([])
-            
+
             # Critical results
             writer.writerow(['Parameter', 'Value', 'Unit'])
-            writer.writerow(['Flutter Speed', self.analysis_results.get('critical_flutter_speed', ''), 'm/s'])
-            writer.writerow(['Flutter Frequency', self.analysis_results.get('critical_flutter_frequency', ''), 'Hz'])
-            writer.writerow(['Flutter Mode', self.analysis_results.get('critical_flutter_mode', ''), ''])
-            writer.writerow(['Dynamic Pressure', self.analysis_results.get('critical_dynamic_pressure', ''), 'Pa'])
-            writer.writerow(['Safety Margin', self.analysis_results.get('safety_margin', ''), '%'])
-            writer.writerow(['Validation Status', self.analysis_results.get('validation_status', ''), ''])
+            writer.writerow(['Flutter Speed', self.analysis_results.get('critical_flutter_speed', 'N/A'), 'm/s'])
+            writer.writerow(['Flutter Frequency', self.analysis_results.get('critical_flutter_frequency', 'N/A'), 'Hz'])
+            writer.writerow(['Flutter Mode', self.analysis_results.get('critical_flutter_mode', 'N/A'), ''])
+            writer.writerow(['Dynamic Pressure', self.analysis_results.get('critical_dynamic_pressure', 'N/A'), 'Pa'])
+            writer.writerow(['Safety Margin', self.analysis_results.get('safety_margin', 'N/A'), '%'])
+            writer.writerow(['Validation Status', self.analysis_results.get('validation_status', 'N/A'), ''])
+
+            # Add velocity-damping data if available
+            flutter_data = self.analysis_results.get('flutter_data', {})
+            if flutter_data.get('velocities') and flutter_data.get('damping'):
+                writer.writerow([])
+                writer.writerow(['Velocity-Damping Data'])
+                writer.writerow(['Velocity (m/s)', 'Damping (g)'])
+                velocities = flutter_data.get('velocities', [])
+                damping = flutter_data.get('damping', [])
+                for v, g in zip(velocities, damping):
+                    writer.writerow([v, g])
 
     def _export_text_report(self, filepath: str):
         """Export formatted text report."""
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             f.write("=" * 60 + "\n")
             f.write("FLUTTER ANALYSIS REPORT\n")
             f.write("=" * 60 + "\n\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            
+
             f.write("CRITICAL RESULTS:\n")
             f.write("-" * 40 + "\n")
-            f.write(f"Flutter Speed: {self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s\n")
-            f.write(f"Flutter Frequency: {self.analysis_results.get('critical_flutter_frequency', 0):.1f} Hz\n")
-            f.write(f"Flutter Mode: {self.analysis_results.get('critical_flutter_mode', 0)}\n")
+            flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
+            flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
+            f.write(f"Flutter Speed: {flutter_speed:.1f} m/s\n" if flutter_speed else "Flutter Speed: N/A\n")
+            f.write(f"Flutter Frequency: {flutter_freq:.1f} Hz\n" if flutter_freq else "Flutter Frequency: N/A\n")
+            f.write(f"Flutter Mode: {self.analysis_results.get('critical_flutter_mode', 'N/A')}\n")
             f.write(f"Dynamic Pressure: {self.analysis_results.get('critical_dynamic_pressure', 0):.0f} Pa\n")
             f.write(f"Safety Margin: {self.analysis_results.get('safety_margin', 0):.1f}%\n\n")
-            
+
             f.write("CONFIGURATION:\n")
             f.write("-" * 40 + "\n")
             config = self.analysis_results.get('configuration', {})
-            for key, value in config.items():
-                f.write(f"{key}: {value}\n")
-            
+            if config:
+                for key, value in config.items():
+                    f.write(f"{key}: {value}\n")
+            else:
+                f.write("Configuration data not available\n")
+
             f.write("\nVALIDATION:\n")
             f.write("-" * 40 + "\n")
             f.write(f"{self.analysis_results.get('validation_status', 'Not validated')}\n")
+
+            # Add flutter data summary if available
+            flutter_data = self.analysis_results.get('flutter_data', {})
+            if flutter_data:
+                f.write("\nFLUTTER DATA SUMMARY:\n")
+                f.write("-" * 40 + "\n")
+                f.write(f"Velocity range: {min(flutter_data.get('velocities', [0])):.1f} - {max(flutter_data.get('velocities', [0])):.1f} m/s\n")
+                f.write(f"Number of data points: {len(flutter_data.get('velocities', []))}\n")
 
     def _generate_report(self):
         """Generate comprehensive HTML report."""
@@ -548,55 +591,86 @@ class ResultsPanel(BasePanel):
 
     def _create_html_report(self, filepath: str):
         """Create HTML report with plots."""
+        flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
+        flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
+        flutter_mode = self.analysis_results.get('critical_flutter_mode', 'N/A')
+        dynamic_pressure = self.analysis_results.get('critical_dynamic_pressure', 0)
+        safety_margin = self.analysis_results.get('safety_margin', 0)
+
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Flutter Analysis Report</title>
+            <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                h1 {{ color: #333; border-bottom: 2px solid #333; }}
-                h2 {{ color: #666; }}
-                table {{ border-collapse: collapse; width: 100%; }}
-                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-                th {{ background-color: #f2f2f2; }}
+                body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 1200px; margin: 0 auto; background-color: white; padding: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }}
+                h1 {{ color: #333; border-bottom: 3px solid #0066cc; padding-bottom: 10px; }}
+                h2 {{ color: #666; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                table {{ border-collapse: collapse; width: 100%; margin-top: 15px; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #0066cc; color: white; }}
                 .critical {{ background-color: #ffe6e6; }}
                 .stable {{ color: green; font-weight: bold; }}
                 .unstable {{ color: red; font-weight: bold; }}
+                .info {{ background-color: #e6f2ff; padding: 15px; margin: 15px 0; border-left: 4px solid #0066cc; }}
             </style>
         </head>
         <body>
-            <h1>Flutter Analysis Report</h1>
-            <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            
-            <h2>Critical Flutter Point</h2>
-            <table>
-                <tr><th>Parameter</th><th>Value</th></tr>
-                <tr class="critical"><td>Flutter Speed</td><td>{self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s</td></tr>
-                <tr class="critical"><td>Flutter Frequency</td><td>{self.analysis_results.get('critical_flutter_frequency', 0):.1f} Hz</td></tr>
-                <tr><td>Flutter Mode</td><td>{self.analysis_results.get('critical_flutter_mode', 0)}</td></tr>
-                <tr><td>Dynamic Pressure</td><td>{self.analysis_results.get('critical_dynamic_pressure', 0):.0f} Pa</td></tr>
-                <tr><td>Safety Margin</td><td>{self.analysis_results.get('safety_margin', 0):.1f}%</td></tr>
-            </table>
-            
-            <h2>Validation Status</h2>
-            <p>{self.analysis_results.get('validation_status', 'Not validated')}</p>
-            
-            <h2>Configuration</h2>
-            <table>
+            <div class="container">
+                <h1>🛫 Flutter Analysis Report</h1>
+                <div class="info">
+                    <strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                </div>
+
+                <h2>Critical Flutter Point</h2>
+                <table>
+                    <tr><th>Parameter</th><th>Value</th></tr>
+                    <tr class="critical"><td>Flutter Speed</td><td>{flutter_speed:.1f} m/s</td></tr>
+                    <tr class="critical"><td>Flutter Frequency</td><td>{flutter_freq:.1f} Hz</td></tr>
+                    <tr><td>Flutter Mode</td><td>{flutter_mode}</td></tr>
+                    <tr><td>Dynamic Pressure</td><td>{dynamic_pressure:.0f} Pa</td></tr>
+                    <tr><td>Safety Margin</td><td>{safety_margin:.1f}%</td></tr>
+                </table>
+
+                <h2>Validation Status</h2>
+                <div class="info">
+                    {self.analysis_results.get('validation_status', 'Not validated')}
+                </div>
+
+                <h2>Configuration</h2>
+                <table>
+                    <tr><th>Parameter</th><th>Value</th></tr>
         """
-        
+
         config = self.analysis_results.get('configuration', {})
-        for key, value in config.items():
-            html += f"<tr><td>{key}</td><td>{value}</td></tr>"
-        
+        if config:
+            for key, value in config.items():
+                html += f"<tr><td>{key}</td><td>{value}</td></tr>"
+        else:
+            html += "<tr><td colspan='2'>Configuration data not available</td></tr>"
+
         html += """
-            </table>
+                </table>
+
+                <h2>Analysis Information</h2>
+                <table>
+                    <tr><th>Item</th><th>Details</th></tr>
+        """
+
+        # Add analysis metadata
+        html += f"""
+                    <tr><td>Method</td><td>{self.analysis_results.get('method', 'N/A')}</td></tr>
+                    <tr><td>Converged</td><td>{'Yes' if self.analysis_results.get('converged') else 'No'}</td></tr>
+                    <tr><td>Execution Time</td><td>{self.analysis_results.get('execution_time', 0):.2f} seconds</td></tr>
+                </table>
+            </div>
         </body>
         </html>
         """
-        
-        with open(filepath, 'w') as f:
+
+        with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html)
 
     def refresh(self):
