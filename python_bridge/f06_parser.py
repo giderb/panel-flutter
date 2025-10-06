@@ -199,24 +199,52 @@ class F06Parser:
         critical_frequency = None
 
         if self.flutter_results:
-            # Sort by velocity
-            sorted_flutter = sorted(self.flutter_results, key=lambda x: x.velocity)
+            # Group flutter points by velocity
+            from collections import defaultdict
+            velocity_groups = defaultdict(list)
+            for pt in self.flutter_results:
+                velocity_groups[pt.velocity].append(pt)
 
-            # Find where damping changes sign
-            for i in range(len(sorted_flutter) - 1):
-                if sorted_flutter[i].damping * sorted_flutter[i + 1].damping < 0:
-                    # Interpolate
-                    d1 = sorted_flutter[i].damping
-                    d2 = sorted_flutter[i + 1].damping
-                    v1 = sorted_flutter[i].velocity
-                    v2 = sorted_flutter[i + 1].velocity
-                    f1 = sorted_flutter[i].frequency
-                    f2 = sorted_flutter[i + 1].frequency
+            # Sort velocities
+            sorted_velocities = sorted(velocity_groups.keys())
 
-                    # Linear interpolation to zero damping
-                    t = -d1 / (d2 - d1)
-                    critical_velocity = v1 + t * (v2 - v1)
-                    critical_frequency = f1 + t * (f2 - f1)
+            # Look for mode transitions between consecutive velocities
+            # Focus on structural panel flutter modes (5-100 Hz)
+            for i in range(len(sorted_velocities) - 1):
+                v1 = sorted_velocities[i]
+                v2 = sorted_velocities[i + 1]
+
+                modes_v1 = velocity_groups[v1]
+                modes_v2 = velocity_groups[v2]
+
+                # Try to match modes by frequency (same mode will have similar frequency)
+                for m1 in modes_v1:
+                    # Skip modes outside realistic panel flutter range
+                    if m1.frequency < 5.0 or m1.frequency > 100.0:
+                        continue
+
+                    # Find matching mode at next velocity (frequency within 20% tolerance)
+                    for m2 in modes_v2:
+                        if m2.frequency < 5.0 or m2.frequency > 100.0:
+                            continue
+
+                        # Check if this is likely the same mode (frequency similar)
+                        freq_ratio = abs(m2.frequency - m1.frequency) / m1.frequency if m1.frequency > 0 else float('inf')
+                        if freq_ratio < 0.2:  # Frequency within 20%
+                            # Check for flutter onset (negative to positive damping)
+                            if m1.damping < 0 and m2.damping > 0:
+                                # Linear interpolation to zero damping
+                                d1 = m1.damping
+                                d2 = m2.damping
+                                f1 = m1.frequency
+                                f2 = m2.frequency
+
+                                t = -d1 / (d2 - d1)
+                                critical_velocity = v1 + t * (v2 - v1)
+                                critical_frequency = f1 + t * (f2 - f1)
+                                break
+
+                if critical_velocity is not None:
                     break
 
         return {
