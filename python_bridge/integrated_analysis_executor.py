@@ -330,7 +330,7 @@ class IntegratedFlutterExecutor:
             
             # Add V-g and V-f data for plotting
             results['flutter_data'] = self._generate_flutter_curves(
-                panel, flow, physics_result, config
+                panel, flow, physics_result, config, nastran_result
             )
             
             if progress_callback:
@@ -604,20 +604,75 @@ class IntegratedFlutterExecutor:
         return max(0, margin)
     
     def _generate_flutter_curves(self, panel: PanelProperties, flow: FlowConditions,
-                                result: FlutterResult, config: Dict) -> Dict[str, List]:
-        """Generate V-g and V-f curves for visualization"""
-        
+                                result: FlutterResult, config: Dict,
+                                nastran_result: Optional[Dict] = None) -> Dict[str, List]:
+        """Generate V-g and V-f curves for visualization
+
+        If NASTRAN results are available with flutter data, use those.
+        Otherwise, generate synthetic curves based on physics results.
+        """
+
+        # Try to use actual NASTRAN F06 flutter data first
+        if nastran_result and nastran_result.get('flutter_results'):
+            flutter_points = nastran_result['flutter_results']
+
+            if flutter_points and len(flutter_points) > 0:
+                self.logger.info(f"Using {len(flutter_points)} actual flutter points from F06 for V-g/V-f plots")
+
+                # Group by velocity to get one point per velocity (use the flutter mode)
+                from collections import defaultdict
+                velocity_data = defaultdict(list)
+
+                for pt in flutter_points:
+                    # Filter for realistic panel flutter modes (5-100 Hz)
+                    if 5.0 <= pt.frequency <= 100.0:
+                        velocity_data[pt.velocity].append(pt)
+
+                # Sort velocities and extract data
+                sorted_velocities = sorted(velocity_data.keys())
+                velocities = []
+                damping = []
+                frequencies = []
+
+                for v in sorted_velocities:
+                    points_at_v = velocity_data[v]
+                    if points_at_v:
+                        # Use the point with lowest damping (most critical)
+                        critical_pt = min(points_at_v, key=lambda p: p.damping)
+                        velocities.append(v / 1000.0)  # Convert mm/s to m/s
+                        damping.append(critical_pt.damping)
+                        frequencies.append(critical_pt.frequency)
+
+                if velocities:
+                    # Get critical values
+                    critical_v = nastran_result.get('critical_flutter_velocity')
+                    critical_f = nastran_result.get('critical_flutter_frequency')
+
+                    # Convert critical velocity from mm/s to m/s if needed
+                    if critical_v and critical_v > 1000:
+                        critical_v = critical_v / 1000.0
+
+                    return {
+                        'velocities': velocities,
+                        'damping': damping,
+                        'frequencies': frequencies,
+                        'critical_velocity': critical_v,
+                        'critical_frequency': critical_f
+                    }
+
+        # Fallback: Generate synthetic curves based on physics results
+        self.logger.info("Generating synthetic flutter curves (no F06 data available)")
+
         velocities = np.linspace(
             config.get('v_min', 100),
             config.get('v_max', 2000),
             50
         )
-        
+
         # Simplified model for demonstration
-        # In production, this would call the full analysis at each point
         damping = []
         frequencies = []
-        
+
         for v in velocities:
             if result.flutter_speed < 9000:
                 # Model damping approaching zero at flutter
@@ -627,10 +682,10 @@ class IntegratedFlutterExecutor:
                 # Stable case
                 g = -0.05 - 0.01 * v / 1000
                 f = 150 + 10 * v / 1000
-            
+
             damping.append(g)
             frequencies.append(f)
-        
+
         return {
             'velocities': velocities.tolist(),
             'damping': damping,

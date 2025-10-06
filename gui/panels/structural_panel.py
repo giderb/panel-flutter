@@ -245,22 +245,29 @@ class StructuralPanel(BasePanel):
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(15, 10))
 
-        # Material selection combo
+        # Material status display
         material_label = self.theme_manager.create_styled_label(material_frame, text="Material:")
         material_label.grid(row=1, column=0, sticky="w", padx=(20, 10), pady=5)
 
-        self.material_var = ctk.StringVar(value="Aluminum 6061-T6")
-        material_options = [
-            "Aluminum 6061-T6", "Steel AISI 4340", "Titanium Ti-6Al-4V",
-            "Carbon Fiber T300/5208", "Custom Material"
-        ]
-        self.material_combo = ctk.CTkComboBox(
-            material_frame,
-            variable=self.material_var,
-            values=material_options,
-            state="readonly"
+        material_status_frame = ctk.CTkFrame(material_frame, fg_color="transparent")
+        material_status_frame.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=5)
+
+        self.material_display_var = ctk.StringVar(value="No material selected")
+        self.material_display_label = self.theme_manager.create_styled_label(
+            material_status_frame,
+            textvariable=self.material_display_var,
+            font=ctk.CTkFont(size=12)
         )
-        self.material_combo.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.material_display_label.pack(side="left", fill="x", expand=True)
+
+        select_material_btn = ctk.CTkButton(
+            material_status_frame,
+            text="Select Material",
+            command=lambda: self.main_window._show_panel("material"),
+            width=120,
+            height=28
+        )
+        select_material_btn.pack(side="right", padx=(10, 0))
 
         # Property ID
         prop_id_label = self.theme_manager.create_styled_label(material_frame, text="Property ID:")
@@ -493,7 +500,6 @@ class StructuralPanel(BasePanel):
             mesh_params = MeshParameters(nx, ny, element_type)
 
             # Create structural properties
-            material_name = self.material_var.get()
             prop_id = int(self.prop_id_var.get())
             material_id = 1  # Default material ID
 
@@ -501,6 +507,14 @@ class StructuralPanel(BasePanel):
             self.current_model.set_geometry(geometry)
             self.current_model.set_mesh_parameters(mesh_params)
             self.current_model.boundary_condition = BoundaryCondition(self.bc_type_var.get())
+
+            # Load material from project if available
+            if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                if hasattr(self.project_manager.current_project, 'material') and self.project_manager.current_project.material:
+                    self.current_model.materials = [self.project_manager.current_project.material]
+                    self.logger.info(f"Using material from project: {self.project_manager.current_project.material.name}")
+                else:
+                    self.logger.warning(f"No material defined in project, analysis will use defaults")
 
             # Add structural property
             struct_prop = StructuralProperties(
@@ -623,7 +637,6 @@ Validation: {'✓ PASSED' if info['mesh_generated'] else '✗ FAILED'}
 
         try:
             from models.structural import PanelGeometry, MeshParameters, ElementType, BoundaryCondition
-            from models.material import Material
 
             # Extract geometry data
             geometry = PanelGeometry(
@@ -649,6 +662,12 @@ Validation: {'✓ PASSED' if info['mesh_generated'] else '✗ FAILED'}
                 bc_str = project.boundary_conditions
                 if bc_str in BoundaryCondition.__members__:
                     self.current_model.boundary_condition = BoundaryCondition[bc_str]
+
+            # Load material from project if available
+            if hasattr(project, 'material') and project.material:
+                self.current_model.materials = [project.material]
+                material_name = getattr(project.material, 'name', 'Unknown')
+                self.logger.info(f"Loaded material from project: {material_name}")
 
             self.logger.info(f"Populated model from project geometry: {geometry.length}x{geometry.width}x{geometry.thickness}m")
         except Exception as e:
@@ -704,8 +723,29 @@ Validation: {'✓ PASSED' if info['mesh_generated'] else '✗ FAILED'}
         self._load_current_model()
         self._load_geometry_from_project()  # Load saved data into GUI fields
         self._update_geometry_calculations()
+        self._update_material_display()
         self._update_mesh_calculations()
         self._update_preview()
+
+    def _update_material_display(self):
+        """Update the material display with current project material."""
+        if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+            if hasattr(self.project_manager.current_project, 'material') and self.project_manager.current_project.material:
+                material = self.project_manager.current_project.material
+                material_name = getattr(material, 'name', 'Unknown Material')
+                # Show brief material info
+                if hasattr(material, 'youngs_modulus'):
+                    e_gpa = material.youngs_modulus / 1e9
+                    self.material_display_var.set(f"{material_name} (E={e_gpa:.1f} GPa)")
+                else:
+                    self.material_display_var.set(material_name)
+                self.material_display_label.configure(text_color=self.theme_manager.get_color("text"))
+            else:
+                self.material_display_var.set("⚠️ No material selected - using defaults")
+                self.material_display_label.configure(text_color="#ff6b6b")
+        else:
+            self.material_display_var.set("No material selected")
+            self.material_display_label.configure(text_color=self.theme_manager.get_color("text_secondary"))
 
     def refresh(self):
         """Refresh panel with current project data (BasePanel interface)."""
