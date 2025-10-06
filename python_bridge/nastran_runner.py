@@ -92,15 +92,35 @@ class NastranRunner:
             # Start NASTRAN process
             start_time = time.time()
 
-            process = subprocess.Popen(
-                cmd,
-                cwd=working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
+            # Get proper environment for subprocess
+            # This is crucial for PyInstaller executables
+            env = os.environ.copy()
+
+            # Prepare subprocess arguments for Windows compatibility with PyInstaller
+            # When running from a PyInstaller executable, we need special handling
+            subprocess_kwargs = {
+                'cwd': str(working_dir),
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'text': True,
+                'bufsize': 1,
+                'universal_newlines': True,
+                'env': env
+            }
+
+            # On Windows, use CREATE_NO_WINDOW to prevent console popup
+            # and ensure proper subprocess creation from frozen executable
+            if os.name == 'nt':  # Windows
+                import sys
+                # Check if running from PyInstaller executable
+                if getattr(sys, 'frozen', False):
+                    # Running from PyInstaller executable
+                    subprocess_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+                else:
+                    # Running from normal Python
+                    subprocess_kwargs['creationflags'] = 0
+
+            process = subprocess.Popen(cmd, **subprocess_kwargs)
 
             # Monitor progress
             stdout_lines = []
