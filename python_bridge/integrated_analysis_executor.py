@@ -260,13 +260,14 @@ class IntegratedFlutterExecutor:
             # Step 5: Cross-validation if NASTRAN results available
             validation_status = "Physics-based only"
             comparison = {}
-            
+
             if nastran_result and nastran_result.get('success'):
                 if progress_callback:
                     progress_callback("Validating results...", 0.9)
-                
+
                 comparison = self._cross_validate(physics_result, nastran_result)
-                validation_status = comparison['validation_status']
+                validation_status = comparison.get('validation_status', 'Unknown')
+                self.logger.info(f"Cross-validation status: {validation_status}")
             
             # Step 6: Generate comprehensive results
             execution_time = time.time() - start_time
@@ -313,8 +314,8 @@ class IntegratedFlutterExecutor:
                     'air_density': flow.density
                 },
                 
-                # Validation
-                'validation_status': physics_result.validation_status,
+                # Validation - use NASTRAN validation if we have NASTRAN flutter results
+                'validation_status': validation_status if (nastran_result and nastran_result.get('critical_flutter_velocity')) else physics_result.validation_status,
                 'nastran_validation': validation_status,
                 'comparison': comparison,
                 
@@ -545,19 +546,27 @@ class IntegratedFlutterExecutor:
                 'error': str(e)
             }
     
-    def _cross_validate(self, physics_result: FlutterResult, 
+    def _cross_validate(self, physics_result: FlutterResult,
                        nastran_result: Dict[str, Any]) -> Dict[str, Any]:
         """Cross-validate physics and NASTRAN results"""
-        
+
+        # Get NASTRAN flutter speed (convert from mm/s to m/s if needed)
+        nastran_speed = nastran_result.get('critical_flutter_velocity')
+        self.logger.info(f"NASTRAN velocity from F06: {nastran_speed} mm/s")
+        if nastran_speed and nastran_speed > 1000:  # Likely in mm/s
+            nastran_speed = nastran_speed / 1000.0  # Convert to m/s
+            self.logger.info(f"Converted to: {nastran_speed} m/s")
+
         comparison = {
             'physics_flutter_speed': physics_result.flutter_speed,
-            'nastran_flutter_speed': nastran_result.get('critical_flutter_speed'),
+            'nastran_flutter_speed': nastran_speed,
             'physics_flutter_frequency': physics_result.flutter_frequency,
             'nastran_flutter_frequency': nastran_result.get('critical_flutter_frequency')
         }
-        
+        self.logger.info(f"Physics speed: {physics_result.flutter_speed} m/s, NASTRAN speed: {nastran_speed} m/s")
+
         # Calculate differences
-        if (comparison['nastran_flutter_speed'] and 
+        if (comparison['nastran_flutter_speed'] and
             comparison['nastran_flutter_speed'] < 9999):
             
             speed_diff = abs(physics_result.flutter_speed - comparison['nastran_flutter_speed'])

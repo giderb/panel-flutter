@@ -190,17 +190,13 @@ class MainWindow:
 
     def _create_status_area(self):
         """Create status area in sidebar."""
-        # Spacer
-        spacer = ctk.CTkFrame(self.sidebar, height=20, fg_color="transparent")
-        spacer.pack(fill="x", expand=True)
-
-        # Status frame
+        # Status frame - pack at bottom with no spacer
         status_frame = self.theme_manager.create_styled_frame(
             self.sidebar,
-            elevated=True,
+            elevated=False,  # Match sidebar background
             corner_radius=0
         )
-        status_frame.pack(fill="both", padx=0, pady=0)
+        status_frame.pack(side="bottom", fill="x", padx=0, pady=10)
 
         # Project status
         self.status_label = self.theme_manager.create_styled_label(

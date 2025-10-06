@@ -490,10 +490,10 @@ class AerodynamicsPanel(BasePanel):
                 # Recommended theory
                 if mach < 0.6:
                     recommended = "Doublet Lattice Method"
-                elif mach > 1.2:
+                elif mach > 1.5:
                     recommended = "Piston Theory"
                 else:
-                    recommended = "Either (Piston Theory preferred)"
+                    recommended = "Doublet Lattice Method (valid up to M=1.5)"
 
                 self.flow_type_label.configure(text=f"Flow Type: {flow_type}")
                 self.velocity_label.configure(text=f"Flow Velocity: {velocity:.1f} m/s")
@@ -558,8 +558,8 @@ class AerodynamicsPanel(BasePanel):
     def _get_theory_description(self, theory: str) -> str:
         """Get description for aerodynamic theory."""
         descriptions = {
-            "PISTON_THEORY": "Piston Theory (CAERO5): Suitable for supersonic and hypersonic flows (M > 1.2). Computationally efficient for high Mach number flutter analysis.",
-            "DOUBLET_LATTICE": "Doublet Lattice Method (CAERO1): Best for subsonic flows (M < 0.8). Uses potential flow theory for accurate low-speed flutter analysis.",
+            "PISTON_THEORY": "Piston Theory (CAERO5): Suitable for supersonic and hypersonic flows (M > 1.5). Computationally efficient for high Mach number flutter analysis.",
+            "DOUBLET_LATTICE": "Doublet Lattice Method (CAERO1): Valid for subsonic and low supersonic flows (M < 1.5). Uses potential flow theory for accurate flutter analysis.",
             "ZAERO": "ZAERO Advanced Aerodynamics: High-fidelity aerodynamic modeling for all Mach number ranges. Requires ZAERO license."
         }
         return descriptions.get(theory, "Advanced aerodynamic method")

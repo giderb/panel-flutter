@@ -375,6 +375,7 @@ class StructuralPanel(BasePanel):
             # Create a new model if none exists
             if not hasattr(self.project_manager.current_project, 'structural_model'):
                 self.current_model = StructuralModel(1, "Panel Structure")
+                self._populate_model_from_project_geometry()
                 self.project_manager.current_project.structural_model = self.current_model
             else:
                 existing_model = self.project_manager.current_project.structural_model
@@ -384,6 +385,7 @@ class StructuralPanel(BasePanel):
                     if existing_model is not None:
                         self.logger.warning(f"Structural model was serialized as {type(existing_model)}, creating new instance")
                     self.current_model = StructuralModel(1, "Panel Structure")
+                    self._populate_model_from_project_geometry()
                     self.project_manager.current_project.structural_model = self.current_model
                 else:
                     # Valid StructuralModel object
@@ -609,6 +611,48 @@ Validation: {'✓ PASSED' if info['mesh_generated'] else '✗ FAILED'}
 
         self.preview_text.delete("1.0", "end")
         self.preview_text.insert("1.0", preview_text)
+
+    def _populate_model_from_project_geometry(self):
+        """Populate the current model with geometry data from project.geometry."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        project = self.project_manager.current_project
+        if not hasattr(project, 'geometry') or not project.geometry:
+            return
+
+        try:
+            from models.structural import PanelGeometry, MeshParameters, ElementType, BoundaryCondition
+            from models.material import Material
+
+            # Extract geometry data
+            geometry = PanelGeometry(
+                length=float(project.geometry.get("length", 1.0)),
+                width=float(project.geometry.get("width", 0.5)),
+                thickness=float(project.geometry.get("thickness", 0.002))
+            )
+            self.current_model.set_geometry(geometry)
+
+            # Extract mesh parameters
+            element_type_str = project.geometry.get("element_type", "CQUAD4")
+            element_type = ElementType[element_type_str] if element_type_str in ElementType.__members__ else ElementType.CQUAD4
+
+            mesh_params = MeshParameters(
+                nx=int(project.geometry.get("n_chord", 10)),
+                ny=int(project.geometry.get("n_span", 10)),
+                element_type=element_type
+            )
+            self.current_model.set_mesh_parameters(mesh_params)
+
+            # Set boundary conditions
+            if hasattr(project, 'boundary_conditions') and project.boundary_conditions:
+                bc_str = project.boundary_conditions
+                if bc_str in BoundaryCondition.__members__:
+                    self.current_model.boundary_condition = BoundaryCondition[bc_str]
+
+            self.logger.info(f"Populated model from project geometry: {geometry.length}x{geometry.width}x{geometry.thickness}m")
+        except Exception as e:
+            self.logger.warning(f"Error populating model from project geometry: {e}")
 
     def _save_geometry_to_project(self):
         """Save current GUI field values to project.geometry dict."""

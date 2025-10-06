@@ -237,11 +237,11 @@ class AerodynamicModel:
 
         if mach < 0.6:
             return AerodynamicTheory.DOUBLET_LATTICE
-        elif mach > 1.2:
+        elif mach > 1.5:
             return AerodynamicTheory.PISTON_THEORY
         else:
-            # Transonic - could use either, but piston theory is more robust
-            return AerodynamicTheory.PISTON_THEORY
+            # Transonic/low supersonic - Doublet Lattice works up to M=1.5
+            return AerodynamicTheory.DOUBLET_LATTICE
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information summary."""
