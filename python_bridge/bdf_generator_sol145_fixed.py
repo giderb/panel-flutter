@@ -219,16 +219,6 @@ class Sol145BDFGenerator:
             lines.append("$ Reference: MSC Nastran Aeroelastic Analysis User's Guide, Example HA145HA")
             lines.append("$")
 
-            # PAERO5 card for piston theory - based on paero5.pdf Table 9-32 Row 1
-            lines.append("$ Piston Theory Property")
-            # PAERO5 format (8-char fields): PID, NALPHA, LALPHA, NXIS, LXIS, NTAUS, LTAUS, CAOC1, +cont
-            # NALPHA=1, LALPHA=20 (AEFACT for Mach/alpha), NXIS=0, LXIS=0
-            # CAOC values: one per strip (NSPAN=10), all 0.0 (no control surface deflection)
-            lines.append(f"PAERO5  {1001:<8}{1:<8}{20:<8}{0:<8}{0:<8}{0:<8}{0:<8}{0.0:<8}+PA5")
-            lines.append(f"+PA5    {0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}+PA51")
-            lines.append(f"+PA51   {0.0:<8}{0.0:<8}")  # Remaining 2 values (total = 10 CAOC values)
-            lines.append("$")
-
             # AEFACT 10 - Thickness integrals for piston theory (flat panel = all zeros)
             lines.append("$ Thickness Integrals (I1-I6) - flat panel")
             lines.append(f"AEFACT  {10:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}")
@@ -239,84 +229,71 @@ class Sol145BDFGenerator:
             lines.append(f"AEFACT  {20:<8}{aero.mach_number:<8.1f}{0.0:<8}{3.0:<8}{0.0:<8}")
             lines.append("$")
 
-            # Generate 10 CAERO5 panels (chordwise strips) - matching reference HA145HA
-            lines.append("$ TEN CAERO5 ENTRIES FOR PANEL SURFACE")
-            lines.append("$")
-            n_strips = 10  # Number of chordwise strips
-            n_spanwise = 10  # Spanwise divisions per strip
-            pid = 1001
-            nthick = 10  # AEFACT ID for thickness integrals (AEFACT 10)
-
-            strip_width = panel.length / n_strips  # Chordwise strip width
-
-            for strip in range(n_strips):
-                eid = 1001 + strip * 1000  # EID: 1001, 2001, 3001, ..., 10001
-                x1 = strip * strip_width
-                x4 = x1
-                x12 = strip_width  # Chord length
-                x43 = strip_width
-
-                lines.append(f"$ EID    PID    CP     NSPAN  LSPAN  NTHRY  NTHICK")
-                # CAERO5: 8-character fixed field format (NASTRAN requirement)
-                # Field 1: CAERO5, Field 2: EID, Field 3: PID, Field 4: CP (blank)
-                # Field 5: NSPAN, Field 6: LSPAN, Field 7: NTHRY (blank), Field 8: NTHICK, Field 9: +cont
-                lines.append(f"CAERO5  {eid:<8}{pid:<8}        {n_spanwise:<8}{1:<8}        {nthick:<8}+CA{strip+1:02d}")
-                lines.append(f"$ X1     Y1     Z1     X12    X4     Y4     Z4     X43")
-                # Continuation: Field 1: +CA##, then 8 data fields of 8 chars each
-                lines.append(f"+CA{strip+1:02d}    {x1:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{x12:<8.1f}{x4:<8.1f}{panel.width:<8.1f}{0.0:<8.1f}{x43:<8.1f}")
-
+            # PAERO5 - Piston Theory Property (REQUIRED with two continuation lines)
+            # Format from MSC Nastran Example HA145HA (Listing 8-30)
+            lines.append("$ Piston Theory Property")
+            pid_aero = 1001
+            nalpha = 1  # Number of alpha values
+            lalpha = 20  # AEFACT ID for alpha values
+            # Main card: PAERO5, PID, NALPHA, LALPHA, blank fields, then continuation in field 10 (position 72)
+            # Fields: 1=PAERO5, 2=PID, 3=NALPHA, 4=LALPHA, 5-9=blank (40 chars), 10=continuation
+            lines.append(f"PAERO5  {pid_aero:<8}{nalpha:<8}{lalpha:<8}{'':40}+PA5")
+            # First continuation: 8 CAOC values (control surface parameters, zeros for flat panel)
+            lines.append(f"+PA5    {0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}+PA51")
+            # Second continuation: 2 more CAOC values
+            lines.append(f"+PA51   {0.0:<8.1f}{0.0:<8.1f}")
             lines.append("$")
 
-            # Generate 10 SPLINE2 entries (one per strip)
-            lines.append("$ SPLINE - LINEAR INTERPOLATION (SPLINE2)")
-            for strip in range(n_strips):
-                spline_id = 1001 + strip * 1000
-                caero_id = 1001 + strip * 1000
-                box1 = caero_id
-                box2 = caero_id  # Single box per strip
-                setg_id = 1010 + strip * 1000  # Reference to SET1
-                dz_id = caero_id  # DZ reference
-                cid = strip + 1  # Coordinate system ID
-
-                lines.append(f"$ EID    CAERO  ID1    ID2    SETG   DZ     DTOR   CID")
-                # SPLINE2: 8-character fixed field format
-                lines.append(f"SPLINE2 {spline_id:<8}{caero_id:<8}{box1:<8}{box2:<8}{setg_id:<8}{dz_id:<8}{0.0:<8}{1.0:<8}{cid:<8}+SPL{strip+1}")
-                lines.append(f"$ DTHX   DTHY")
-                # Continuation: Field 1: +SPL#, then data fields of 8 chars each
-                lines.append(f"+SPL{strip+1}   {-1.0:<8}{-1.0:<8}")
-
+            # CAERO5 - 10 separate panels following reference format
+            # Reference: MSC Nastran Example HA145HA uses 10 CAERO5 cards (EID 1001-10001)
+            lines.append("$ PISTON THEORY PANEL (CAERO5)")
             lines.append("$")
 
-            # Generate 10 SET1 entries (structural grid sets for each strip)
-            lines.append("$ STRUCTURAL GRID SETS")
-            grids_per_strip = panel.nx + 1  # Number of grids in chordwise direction
-            for strip in range(n_strips):
-                set_id = 1001 + strip * 1000
-                # For a strip at position j, grids are: j*(nx+1)+1 through (j+1)*(nx+1)+1
-                # But we need to map to spanwise strips
-                # Each strip connects a band of structural grids
-                start_grid = 1 + strip * grids_per_strip
-                end_grid = start_grid + panel.ny  # Adjust for actual grid distribution
+            nspan = 10  # Spanwise divisions per CAERO5 card
+            lspan = 1  # AEFACT ID for spanwise spacing (optional, leave blank)
+            nthick = 10  # AEFACT ID for thickness integrals
 
-                # Reference shows overlapping grid sets (e.g., 1-22, 12-33, 23-44, ...)
-                start_grid = 1 + strip * (grids_per_strip - 1)
-                end_grid = start_grid + panel.ny
+            # Panel geometry
+            chord = panel.length
+            strip_width = panel.width / 10  # Divide width into 10 strips
 
-                lines.append(f"SET1    {set_id:<8}{start_grid:<8}THRU    {end_grid}")
+            # Generate 10 CAERO5 cards (EID 1001, 2001, 3001, ..., 10001)
+            for strip in range(10):
+                eid = 1001 + (strip * 1000)
+                y_start = strip * strip_width
+                y_end = (strip + 1) * strip_width
+
+                # Each strip: point 1 at (0, y_start, 0), point 4 at (0, y_end, 0)
+                x1, y1, z1 = 0.0, y_start, 0.0
+                x12 = chord  # Chord length in x-direction
+                x4, y4, z4 = 0.0, y_end, 0.0
+                x43 = chord  # Chord length in x-direction
+
+                # CAERO5 main card: EID, PID, CP, NSPAN, LSPAN, NTHRY, NTHICK, blank, continuation
+                # Fields: 1=CAERO5, 2=EID, 3=PID, 4=CP, 5=NSPAN, 6=LSPAN, 7=NTHRY, 8=NTHICK, 9=blank, 10=continuation
+                cont_marker = f"+CA{strip:02d}"
+                lines.append(f"CAERO5  {eid:<8}{pid_aero:<8}        {nspan:<8}{'':8}        {nthick:<8}{'':8}{cont_marker}")
+                # Continuation: X1, Y1, Z1, X12, X4, Y4, Z4, X43
+                lines.append(f"+CA{strip:02d}   {x1:<8.1f}{y1:<8.1f}{z1:<8.1f}{x12:<8.1f}{x4:<8.1f}{y4:<8.1f}{z4:<8.1f}{x43:<8.1f}")
 
             lines.append("$")
 
-            # Generate 10 CORD2R coordinate systems at midchord of each strip
-            lines.append("$ ELASTIC AXES - CORD2R AT MIDCHORD OF EACH STRIP")
-            for strip in range(n_strips):
-                cid = strip + 1
-                x_mid = (strip + 0.5) * strip_width  # Midchord position
+            # SPLINE1 - Surface interpolation connecting aero panel to structural grids
+            # Create separate SPLINE for each CAERO5 since box numbers are non-contiguous
+            lines.append("$ SPLINE - SURFACE INTERPOLATION")
+            setg_id = 1  # SET1 with all structural grids
 
-                lines.append(f"$ CID    RID    A1     A2     A3     B1     B2     B3")
-                lines.append(f"CORD2R  {cid:<8}{'':8}{x_mid:.1f}    0.0    0.0    {x_mid:.1f}    0.0    1.0    +CRD{strip+1}")
-                lines.append(f"$ C1     C2     C3")
-                lines.append(f"+CRD{strip+1}   {panel.width*2:.1f}   0.0    0.0")
+            # Create one SPLINE for each CAERO5 card
+            for strip in range(10):
+                spline_id = strip + 1
+                caero_eid = 1001 + (strip * 1000)
+                box1 = caero_eid  # First box of this CAERO5
+                box2 = caero_eid + (nspan - 1)  # Last box of this CAERO5
 
+                lines.append(f"SPLINE1 {spline_id:<8}{caero_eid:<8}{box1:<8}{box2:<8}{setg_id:<8}")
+
+            # SET1 - All structural grid points
+            lines.append(f"SET1    {setg_id:<8}{1:<8}THRU    {(panel.nx + 1) * (panel.ny + 1)}")
             lines.append("$")
 
         else:
@@ -333,9 +310,9 @@ class Sol145BDFGenerator:
             # CAERO1 format: EID PID CP NSPAN NCHORD LSPAN LCHORD IGD
             aero_nx = 4  # 4x4 aerodynamic mesh for better interpolation
             aero_ny = 4
-            lines.append(f"CAERO1  1       1               {aero_nx:<8}{aero_ny:<8}{'':8}{'':8}1       +")
-            # Correct corner coordinates: (0,0,0), (L,0,0), (L,W,0), (0,W,0)
-            lines.append(f"+       0.      0.      0.      {panel.length:<8.1f}0.      {panel.width:<8.1f}{panel.length:<8.1f}{panel.width:<8.1f}0.")
+            lines.append(f"CAERO1  {1:<8}{1:<8}        {aero_nx:<8}{aero_ny:<8}                1       +CA1")
+            # Continuation: X1, Y1, Z1, X12, X4, Y4, Z4, X43 (all 8-char fields)
+            lines.append(f"+CA1    {0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{panel.length:<8.1f}{0.0:<8.1f}{panel.width:<8.1f}{panel.length:<8.1f}{panel.width:<8.1f}")
             lines.append("$")
 
             # SPLINE1 for surface interpolation - MUCH MORE ROBUST
@@ -354,7 +331,7 @@ class Sol145BDFGenerator:
         lines.append("FLFACT  1       0.5")
 
         # Mach number (FLFACT 2) - include multiple Mach numbers for comprehensive analysis
-        if is_supersonic:
+        if use_piston_theory:
             # For supersonic, test both M=2.0 and M=3.0 as in reference case
             lines.append(f"FLFACT  2       {aero.mach_number:.1f}     3.0")
         else:
@@ -369,8 +346,8 @@ class Sol145BDFGenerator:
                 if vel_idx == 0:
                     vel_line = "FLFACT  3       "
                 else:
-                    # NASTRAN continuation line - must start in column 1 with proper spacing
-                    vel_line = "+               "  # 16 spaces to reach field 3 (8 chars for '+', 8 for blank field 2)
+                    # NASTRAN continuation line - 8-character field for continuation marker
+                    vel_line = "+       "  # Exactly 8 characters for continuation marker
                 # Add up to 8 velocities per line (6 velocities for continuation lines)
                 max_velocities = 8 if vel_idx == 0 else 6  # First line has more space
                 for i in range(max_velocities):
@@ -391,25 +368,25 @@ class Sol145BDFGenerator:
         else:
             # Default velocity range in mm/s
             lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 1.2E+06")
-            lines.append("+               1.3E+06 1.4E+06 1.5E+06")
+            lines.append("+       1.3E+06 1.4E+06 1.5E+06")
         lines.append("$")
 
         # Aerodynamic matrices - select based on aerodynamic method
-        if is_supersonic:
+        if use_piston_theory:
             # MKAERO1 for piston theory (CAERO5) - Reference uses MKAERO1, not MKAERO2
             lines.append("$ Aerodynamic Matrices - Piston Theory (MKAERO1)")
             # Include both M=2.0 and M=3.0 as in reference case
-            lines.append(f"MKAERO1 {aero.mach_number:.1f}     3.0{'':56}+MK")
+            lines.append(f"MKAERO1 {aero.mach_number:<8.1f}{3.0:<8.1f}{'':48}+MK1     ")
             # Continuation card with validated reduced frequencies (MUST have leading zeros)
-            lines.append("+MK     0.001   0.1     0.2     0.4")
+            lines.append("+MK1    0.001   0.1     0.2     0.4")
             lines.append("$")
         else:
             # MKAERO1 for doublet lattice (CAERO1)
             lines.append("$ Aerodynamic Matrices - Doublet Lattice (MKAERO1)")
             # Main card with Mach number only
-            lines.append(f"MKAERO1 {aero.mach_number:<8.1f}{'':56}+")
+            lines.append(f"MKAERO1 {aero.mach_number:<8.1f}{'':56}+MK1     ")
             # Continuation card with validated reduced frequencies (MUST have leading zeros)
-            lines.append("+       0.001   0.1     0.2     0.4")
+            lines.append("+MK1    0.001   0.1     0.2     0.4")
             lines.append("$")
 
         # End of data
