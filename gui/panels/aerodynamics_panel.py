@@ -61,6 +61,9 @@ class AerodynamicsPanel(BasePanel):
         # Control buttons
         self._setup_control_buttons(content_frame)
 
+        # Initialize temperature from default altitude (after all UI setup)
+        self._update_temperature_from_altitude()
+
     def _setup_flow_tab(self):
         """Setup flow conditions tab."""
         self.flow_tab.grid_columnconfigure(1, weight=1)
@@ -96,7 +99,7 @@ class AerodynamicsPanel(BasePanel):
         alt_label = self.theme_manager.create_styled_label(flow_frame, text="Altitude [m]:")
         alt_label.grid(row=3, column=0, sticky="w", padx=(20, 10), pady=5)
 
-        self.alt_var = ctk.StringVar(value="11000")
+        self.alt_var = ctk.StringVar(value="0")
         self.alt_entry = self.theme_manager.create_styled_entry(
             flow_frame,
             textvariable=self.alt_var,
@@ -104,17 +107,17 @@ class AerodynamicsPanel(BasePanel):
         )
         self.alt_entry.grid(row=3, column=1, sticky="ew", padx=(0, 20), pady=5)
 
-        # Temperature
+        # Temperature (calculated from altitude - display only)
         temp_label = self.theme_manager.create_styled_label(flow_frame, text="Temperature [K]:")
         temp_label.grid(row=4, column=0, sticky="w", padx=(20, 10), pady=5)
 
-        self.temp_var = ctk.StringVar(value="216.65")
-        self.temp_entry = self.theme_manager.create_styled_entry(
+        self.temp_var = ctk.StringVar(value="288.15")
+        self.temp_display = self.theme_manager.create_styled_label(
             flow_frame,
-            textvariable=self.temp_var,
-            placeholder_text="Static temperature in Kelvin"
+            text="288.15 (ISA Standard)",
+            style="caption"
         )
-        self.temp_entry.grid(row=4, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.temp_display.grid(row=4, column=1, sticky="w", padx=(0, 20), pady=5)
 
         # Flow properties display
         props_frame = self.theme_manager.create_styled_frame(self.flow_tab, elevated=True)
@@ -147,7 +150,7 @@ class AerodynamicsPanel(BasePanel):
 
         # Bind events to update calculations
         self.mach_var.trace("w", self._update_flow_calculations)
-        self.temp_var.trace("w", self._update_flow_calculations)
+        self.alt_var.trace("w", self._update_temperature_from_altitude)
 
     def _setup_theory_tab(self):
         """Setup aerodynamic theory tab."""
@@ -436,6 +439,38 @@ class AerodynamicsPanel(BasePanel):
         else:
             self.current_model = AerodynamicModel(1, "Aerodynamic Model")
 
+    def _calculate_isa_temperature(self, altitude: float) -> float:
+        """Calculate ISA (International Standard Atmosphere) temperature from altitude.
+
+        Args:
+            altitude: Altitude in meters
+
+        Returns:
+            Temperature in Kelvin
+        """
+        if altitude < 11000:
+            # Troposphere: Linear temperature decrease
+            return 288.15 - 0.0065 * altitude
+        else:
+            # Stratosphere: Constant temperature
+            return 216.65
+
+    def _update_temperature_from_altitude(self, *args):
+        """Update temperature when altitude changes (ISA model)."""
+        # Skip if UI not yet initialized
+        if not hasattr(self, 'temp_display'):
+            return
+
+        try:
+            alt = float(self.alt_var.get())
+            temp = self._calculate_isa_temperature(alt)
+            self.temp_var.set(f"{temp:.2f}")
+            self.temp_display.configure(text=f"{temp:.2f} K (ISA)")
+            self._update_flow_calculations()
+        except ValueError:
+            self.temp_var.set("288.15")
+            self.temp_display.configure(text="288.15 K (ISA)")
+
     def _update_flow_calculations(self, *args):
         """Update flow calculations when inputs change."""
         try:
@@ -483,6 +518,10 @@ class AerodynamicsPanel(BasePanel):
 
     def _update_mesh_calculations(self, *args):
         """Update mesh calculations when inputs change."""
+        # Skip if mesh variables not yet initialized
+        if not hasattr(self, 'nx_aero_var') or not hasattr(self, 'ny_aero_var'):
+            return
+
         try:
             nx_aero = int(self.nx_aero_var.get())
             ny_aero = int(self.ny_aero_var.get())
@@ -631,6 +670,73 @@ class AerodynamicsPanel(BasePanel):
             error_message = "Model validation failed:\n\n" + "\n".join(f"• {error}" for error in errors)
             messagebox.showerror("Validation Failed", error_message)
 
+    def _calculate_default_velocities(self, flow_conditions, project):
+        """Calculate default velocity sweep based on flutter speed estimate."""
+        import numpy as np
+
+        try:
+            # Get panel properties
+            if not hasattr(project, 'geometry') or not project.geometry:
+                return None
+
+            geom = project.geometry
+            mat = project.material
+
+            if not mat:
+                return None
+
+            # Extract parameters
+            L = geom.get('length', 0.5)  # m
+            h = geom.get('thickness', 0.003)  # m
+            E = getattr(mat, 'youngs_modulus', 70e9)  # Pa
+            rho_mat = getattr(mat, 'density', 2700)  # kg/m³
+
+            mach = flow_conditions.mach_number
+            temp = getattr(flow_conditions, 'temperature', 288.15)
+            rho_air = getattr(flow_conditions, 'density', 1.225)
+
+            # Estimate flutter speed using simplified formula
+            m = rho_mat * h  # Mass per area
+            mu = m / (rho_air * L)  # Mass ratio
+
+            # First mode frequency estimate
+            nu = 0.33
+            D = E * h**3 / (12 * (1 - nu**2))
+            omega = np.sqrt(D / m) * ((np.pi / L)**2 + (np.pi / L)**2)
+            f_1 = omega / (2 * np.pi)
+
+            # Flutter speed estimate
+            a = np.sqrt(1.4 * 287 * temp)  # Speed of sound
+            if mach > 1.0:
+                # Supersonic estimate
+                q_f = D / L**3 * 10
+                V_f = np.sqrt(2 * q_f / rho_air)
+            else:
+                # Subsonic estimate
+                V_f = f_1 * L * np.sqrt(mu) * 3.0
+
+            # Create velocity sweep: 0.3*V_f to 3*V_f with fine spacing near V_f
+            v_min = max(50, V_f * 0.3)
+            v_max = V_f * 3.0
+
+            # Generate points with finer resolution near V_f
+            velocities = []
+            velocities.extend(np.linspace(v_min, V_f * 0.8, 3).tolist())
+            velocities.extend(np.linspace(V_f * 0.8, V_f * 1.2, 5).tolist())
+            velocities.extend(np.linspace(V_f * 1.2, v_max, 4).tolist())
+
+            # Remove duplicates and sort
+            velocities = sorted(list(set([round(v, 1) for v in velocities])))
+
+            self.logger.info(f"Calculated default velocities: {len(velocities)} points from {v_min:.0f} to {v_max:.0f} m/s")
+            self.logger.info(f"Estimated flutter speed: {V_f:.1f} m/s")
+
+            return velocities
+
+        except Exception as e:
+            self.logger.warning(f"Could not calculate default velocities: {e}")
+            return None
+
     def _save_model(self):
         """Save the current aerodynamic model."""
         if not self.current_model:
@@ -639,21 +745,36 @@ class AerodynamicsPanel(BasePanel):
 
         try:
             if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                project = self.project_manager.current_project
+
                 # Save to both aerodynamic_model AND aerodynamic_config for compatibility
-                self.project_manager.current_project.aerodynamic_model = self.current_model
+                project.aerodynamic_model = self.current_model
 
                 # Also save as aerodynamic_config (dict format) for analysis panel
                 if self.current_model.flow_conditions:
-                    self.project_manager.current_project.aerodynamic_config = {
+                    fc = self.current_model.flow_conditions
+
+                    # Calculate default velocity sweep
+                    velocities = self._calculate_default_velocities(fc, project)
+
+                    aerodynamic_config = {
                         'flow_conditions': {
-                            'mach_number': self.current_model.flow_conditions.mach_number,
-                            'altitude': self.current_model.flow_conditions.altitude,
-                            'temperature': getattr(self.current_model.flow_conditions, 'temperature', None),
-                            'pressure': getattr(self.current_model.flow_conditions, 'pressure', None),
-                            'density': getattr(self.current_model.flow_conditions, 'density', None)
-                        }
+                            'mach_number': fc.mach_number,
+                            'altitude': fc.altitude,
+                            'temperature': getattr(fc, 'temperature', None),
+                            'pressure': getattr(fc, 'pressure', None),
+                            'density': getattr(fc, 'density', None)
+                        },
+                        'theory': self.current_model.theory.value if hasattr(self.current_model.theory, 'value') else str(self.current_model.theory)
                     }
-                    self.logger.info(f"Saved aerodynamic config: M={self.current_model.flow_conditions.mach_number}")
+
+                    # Add velocities if calculated
+                    if velocities:
+                        aerodynamic_config['velocities'] = velocities
+                        self.logger.info(f"Saved {len(velocities)} velocity points to config")
+
+                    project.aerodynamic_config = aerodynamic_config
+                    self.logger.info(f"Saved aerodynamic config: M={fc.mach_number}")
 
                 self.project_manager.save_current_project()
                 messagebox.showinfo("Success", "Aerodynamic model saved successfully!")
@@ -745,8 +866,10 @@ Mesh Generated: {'✓ YES' if info['mesh_generated'] else '✗ NO'}
                     self.mach_var.set(str(flow_conditions['mach_number']))
                 if 'altitude' in flow_conditions:
                     self.alt_var.set(str(flow_conditions['altitude']))
-                if 'temperature' in flow_conditions and flow_conditions['temperature']:
-                    self.temp_var.set(str(flow_conditions['temperature']))
+                # Temperature is auto-calculated from altitude, no need to load it
+                # Update display after altitude is loaded
+                if 'altitude' in flow_conditions:
+                    self._update_temperature_from_altitude()
 
                 self.logger.info("Loaded aerodynamic config from project")
             except Exception as e:

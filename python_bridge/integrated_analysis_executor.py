@@ -200,7 +200,16 @@ class IntegratedFlutterExecutor:
                     # It's a dictionary with theory key
                     aero_theory = aerodynamic_model['theory']
 
-                self.logger.info(f"Aerodynamic theory from model: {aero_theory}")
+                # Auto-select theory based on Mach number if not specified
+                if not aero_theory:
+                    if flow.mach_number > 1.2:
+                        aero_theory = 'PISTON_THEORY'
+                        self.logger.info(f"Auto-selected PISTON_THEORY for M={flow.mach_number:.2f} (supersonic)")
+                    else:
+                        aero_theory = 'DOUBLET_LATTICE'
+                        self.logger.info(f"Auto-selected DOUBLET_LATTICE for M={flow.mach_number:.2f} (subsonic/transonic)")
+                else:
+                    self.logger.info(f"Using specified aerodynamic theory: {aero_theory}")
 
                 # Get material object from structural model if available (for sandwich panels)
                 material_object = None

@@ -218,16 +218,19 @@ class AnalysisPanel(BasePanel):
             thickness = 0.0015  # Default
             length = 1.0
 
-        # IMPROVED flutter speed estimation
-        # Based on piston theory scaling: V_f ∝ √(Et³) / (M² × ρ × L²)
-        # Reference: 1.5mm aluminum panel at M=2.0 → 139 m/s
+        # Physics-based flutter speed estimation
+        # For supersonic piston theory: V_flutter ∝ √(D/m) / M²
+        # where D ∝ E*h³ (flexural rigidity), m ∝ h (mass per area)
+        # Therefore: V_flutter ∝ h / M²
 
-        # Calibrated scaling factors (empirical from validation data)
-        k_thickness = (thickness / 0.0015) ** 0.65  # Stronger dependency than √t
-        k_mach = (2.0 / mach) ** 1.3  # Account for M² in denominator of piston theory
+        # Reference from validated analysis: 3mm panel at M=1.27 → 154.5 m/s
+        h_ref = 0.003  # m (reference thickness)
+        M_ref = 1.27   # reference Mach number
+        V_ref = 154.5  # m/s (reference flutter speed)
 
-        reference_flutter = 139.0  # m/s for 1.5mm at M=2.0
-        estimated_flutter = reference_flutter * k_thickness * k_mach
+        # Scale by thickness (linear relationship for piston theory)
+        # Scale by Mach squared (inverse relationship)
+        estimated_flutter = V_ref * (thickness / h_ref) * (M_ref / mach) ** 2
 
         # Calculate flow velocity for reference
         import numpy as np
@@ -246,14 +249,28 @@ class AnalysisPanel(BasePanel):
             v_min = max(10, v_mid - 50)
             v_max = v_mid + 50
 
+        # Generate intelligent velocity sweep
+        velocities = []
+        velocities.extend(np.linspace(v_min, estimated_flutter * 0.8, 3).tolist())
+        velocities.extend(np.linspace(estimated_flutter * 0.8, estimated_flutter * 1.2, 5).tolist())
+        velocities.extend(np.linspace(estimated_flutter * 1.2, v_max, 4).tolist())
+        velocities = sorted(list(set([round(v, 1) for v in velocities])))
+
+        # Save velocities to aerodynamic_config if it exists
+        if hasattr(project, 'aerodynamic_config') and project.aerodynamic_config:
+            project.aerodynamic_config['velocities'] = velocities
+            self.project_manager.save_current_project()
+            self.logger.info(f"Saved {len(velocities)} velocity points to aerodynamic_config")
+
         # Update GUI fields
         self.config_vars['velocity_min'].set(f"{v_min:.0f}")
         self.config_vars['velocity_max'].set(f"{v_max:.0f}")
-        self.config_vars['velocity_points'].set("8")
+        self.config_vars['velocity_points'].set(str(len(velocities)))
 
         messagebox.showinfo(
             "Velocity Range Updated",
-            f"Velocity range set to {v_min:.0f}-{v_max:.0f} m/s\n\n"
+            f"Velocity range set to {v_min:.0f}-{v_max:.0f} m/s\n"
+            f"Generated {len(velocities)} velocity points\n\n"
             f"Estimated flutter speed: ~{estimated_flutter:.0f} m/s\n"
             f"(Based on {thickness*1000:.1f}mm panel at M={mach:.2f})\n"
             f"Flow velocity: {flow_velocity:.0f} m/s\n\n"
@@ -457,6 +474,10 @@ class AnalysisPanel(BasePanel):
             'working_dir': Path.cwd() / 'analysis_output'
         }
 
+        # NOTE: Always regenerate velocities from velocity_min/max/points
+        # Do NOT use cached velocities from aerodynamic_config as they may be outdated
+        # The executor will generate the velocity array from velocity_min/max/points
+
         # Set method
         method = self.method_var.get()
         if method == "nastran":
@@ -635,6 +656,12 @@ Execution Time: {self.analysis_results.get('execution_time', 0):.2f} seconds
             'velocity_max': float(self.config_vars['velocity_max'].get()),
             'working_dir': Path.cwd() / 'analysis_output'
         }
+
+        # Use velocities array from aerodynamic_config if available (preferred)
+        if hasattr(project, 'aerodynamic_config') and project.aerodynamic_config:
+            if 'velocities' in project.aerodynamic_config:
+                config['velocities'] = project.aerodynamic_config['velocities']
+                self.logger.info(f"Using {len(config['velocities'])} velocities from aerodynamic_config")
 
         config['working_dir'].mkdir(exist_ok=True)
 

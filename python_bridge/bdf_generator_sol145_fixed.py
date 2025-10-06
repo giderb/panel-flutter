@@ -381,14 +381,18 @@ class Sol145BDFGenerator:
         if aero.velocities:
             # Write velocities in multiple lines if needed
             vel_idx = 0
+            line_count = 0
             while vel_idx < len(aero.velocities):
-                if vel_idx == 0:
+                if line_count == 0:
                     vel_line = "FLFACT  3       "
                 else:
-                    # NASTRAN continuation line - 8-character field for continuation marker
-                    vel_line = "+       "  # Exactly 8 characters for continuation marker
-                # Add up to 8 velocities per line (6 velocities for continuation lines)
-                max_velocities = 8 if vel_idx == 0 else 6  # First line has more space
+                    # NASTRAN continuation line - starts with continuation marker
+                    vel_line = "+FL3    "  # Exactly 8 characters for continuation marker
+
+                # NASTRAN fixed format: 80 chars max, columns 73-80 for continuation
+                # First line: FLFACT+ID (16 chars) + velocities (max 56 chars = 7 velocities) + cont (8 chars) = 80
+                # Continuation: marker (8 chars) + velocities (max 64 chars = 8 velocities) = 72 chars
+                max_velocities = 7 if line_count == 0 else 8  # First line has LESS space due to header
                 for i in range(max_velocities):
                     if vel_idx < len(aero.velocities):
                         vel = aero.velocities[vel_idx]
@@ -403,11 +407,18 @@ class Sol145BDFGenerator:
                         vel_idx += 1
                     else:
                         break
+
+                # Add continuation marker at end of line if more velocities follow
+                if vel_idx < len(aero.velocities):
+                    # Pad to position 72, then add 8-char continuation marker in columns 73-80
+                    vel_line = vel_line.ljust(72) + "+FL3    "
+
                 lines.append(vel_line)
+                line_count += 1
         else:
-            # Default velocity range in mm/s
-            lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 1.2E+06")
-            lines.append("+       1.3E+06 1.4E+06 1.5E+06")
+            # Default velocity range in mm/s - max 7 velocities on first line due to 80-char limit
+            lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 ".ljust(72) + "+FL3    ")
+            lines.append("+FL3    1.2E+06 1.3E+06 1.4E+06 1.5E+06")
         lines.append("$")
 
         # Aerodynamic matrices - select based on aerodynamic method
