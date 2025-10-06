@@ -160,8 +160,16 @@ class IntegratedFlutterExecutor:
                 mesh_ny = config.get('mesh_ny', 20)
 
                 # Get velocity range from config
+                # DEBUG: Log all velocity-related config keys
+                self.logger.info(f"DEBUG config keys: {list(config.keys())}")
+                self.logger.info(f"DEBUG velocity_min: {config.get('velocity_min', 'NOT SET')}")
+                self.logger.info(f"DEBUG velocity_max: {config.get('velocity_max', 'NOT SET')}")
+                self.logger.info(f"DEBUG velocity_points: {config.get('velocity_points', 'NOT SET')}")
+                self.logger.info(f"DEBUG velocities in config: {'velocities' in config}")
+
                 if 'velocities' in config:
                     velocities = config['velocities']
+                    self.logger.warning(f"Using CACHED velocities from config: {len(velocities)} points")
                 elif 'velocity_min' in config and 'velocity_max' in config:
                     # GUI provides velocity_min, velocity_max, velocity_points
                     v_min = config['velocity_min']
@@ -174,6 +182,7 @@ class IntegratedFlutterExecutor:
                     # Generate linearly spaced velocity points
                     import numpy as np
                     velocities = list(np.linspace(v_min, v_max, n_points))
+                    self.logger.info(f"Generated {len(velocities)} velocities: {velocities[0]:.1f} to {velocities[-1]:.1f} m/s")
                 else:
                     # Fallback: estimate flutter speed range from panel properties
                     # For thin panels, flutter typically occurs at 0.5-1.5 times flow velocity

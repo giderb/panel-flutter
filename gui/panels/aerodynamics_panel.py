@@ -266,21 +266,14 @@ class AerodynamicsPanel(BasePanel):
 
         title_label = self.theme_manager.create_styled_label(
             mesh_frame,
-            text="STREAMLINED: Aerodynamic Mesh Uses Structural Mesh",
+            text="Aerodynamic Mesh Configuration",
             style="subheading"
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(15, 10))
 
-        info_label = self.theme_manager.create_styled_label(
-            mesh_frame,
-            text="Aerodynamic mesh is automatically generated from structural mesh.\nSeparate aero mesh parameters removed for simplicity.",
-            style="body"
-        )
-        info_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=20, pady=(5, 15))
-
         # Number of boxes in X (chordwise)
         nx_aero_label = self.theme_manager.create_styled_label(mesh_frame, text="Chordwise Boxes:")
-        nx_aero_label.grid(row=2, column=0, sticky="w", padx=(20, 10), pady=5)
+        nx_aero_label.grid(row=1, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.nx_aero_var = ctk.StringVar(value="4")
         self.nx_aero_entry = self.theme_manager.create_styled_entry(
@@ -288,11 +281,11 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.nx_aero_var,
             placeholder_text="Number of aerodynamic boxes in chord direction"
         )
-        self.nx_aero_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.nx_aero_entry.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=5)
 
         # Number of boxes in Y (spanwise)
         ny_aero_label = self.theme_manager.create_styled_label(mesh_frame, text="Spanwise Boxes:")
-        ny_aero_label.grid(row=3, column=0, sticky="w", padx=(20, 10), pady=5)
+        ny_aero_label.grid(row=2, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.ny_aero_var = ctk.StringVar(value="2")
         self.ny_aero_entry = self.theme_manager.create_styled_entry(
@@ -300,11 +293,11 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.ny_aero_var,
             placeholder_text="Number of aerodynamic boxes in span direction"
         )
-        self.ny_aero_entry.grid(row=3, column=1, sticky="ew", padx=(0, 20), pady=5)
+        self.ny_aero_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=5)
 
         # Z-offset for aerodynamic mesh
         z_offset_label = self.theme_manager.create_styled_label(mesh_frame, text="Z-Offset [m]:")
-        z_offset_label.grid(row=4, column=0, sticky="w", padx=(20, 10), pady=5)
+        z_offset_label.grid(row=3, column=0, sticky="w", padx=(20, 10), pady=5)
 
         self.z_offset_var = ctk.StringVar(value="0.0")
         self.z_offset_entry = self.theme_manager.create_styled_entry(
@@ -312,7 +305,7 @@ class AerodynamicsPanel(BasePanel):
             textvariable=self.z_offset_var,
             placeholder_text="Z-offset from structural mesh"
         )
-        self.z_offset_entry.grid(row=4, column=1, sticky="ew", padx=(0, 20), pady=(5, 15))
+        self.z_offset_entry.grid(row=3, column=1, sticky="ew", padx=(0, 20), pady=(5, 15))
 
         # Mesh statistics
         stats_frame = self.theme_manager.create_styled_frame(self.mesh_tab, elevated=True)
@@ -754,8 +747,9 @@ class AerodynamicsPanel(BasePanel):
                 if self.current_model.flow_conditions:
                     fc = self.current_model.flow_conditions
 
-                    # Calculate default velocity sweep
-                    velocities = self._calculate_default_velocities(fc, project)
+                    # DO NOT auto-calculate velocities here - user sets them in Analysis Panel
+                    # The old auto-calculation was overriding user settings
+                    # velocities = self._calculate_default_velocities(fc, project)
 
                     aerodynamic_config = {
                         'flow_conditions': {
@@ -765,13 +759,15 @@ class AerodynamicsPanel(BasePanel):
                             'pressure': getattr(fc, 'pressure', None),
                             'density': getattr(fc, 'density', None)
                         },
-                        'theory': self.current_model.theory.value if hasattr(self.current_model.theory, 'value') else str(self.current_model.theory)
+                        'theory': self.current_model.theory.value if hasattr(self.current_model.theory, 'value') else str(self.current_model.theory),
+                        'mesh': {
+                            'nx_aero': int(self.nx_aero_var.get()) if hasattr(self, 'nx_aero_var') else 4,
+                            'ny_aero': int(self.ny_aero_var.get()) if hasattr(self, 'ny_aero_var') else 2,
+                            'z_offset': float(self.z_offset_var.get()) if hasattr(self, 'z_offset_var') else 0.0
+                        }
                     }
 
-                    # Add velocities if calculated
-                    if velocities:
-                        aerodynamic_config['velocities'] = velocities
-                        self.logger.info(f"Saved {len(velocities)} velocity points to config")
+                    # Velocities are set by user in Analysis Panel, not auto-calculated here
 
                     project.aerodynamic_config = aerodynamic_config
                     self.logger.info(f"Saved aerodynamic config: M={fc.mach_number}")
@@ -870,6 +866,15 @@ Mesh Generated: {'✓ YES' if info['mesh_generated'] else '✗ NO'}
                 # Update display after altitude is loaded
                 if 'altitude' in flow_conditions:
                     self._update_temperature_from_altitude()
+
+                # Load mesh parameters if they exist
+                mesh_config = project.aerodynamic_config.get('mesh', {})
+                if 'nx_aero' in mesh_config and hasattr(self, 'nx_aero_var'):
+                    self.nx_aero_var.set(str(mesh_config['nx_aero']))
+                if 'ny_aero' in mesh_config and hasattr(self, 'ny_aero_var'):
+                    self.ny_aero_var.set(str(mesh_config['ny_aero']))
+                if 'z_offset' in mesh_config and hasattr(self, 'z_offset_var'):
+                    self.z_offset_var.set(str(mesh_config['z_offset']))
 
                 self.logger.info("Loaded aerodynamic config from project")
             except Exception as e:

@@ -238,8 +238,18 @@ class Sol145BDFGenerator:
 
         # Aerodynamic reference - VALIDATED FORMAT
         lines.append("$ Aerodynamic Reference")
-        # AERO card matching validated working example
-        lines.append(f"AERO    0       1.      {panel.length:<8.1f}1.225-12")
+        # AERO card with correct air density in kg/mm³
+        # Format: AERO ACSID VELOCITY REFC RHOREF
+        # Use compact NASTRAN scientific notation (e.g., 1.225-9 instead of 1.225E-09)
+        import math
+        if aero.reference_density != 0:
+            exponent = int(math.floor(math.log10(abs(aero.reference_density))))
+            mantissa = aero.reference_density / (10 ** exponent)
+            # Format as: mantissa+exponent or mantissa-exponent (8 chars max)
+            rho_str = f"{mantissa:.3f}{exponent:+d}"  # e.g., "1.225-9"
+        else:
+            rho_str = "0.0"
+        lines.append(f"AERO    0       1.      {panel.length:<8.1f}{rho_str:<8s}")
         lines.append("$")
 
         # AERODYNAMIC MODEL - Select based on Mach number
