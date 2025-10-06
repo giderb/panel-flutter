@@ -78,10 +78,13 @@ class NastranRunner:
             progress_callback("Starting NASTRAN execution...", 0.1)
 
         # Prepare NASTRAN command for MSC Nastran
+        # Use absolute path for NASTRAN executable to ensure it's found
+        nastran_exe_abs = os.path.abspath(self.nastran_exe)
+
         # MSC Nastran typically uses format: nastran.exe input.bdf
         # Use just the filename when running in the working directory
         cmd = [
-            self.nastran_exe,
+            nastran_exe_abs,
             bdf_path.name  # Use just the filename, not full path
         ]
 
@@ -96,6 +99,13 @@ class NastranRunner:
             # This is crucial for PyInstaller executables
             env = os.environ.copy()
 
+            # When running from PyInstaller, we need to ensure the PATH includes
+            # the directory containing the NASTRAN executable
+            nastran_dir = os.path.dirname(nastran_exe_abs)
+            if nastran_dir and nastran_dir not in env.get('PATH', ''):
+                env['PATH'] = nastran_dir + os.pathsep + env.get('PATH', '')
+                self.logger.info(f"Added NASTRAN directory to PATH: {nastran_dir}")
+
             # Prepare subprocess arguments for Windows compatibility with PyInstaller
             # When running from a PyInstaller executable, we need special handling
             subprocess_kwargs = {
@@ -105,21 +115,33 @@ class NastranRunner:
                 'text': True,
                 'bufsize': 1,
                 'universal_newlines': True,
-                'env': env
+                'env': env,
+                'shell': False  # Don't use shell for security
             }
 
-            # On Windows, use CREATE_NO_WINDOW to prevent console popup
-            # and ensure proper subprocess creation from frozen executable
+            # On Windows, use proper creation flags for subprocess from frozen executable
             if os.name == 'nt':  # Windows
                 import sys
                 # Check if running from PyInstaller executable
                 if getattr(sys, 'frozen', False):
                     # Running from PyInstaller executable
-                    subprocess_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+                    # Use CREATE_NEW_PROCESS_GROUP instead of CREATE_NO_WINDOW
+                    # This allows proper subprocess execution while still hiding console
+                    try:
+                        # Try to import the flag constant
+                        CREATE_NEW_PROCESS_GROUP = 0x00000200
+                        DETACHED_PROCESS = 0x00000008
+                        subprocess_kwargs['creationflags'] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                        self.logger.info("Using DETACHED_PROCESS flag for PyInstaller")
+                    except:
+                        # Fallback to no flags if import fails
+                        subprocess_kwargs['creationflags'] = 0
+                        self.logger.warning("Could not set creation flags, using default")
                 else:
-                    # Running from normal Python
+                    # Running from normal Python - no special flags needed
                     subprocess_kwargs['creationflags'] = 0
 
+            self.logger.info(f"Subprocess kwargs: {subprocess_kwargs.keys()}")
             process = subprocess.Popen(cmd, **subprocess_kwargs)
 
             # Monitor progress
