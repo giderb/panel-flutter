@@ -185,8 +185,21 @@ class Sol145BDFGenerator:
             if spc_line.strip():
                 lines.append(spc_line)
 
-        # Add constraint to prevent rigid body modes
-        lines.append("SPC1    1       123456  1")
+        # Calculate total nodes (needed for constraints below)
+        total_nodes = (panel.nx + 1) * (panel.ny + 1)
+
+        # Add constraints to prevent in-plane rigid body modes (per MSC Nastran reference)
+        # Constrain X translation at corner node 1 to prevent X rigid body translation
+        lines.append("SPC1    1       1       1")
+
+        # Constrain Y translation at TWO corners (nodes 1 and last node) to prevent
+        # Y rigid body translation AND in-plane rotation about Z-axis
+        lines.append(f"SPC1    1       2       1       {total_nodes}")
+
+        # Constrain drilling DOF (DOF 6) on ALL nodes
+        # CRITICAL: CQUAD4 elements have zero stiffness for drilling rotation (rotation about Z)
+        # Must constrain DOF 6 to prevent grid point singularities (per MSC Nastran reference)
+        lines.append(f"SPC1    1       6       1       THRU    {total_nodes}")
         lines.append("$")
 
         # Eigenvalue extraction
