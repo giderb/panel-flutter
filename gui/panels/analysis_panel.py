@@ -771,7 +771,7 @@ Execution Time: {self.analysis_results.get('execution_time', 0):.2f} seconds
                     self.method_var.set(params['method'])
                 if 'nastran_path' in params and params['nastran_path']:
                     self.nastran_path_var.set(params['nastran_path'])
-                    self._verify_nastran_path()
+                    self._validate_nastran_path()
 
                 self.logger.info("Loaded analysis params from project")
             except Exception as e:
