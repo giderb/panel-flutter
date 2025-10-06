@@ -446,12 +446,18 @@ class AnalysisPanel(BasePanel):
 
     def _run_analysis(self):
         """Run flutter analysis."""
+        self.logger.info("=" * 70)
+        self.logger.info("RUN ANALYSIS BUTTON CLICKED")
+        self.logger.info("=" * 70)
+
         if self.analysis_running:
+            self.logger.warning("Analysis already running - ignoring")
             return
 
         # Validate project
         project = self.project_manager.current_project
         if not project:
+            self.logger.error("No project loaded")
             messagebox.showerror("Error", "No project loaded")
             return
 
@@ -515,10 +521,18 @@ class AnalysisPanel(BasePanel):
     def _run_analysis_thread(self, structural_model, aerodynamic_config, config):
         """Run analysis in separate thread."""
         try:
+            self.logger.info("=" * 70)
+            self.logger.info("STARTING FLUTTER ANALYSIS")
+            self.logger.info("=" * 70)
+            self.logger.info(f"Config: {config}")
+
             # Progress callback
             def progress_callback(message: str, progress: float):
+                self.logger.info(f"Progress: {message} ({progress*100:.0f}%)")
                 self.progress_label.configure(text=message)
                 self.progress_bar.set(progress)
+
+            self.logger.info("Calling executor.run_analysis()...")
 
             # Run analysis
             self.analysis_results = executor.run_analysis(
@@ -528,10 +542,15 @@ class AnalysisPanel(BasePanel):
                 progress_callback
             )
 
+            self.logger.info(f"Analysis completed. Results: {self.analysis_results.get('success', 'Unknown')}")
+
             # Update GUI in main thread
             self.frame.after(0, self._handle_analysis_complete)
 
         except Exception as e:
+            self.logger.error(f"ANALYSIS THREAD EXCEPTION: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             self.frame.after(0, lambda: self._show_analysis_error(str(e)))
 
     def _handle_analysis_complete(self):

@@ -94,30 +94,38 @@ class IntegratedFlutterExecutor:
 
         return config
 
-    def execute_analysis(self, 
+    def execute_analysis(self,
                         structural_model: Any,
                         aerodynamic_model: Any,
                         config: Dict[str, Any],
                         progress_callback: Optional[Callable[[str, float], None]] = None) -> Dict[str, Any]:
         """
         Execute complete flutter analysis with validation
-        
+
         Args:
             structural_model: Panel structural model
             aerodynamic_model: Aerodynamic model
             config: Analysis configuration
             progress_callback: Progress reporting callback
-        
+
         Returns:
             Complete analysis results with validation status
         """
-        
+
+        self.logger.info("=" * 70)
+        self.logger.info("IntegratedFlutterExecutor.execute_analysis() called")
+        self.logger.info(f"Config: use_nastran={config.get('use_nastran')}, execute_nastran={config.get('execute_nastran')}")
+        self.logger.info(f"Working dir: {config.get('working_dir')}")
+        self.logger.info("=" * 70)
+
         start_time = time.time()
-        
+
         try:
             # Step 1: Convert models to analysis format
             if progress_callback:
                 progress_callback("Converting models...", 0.1)
+
+            self.logger.info("Step 1: Converting models...")
             
             panel = self._convert_structural_model(structural_model)
             flow = self._convert_aerodynamic_model(aerodynamic_model)
@@ -484,31 +492,66 @@ class IntegratedFlutterExecutor:
         
         return None
     
-    def _execute_nastran(self, bdf_path: Path, 
+    def _execute_nastran(self, bdf_path: Path,
                         progress_callback: Optional[Callable] = None) -> Optional[Dict[str, Any]]:
         """Execute NASTRAN solver"""
-        
+
         if not self.nastran_path:
             self.logger.warning("NASTRAN executable not found")
             return None
-        
+
         try:
+            import sys
+            import os
+
             working_dir = bdf_path.parent
             job_name = bdf_path.stem
-            
-            # Prepare command
-            cmd = [self.nastran_path, str(bdf_path)]
-            
+
+            # Use absolute path for NASTRAN executable (critical for PyInstaller)
+            nastran_exe_abs = os.path.abspath(self.nastran_path)
+
+            # Prepare command - use just filename for BDF when running in working directory
+            cmd = [nastran_exe_abs, bdf_path.name]
+
             self.logger.info(f"Executing: {' '.join(cmd)}")
-            
+            self.logger.info(f"Working directory: {working_dir}")
+
+            # Get proper environment for subprocess (critical for PyInstaller)
+            env = os.environ.copy()
+
+            # Add NASTRAN directory to PATH
+            nastran_dir = os.path.dirname(nastran_exe_abs)
+            if nastran_dir and nastran_dir not in env.get('PATH', ''):
+                env['PATH'] = nastran_dir + os.pathsep + env.get('PATH', '')
+                self.logger.info(f"Added NASTRAN directory to PATH: {nastran_dir}")
+
+            # Prepare subprocess arguments for PyInstaller compatibility
+            subprocess_kwargs = {
+                'cwd': str(working_dir),
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'text': True,
+                'bufsize': 1,
+                'universal_newlines': True,
+                'env': env,
+                'shell': False
+            }
+
+            # Use proper creation flags for Windows + PyInstaller
+            if os.name == 'nt':
+                if getattr(sys, 'frozen', False):
+                    # Running from PyInstaller executable
+                    CREATE_NEW_PROCESS_GROUP = 0x00000200
+                    DETACHED_PROCESS = 0x00000008
+                    subprocess_kwargs['creationflags'] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                    self.logger.info("Using DETACHED_PROCESS flag for PyInstaller")
+                else:
+                    subprocess_kwargs['creationflags'] = 0
+
+            self.logger.info(f"Subprocess kwargs: {subprocess_kwargs.keys()}")
+
             # Execute NASTRAN
-            process = subprocess.Popen(
-                cmd,
-                cwd=str(working_dir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
+            process = subprocess.Popen(cmd, **subprocess_kwargs)
             
             # Monitor progress
             while True:

@@ -56,45 +56,45 @@ class ExecutableBuilder:
 
         # Check if virtual environment exists
         if not self.venv_python.exists():
-            print("❌ Virtual environment not found!")
-            print(f"   Expected: {self.venv_python}")
-            print("\n   Please create virtual environment:")
-            print("   python -m venv .venv")
+            print("[X] Virtual environment not found!")
+            print(f"    Expected: {self.venv_python}")
+            print("\n    Please create virtual environment:")
+            print("    python -m venv .venv")
             return False
 
-        print(f"✅ Virtual environment found: {self.venv_python}")
+        print(f"[OK] Virtual environment found: {self.venv_python}")
 
         # Check if PyInstaller is installed
         if not self.venv_pyinstaller.exists():
-            print("❌ PyInstaller not found in virtual environment!")
-            print("\n   Installing PyInstaller...")
+            print("[X] PyInstaller not found in virtual environment!")
+            print("\n    Installing PyInstaller...")
             try:
                 subprocess.run(
                     [str(self.venv_python), "-m", "pip", "install", "pyinstaller"],
                     check=True,
                     capture_output=not self.verbose
                 )
-                print("✅ PyInstaller installed successfully")
+                print("[OK] PyInstaller installed successfully")
             except subprocess.CalledProcessError:
-                print("❌ Failed to install PyInstaller")
+                print("[X] Failed to install PyInstaller")
                 return False
         else:
-            print(f"✅ PyInstaller found: {self.venv_pyinstaller}")
+            print(f"[OK] PyInstaller found: {self.venv_pyinstaller}")
 
         # Check if spec file exists
         if not self.spec_file.exists():
-            print(f"❌ Spec file not found: {self.spec_file}")
+            print(f"[X] Spec file not found: {self.spec_file}")
             return False
 
-        print(f"✅ Spec file found: {self.spec_file}")
+        print(f"[OK] Spec file found: {self.spec_file}")
 
         # Check if main.py exists
         main_py = self.project_root / "main.py"
         if not main_py.exists():
-            print(f"❌ main.py not found: {main_py}")
+            print(f"[X] main.py not found: {main_py}")
             return False
 
-        print(f"✅ main.py found: {main_py}")
+        print(f"[OK] main.py found: {main_py}")
 
         return True
 
@@ -106,32 +106,36 @@ class ExecutableBuilder:
 
         for dir_path in dirs_to_clean:
             if dir_path.exists():
-                print(f"🧹 Removing: {dir_path}")
+                print(f"[CLEAN] Removing: {dir_path}")
                 try:
                     shutil.rmtree(dir_path)
-                    print(f"   ✅ Removed successfully")
+                    print(f"   [OK] Removed successfully")
                 except Exception as e:
-                    print(f"   ⚠️  Warning: Could not remove completely: {e}")
+                    # Handle Unicode in error messages safely
+                    error_msg = str(e).encode('ascii', 'replace').decode('ascii')
+                    print(f"   [WARN]  Warning: Could not remove completely: {error_msg}")
             else:
-                print(f"   ℹ️  Not found (skipping): {dir_path}")
+                print(f"   [INFO]  Not found (skipping): {dir_path}")
 
         # Clean PyInstaller cache
         cache_dir = Path.home() / "AppData" / "Local" / "pyinstaller"
         if cache_dir.exists():
-            print(f"🧹 Cleaning PyInstaller cache: {cache_dir}")
+            print(f"[CLEAN] Cleaning PyInstaller cache: {cache_dir}")
             try:
                 shutil.rmtree(cache_dir)
-                print(f"   ✅ Cache cleaned")
+                print(f"   [OK] Cache cleaned")
             except Exception as e:
-                print(f"   ⚠️  Warning: {e}")
+                # Handle Unicode in error messages safely
+                error_msg = str(e).encode('ascii', 'replace').decode('ascii')
+                print(f"   [WARN]  Warning: {error_msg}")
 
-        print("\n✅ Cleanup complete")
+        print("\n[OK] Cleanup complete")
 
     def build_executable(self):
         """Build the executable using PyInstaller."""
         self.print_step(3, "Building Executable")
 
-        print("🔨 Running PyInstaller...")
+        print("[BUILD] Running PyInstaller...")
         print(f"   Spec file: {self.spec_file}")
         print(f"   Output directory: {self.dist_dir}")
 
@@ -147,7 +151,7 @@ class ExecutableBuilder:
 
         print(f"\n   Command: {' '.join(cmd)}")
         print("\n   Building... (this may take 2-3 minutes)")
-        print("   " + "─" * 66)
+        print("   " + "-" * 66)
 
         try:
             if self.verbose:
@@ -172,13 +176,13 @@ class ExecutableBuilder:
 
             build_time = time.time() - start_time
 
-            print("\n✅ Build completed successfully!")
+            print("\n[OK] Build completed successfully!")
             print(f"   Build time: {build_time:.1f} seconds")
 
             return True
 
         except subprocess.CalledProcessError as e:
-            print(f"\n❌ Build failed!")
+            print(f"\n[X] Build failed!")
             print(f"   Error code: {e.returncode}")
             if not self.verbose and e.stderr:
                 print(f"\n   Error output:")
@@ -192,10 +196,10 @@ class ExecutableBuilder:
         exe_path = self.dist_dir / self.exe_name
 
         if not exe_path.exists():
-            print(f"❌ Executable not found: {exe_path}")
+            print(f"[X] Executable not found: {exe_path}")
             return False
 
-        print(f"✅ Executable found: {exe_path}")
+        print(f"[OK] Executable found: {exe_path}")
 
         # Get file size
         size_bytes = exe_path.stat().st_size
@@ -217,9 +221,9 @@ class ExecutableBuilder:
         for doc in docs:
             doc_path = self.dist_dir / doc
             if doc_path.exists():
-                print(f"   ✅ {doc}")
+                print(f"   [OK] {doc}")
             else:
-                print(f"   ⚠️  {doc} (missing)")
+                print(f"   [WARN]  {doc} (missing)")
 
         return True
 
@@ -229,7 +233,7 @@ class ExecutableBuilder:
 
         exe_path = self.dist_dir / self.exe_name
 
-        print("ℹ️  Note: Full GUI testing requires manual verification")
+        print("[INFO]  Note: Full GUI testing requires manual verification")
         print("   The executable should be tested by:")
         print("   1. Double-clicking PanelFlutterAnalysis.exe")
         print("   2. Creating a test project")
@@ -250,10 +254,10 @@ class ExecutableBuilder:
             )
 
             if critical_count > 0:
-                print(f"   ⚠️  {critical_count} potential issues found in build warnings")
+                print(f"   [WARN]  {critical_count} potential issues found in build warnings")
                 print(f"   Review: {warn_file}")
             else:
-                print(f"   ✅ No critical warnings found")
+                print(f"   [OK] No critical warnings found")
 
         return True
 
@@ -264,19 +268,19 @@ class ExecutableBuilder:
         import zipfile
 
         # Create ZIP filename with version and date
-        version = "1.0.2"
+        version = "1.0.7"
         date_str = datetime.now().strftime("%Y%m%d")
         zip_name = f"PanelFlutterAnalysis_v{version}_{date_str}_Win64.zip"
         zip_path = self.project_root / zip_name
 
-        print(f"📦 Creating: {zip_name}")
+        print(f"[PKG] Creating: {zip_name}")
 
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 # Add executable
                 exe_path = self.dist_dir / self.exe_name
                 zipf.write(exe_path, self.exe_name)
-                print(f"   ✅ Added: {self.exe_name}")
+                print(f"   [OK] Added: {self.exe_name}")
 
                 # Add documentation
                 docs = ["README_EXECUTABLE.md", "QUICK_START.txt", "BUILD_INFO.txt"]
@@ -284,17 +288,17 @@ class ExecutableBuilder:
                     doc_path = self.dist_dir / doc
                     if doc_path.exists():
                         zipf.write(doc_path, doc)
-                        print(f"   ✅ Added: {doc}")
+                        print(f"   [OK] Added: {doc}")
 
             zip_size_mb = zip_path.stat().st_size / (1024 * 1024)
-            print(f"\n✅ Distribution package created!")
+            print(f"\n[OK] Distribution package created!")
             print(f"   File: {zip_path}")
             print(f"   Size: {zip_size_mb:.1f} MB")
 
             return True
 
         except Exception as e:
-            print(f"❌ Failed to create distribution package: {e}")
+            print(f"[X] Failed to create distribution package: {e}")
             return False
 
     def print_summary(self, success):
@@ -302,7 +306,7 @@ class ExecutableBuilder:
         self.print_header("Build Summary")
 
         if success:
-            print("\n✅ BUILD SUCCESSFUL!\n")
+            print("\n[OK] BUILD SUCCESSFUL!\n")
             print(f"Executable location: {self.dist_dir / self.exe_name}")
             print(f"Distribution folder: {self.dist_dir}")
             print("\nNext steps:")
@@ -313,7 +317,7 @@ class ExecutableBuilder:
             print("  3. Verify NASTRAN execution works")
             print("  4. If all tests pass, distribute the files in dist/")
         else:
-            print("\n❌ BUILD FAILED!\n")
+            print("\n[X] BUILD FAILED!\n")
             print("Please review the error messages above.")
             print("Common issues:")
             print("  - Missing dependencies: pip install -r requirements.txt")
@@ -424,10 +428,12 @@ Examples:
         sys.exit(0 if success else 1)
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Build interrupted by user")
+        print("\n\n[WARN]  Build interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n❌ Unexpected error: {e}")
+        # Handle Unicode in error messages safely
+        error_msg = str(e).encode('ascii', 'replace').decode('ascii')
+        print(f"\n\n[X] Unexpected error: {error_msg}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

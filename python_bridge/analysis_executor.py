@@ -18,15 +18,104 @@ from dataclasses import dataclass
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import the validated flutter analysis components
+import logging
+import sys
+import os
+from pathlib import Path
+
+# Create diagnostic file to debug import issues in frozen executable
+_diagnostic_file = None
 try:
-    from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions as FlowCond
-    from .simple_bdf_generator import SimpleBDFGenerator
-    from .nastran_interface import F06Parser
-    from .integrated_analysis_executor import IntegratedFlutterExecutor
+    if getattr(sys, 'frozen', False):
+        # Running from PyInstaller
+        exe_dir = Path(sys.executable).parent
+        _diagnostic_file = exe_dir / 'import_diagnostic.txt'
+        with open(_diagnostic_file, 'w') as f:
+            f.write("=== IMPORT DIAGNOSTIC START ===\n")
+            f.write(f"sys.frozen: {getattr(sys, 'frozen', False)}\n")
+            f.write(f"sys.executable: {sys.executable}\n")
+            f.write(f"__file__: {__file__}\n")
+            f.write(f"sys.path: {sys.path}\n\n")
+except Exception as e:
+    pass  # Don't let diagnostic fail the import
+
+_import_logger = logging.getLogger(__name__)
+
+def _write_diagnostic(msg):
+    """Write to both log and diagnostic file"""
+    _import_logger.info(msg)
+    if _diagnostic_file:
+        try:
+            with open(_diagnostic_file, 'a') as f:
+                f.write(msg + '\n')
+        except:
+            pass
+
+ANALYSIS_AVAILABLE = False
+FlutterAnalyzer = None
+PanelProperties = None
+FlowCond = None
+SimpleBDFGenerator = None
+F06Parser = None
+IntegratedFlutterExecutor = None
+
+try:
+    _write_diagnostic("Attempting to import flutter analysis modules...")
+
+    try:
+        from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions as FlowCond
+        _write_diagnostic("✓ Imported flutter_analyzer")
+    except ImportError as e:
+        _write_diagnostic(f"✗ Failed to import flutter_analyzer: {e}")
+        import traceback
+        _write_diagnostic(traceback.format_exc())
+        raise
+
+    try:
+        from .simple_bdf_generator import SimpleBDFGenerator
+        _write_diagnostic("✓ Imported simple_bdf_generator")
+    except ImportError as e:
+        _write_diagnostic(f"✗ Failed to import simple_bdf_generator: {e}")
+        import traceback
+        _write_diagnostic(traceback.format_exc())
+        raise
+
+    try:
+        from .nastran_interface import F06Parser
+        _write_diagnostic("✓ Imported nastran_interface.F06Parser")
+    except ImportError as e:
+        _write_diagnostic(f"✗ Failed to import nastran_interface: {e}")
+        import traceback
+        _write_diagnostic(traceback.format_exc())
+        raise
+
+    try:
+        from .integrated_analysis_executor import IntegratedFlutterExecutor
+        _write_diagnostic("✓ Imported integrated_analysis_executor")
+    except ImportError as e:
+        _write_diagnostic(f"✗ Failed to import integrated_analysis_executor: {e}")
+        import traceback
+        _write_diagnostic(traceback.format_exc())
+        raise
+
     ANALYSIS_AVAILABLE = True
+    _write_diagnostic("✓ All analysis modules imported successfully!")
+    _write_diagnostic(f"ANALYSIS_AVAILABLE = {ANALYSIS_AVAILABLE}")
+
 except ImportError as e:
-    print(f"Warning: Could not import analysis modules: {e}")
+    _write_diagnostic(f"CRITICAL: Could not import analysis modules: {e}")
+    _write_diagnostic(f"Falling back to mock analysis")
+    import traceback
+    _write_diagnostic(traceback.format_exc())
     ANALYSIS_AVAILABLE = False
+    _write_diagnostic(f"ANALYSIS_AVAILABLE = {ANALYSIS_AVAILABLE}")
+
+if _diagnostic_file:
+    try:
+        with open(_diagnostic_file, 'a') as f:
+            f.write("=== IMPORT DIAGNOSTIC END ===\n")
+    except:
+        pass
 
 # Import GUI models
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -43,47 +132,65 @@ class AnalysisExecutor:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        
+
+        self.logger.info("=" * 70)
+        self.logger.info("AnalysisExecutor.__init__() called")
+        self.logger.info(f"ANALYSIS_AVAILABLE: {ANALYSIS_AVAILABLE}")
+        self.logger.info(f"FlutterAnalyzer: {FlutterAnalyzer}")
+        self.logger.info(f"IntegratedFlutterExecutor: {IntegratedFlutterExecutor}")
+        self.logger.info("=" * 70)
+
         if ANALYSIS_AVAILABLE:
             self.flutter_executor = IntegratedFlutterExecutor()
-            self.logger.info("Validated flutter analysis system initialized")
+            self.logger.info("✓ Validated flutter analysis system initialized")
         else:
             self.flutter_executor = None
-            self.logger.warning("Flutter analysis modules not available - using fallback")
+            self.logger.warning("✗ Flutter analysis modules not available - using fallback")
     
     def run_analysis(self, structural_model: Any, aerodynamic_model: Any,
-                    config: Dict[str, Any], 
+                    config: Dict[str, Any],
                     progress_callback: Optional[Callable[[str, float], None]] = None) -> Dict[str, Any]:
         """
         Run flutter analysis from GUI models
-        
+
         Args:
             structural_model: GUI structural model
-            aerodynamic_model: GUI aerodynamic model  
+            aerodynamic_model: GUI aerodynamic model
             config: Analysis configuration
             progress_callback: Progress reporting callback
-            
+
         Returns:
             Analysis results dictionary
         """
-        
+
+        self.logger.info("=" * 70)
+        self.logger.info("AnalysisExecutor.run_analysis() called")
+        self.logger.info(f"ANALYSIS_AVAILABLE: {ANALYSIS_AVAILABLE}")
+        self.logger.info(f"Config keys: {list(config.keys())}")
+        self.logger.info("=" * 70)
+
         if not ANALYSIS_AVAILABLE:
+            self.logger.warning("Analysis modules not available - using fallback")
             return self._run_fallback_analysis(structural_model, aerodynamic_model, config, progress_callback)
-        
+
         try:
+            self.logger.info("Calling IntegratedFlutterExecutor.execute_analysis()...")
             # Use the validated flutter executor
-            return self.flutter_executor.execute_analysis(
+            result = self.flutter_executor.execute_analysis(
                 structural_model,
                 aerodynamic_model,
                 config,
                 progress_callback
             )
-            
+            self.logger.info(f"IntegratedFlutterExecutor returned: success={result.get('success', 'Unknown')}")
+            return result
+
         except Exception as e:
-            self.logger.error(f"Analysis failed: {e}")
+            self.logger.error(f"Analysis failed with exception: {e}")
             import traceback
+            self.logger.error(traceback.format_exc())
             traceback.print_exc()
-            
+
             return {
                 'success': False,
                 'error': str(e),
