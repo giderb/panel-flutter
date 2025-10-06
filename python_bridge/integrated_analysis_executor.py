@@ -16,7 +16,7 @@ from dataclasses import asdict
 
 # Import validated components
 from .flutter_analyzer import FlutterAnalyzer, PanelProperties, FlowConditions, FlutterResult
-from .nastran_interface import F06Parser
+from .f06_parser import F06Parser
 from .simple_bdf_generator import SimpleBDFGenerator
 
 
@@ -36,7 +36,6 @@ class IntegratedFlutterExecutor:
         self.logger = logging.getLogger(__name__)
         self.flutter_analyzer = FlutterAnalyzer()
         self.bdf_generator = None  # Will be initialized with proper working directory
-        self.f06_parser = F06Parser()
         self.nastran_path = nastran_path or self._find_nastran()
         
         # Validation thresholds
@@ -253,8 +252,9 @@ class IntegratedFlutterExecutor:
                     if nastran_result and nastran_result.get('success'):
                         if progress_callback:
                             progress_callback("Parsing NASTRAN results...", 0.8)
-                        
-                        f06_results = self.f06_parser.parse(Path(nastran_result['f06_file']))
+
+                        f06_parser = F06Parser(Path(nastran_result['f06_file']))
+                        f06_results = f06_parser.parse()
                         nastran_result.update(f06_results)
             
             # Step 5: Cross-validation if NASTRAN results available
@@ -270,18 +270,35 @@ class IntegratedFlutterExecutor:
             
             # Step 6: Generate comprehensive results
             execution_time = time.time() - start_time
-            
+
+            # Use NASTRAN results if available, otherwise physics-based
+            if nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
+                # NASTRAN found flutter - use those results
+                # Convert from mm/s to m/s
+                converged = True
+                flutter_speed = nastran_result['critical_flutter_velocity'] / 1000.0  # mm/s to m/s
+                flutter_frequency = nastran_result['critical_flutter_frequency']
+                flutter_mode = 1  # From NASTRAN
+                self.logger.info(f"Using NASTRAN results: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+            else:
+                # Use physics-based results
+                converged = physics_result.converged
+                flutter_speed = physics_result.flutter_speed
+                flutter_frequency = physics_result.flutter_frequency
+                flutter_mode = physics_result.flutter_mode
+                self.logger.info(f"Using physics-based results: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+
             results = {
                 'success': True,
                 'method': physics_result.method,
                 'analysis_type': 'Validated Flutter Analysis',
-                'converged': physics_result.converged,
+                'converged': converged,
                 'execution_time': execution_time,
-                
+
                 # Critical results
-                'critical_flutter_speed': physics_result.flutter_speed,
-                'critical_flutter_frequency': physics_result.flutter_frequency,
-                'critical_flutter_mode': physics_result.flutter_mode,
+                'critical_flutter_speed': flutter_speed,
+                'critical_flutter_frequency': flutter_frequency,
+                'critical_flutter_mode': flutter_mode,
                 'critical_damping_ratio': physics_result.damping_ratio,
                 'critical_dynamic_pressure': physics_result.dynamic_pressure,
                 

@@ -135,7 +135,7 @@ class MainWindow:
             corner_radius=0,
             width=200
         )
-        self.sidebar.pack(side="left", fill="y", padx=(0, 1), pady=0)
+        self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
         self.sidebar.pack_propagate(False)
 
         # Logo/Title
@@ -198,9 +198,9 @@ class MainWindow:
         status_frame = self.theme_manager.create_styled_frame(
             self.sidebar,
             elevated=True,
-            corner_radius=8
+            corner_radius=0
         )
-        status_frame.pack(fill="x", padx=10, pady=(0, 10))
+        status_frame.pack(fill="both", padx=0, pady=0)
 
         # Project status
         self.status_label = self.theme_manager.create_styled_label(
