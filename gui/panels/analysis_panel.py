@@ -472,6 +472,9 @@ class AnalysisPanel(BasePanel):
         # Create output directory
         config['working_dir'].mkdir(exist_ok=True)
 
+        # Save analysis parameters to project
+        self._save_analysis_params_to_project()
+
         # Start analysis in thread
         self.analysis_running = True
         self.run_button.configure(state="disabled", text="⏳ Running...")
@@ -695,8 +698,61 @@ Execution Time: {self.analysis_results.get('execution_time', 0):.2f} seconds
             except Exception as e:
                 messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
 
+    def _save_analysis_params_to_project(self):
+        """Save current analysis parameters to project."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        try:
+            self.project_manager.current_project.analysis_params = {
+                'n_modes': self.config_vars['n_modes'].get(),
+                'mesh_nx': self.config_vars['mesh_nx'].get(),
+                'mesh_ny': self.config_vars['mesh_ny'].get(),
+                'velocity_min': self.config_vars['velocity_min'].get(),
+                'velocity_max': self.config_vars['velocity_max'].get(),
+                'velocity_points': self.config_vars['velocity_points'].get(),
+                'method': self.method_var.get(),
+                'nastran_path': self.nastran_path_var.get()
+            }
+        except Exception as e:
+            self.logger.warning(f"Error saving analysis params to project: {e}")
+
+    def _load_analysis_params_from_project(self):
+        """Load analysis parameters from project and populate GUI fields."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        project = self.project_manager.current_project
+
+        # Load analysis parameters if they exist
+        if project.analysis_params:
+            try:
+                params = project.analysis_params
+                if 'n_modes' in params:
+                    self.config_vars['n_modes'].set(str(params['n_modes']))
+                if 'mesh_nx' in params:
+                    self.config_vars['mesh_nx'].set(str(params['mesh_nx']))
+                if 'mesh_ny' in params:
+                    self.config_vars['mesh_ny'].set(str(params['mesh_ny']))
+                if 'velocity_min' in params:
+                    self.config_vars['velocity_min'].set(str(params['velocity_min']))
+                if 'velocity_max' in params:
+                    self.config_vars['velocity_max'].set(str(params['velocity_max']))
+                if 'velocity_points' in params:
+                    self.config_vars['velocity_points'].set(str(params['velocity_points']))
+                if 'method' in params:
+                    self.method_var.set(params['method'])
+                if 'nastran_path' in params and params['nastran_path']:
+                    self.nastran_path_var.set(params['nastran_path'])
+                    self._verify_nastran_path()
+
+                self.logger.info("Loaded analysis params from project")
+            except Exception as e:
+                self.logger.warning(f"Error loading analysis params from project: {e}")
+
     def refresh(self):
         """Refresh panel."""
+        self._load_analysis_params_from_project()  # Load saved parameters
         self.progress_bar.set(0)
         self.progress_label.configure(text="Ready to run analysis")
         if self.analysis_results:

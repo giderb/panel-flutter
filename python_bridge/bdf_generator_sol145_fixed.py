@@ -106,8 +106,34 @@ class Sol145BDFGenerator:
 
         lines.append("$ Material Properties (SI units in mm)")
         # MAT1: MID E G NU RHO A TREF GE
-        # CRITICAL: Must have proper spacing between all fields
-        lines.append(f"MAT1    1       {material.youngs_modulus:.0f}.  {G:.0f}.  .{material.poissons_ratio*100:.0f}     {material.density:.2E} {2.1E-05:.1E}")
+        # CRITICAL: Must use proper 8-character fixed field format
+        # Match format from working examples: "73100.  " style (note: single decimal point)
+
+        # Format E and G - use format with single decimal point and spaces
+        # .1f already includes decimal point, so don't add another
+        E_str = f"{material.youngs_modulus:.1f}"
+        E_field = f"{E_str:<8.8}"  # Left-align, pad to 8 chars
+
+        G_str = f"{G:.1f}"
+        G_field = f"{G_str:<8.8}"
+
+        # Poisson's ratio as .XX format
+        nu_str = f".{int(material.poissons_ratio*100):02d}"
+        nu_field = f"{nu_str:<8.8}"
+
+        # Density in scientific notation (space before to match working format)
+        rho_str = f"{material.density:.2E}"
+        # Ensure proper spacing - add space before if needed
+        rho_field = f" {rho_str}" if len(rho_str) == 7 else rho_str
+        rho_field = f"{rho_field:<8.8}"
+
+        # Thermal expansion coefficient
+        A_str = f"{2.1E-05:.1E}"
+        A_field = f" {A_str}" if len(A_str) == 7 else A_str
+        A_field = f"{A_field:<8.8}"
+
+        mat1_line = f"MAT1    1       {E_field}{G_field}{nu_field}{rho_field}{A_field}"
+        lines.append(mat1_line)
         lines.append("$")
 
         # Shell property

@@ -2,10 +2,11 @@
 Simple BDF Generator for NASTRAN SOL145 Flutter Analysis
 ==========================================================
 Uses Sol145BDFGenerator with rotational constraint fixes.
+Supports sandwich panels with automatic equivalent property extraction.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 import logging
 
 from .bdf_generator_sol145_fixed import (
@@ -46,7 +47,8 @@ class SimpleBDFGenerator:
         output_file: str,
         boundary_conditions: str = "SSSS",
         n_modes: int = 20,
-        aerodynamic_theory: Optional[str] = None
+        aerodynamic_theory: Optional[str] = None,
+        material_object: Optional[Any] = None
     ) -> str:
         """
         Generate NASTRAN BDF file for flutter analysis.
@@ -54,22 +56,49 @@ class SimpleBDFGenerator:
         Args:
             length: Panel length (m)
             width: Panel width (m)
-            thickness: Panel thickness (m)
+            thickness: Panel thickness (m) - ignored if material_object is SandwichPanel
             nx: Number of elements in x direction
             ny: Number of elements in y direction
-            youngs_modulus: Young's modulus (Pa)
-            poissons_ratio: Poisson's ratio
-            density: Material density (kg/m³)
+            youngs_modulus: Young's modulus (Pa) - ignored if material_object is SandwichPanel
+            poissons_ratio: Poisson's ratio - ignored if material_object is SandwichPanel
+            density: Material density (kg/m³) - ignored if material_object is SandwichPanel
             mach_number: Mach number
             velocities: List of velocities for flutter analysis (m/s)
             output_file: Output filename
             boundary_conditions: Boundary condition type (default "SSSS")
             n_modes: Number of modes for analysis (default 20)
             aerodynamic_theory: Aerodynamic theory ('PISTON_THEORY' or 'DOUBLET_LATTICE', None=auto)
+            material_object: Optional material object (e.g., SandwichPanel) - overrides individual properties
 
         Returns:
             Path to generated BDF file
         """
+
+        # Check if material is a sandwich panel and extract equivalent properties
+        is_sandwich = False
+        if material_object is not None:
+            material_type = type(material_object).__name__
+            if material_type == 'SandwichPanel':
+                is_sandwich = True
+                logger.info(f"Detected SandwichPanel: {material_object.name}")
+                logger.info(f"  Face: {material_object.face_thickness}mm {material_object.face_material.name}")
+                logger.info(f"  Core: {material_object.core_thickness}mm {material_object.core_material.name}")
+
+                # Get equivalent properties
+                equiv_props = material_object.get_equivalent_properties()
+
+                # Override material properties with equivalent values
+                thickness = material_object.total_thickness / 1000  # mm -> m
+                youngs_modulus = equiv_props['effective_youngs_modulus']  # Pa
+                poissons_ratio = material_object.face_material.poissons_ratio  # Use face material's Poisson ratio
+                density = material_object.total_density  # kg/m³
+
+                logger.info(f"Sandwich equivalent properties:")
+                logger.info(f"  Total thickness: {thickness*1000:.3f} mm")
+                logger.info(f"  Effective E: {youngs_modulus/1e9:.2f} GPa")
+                logger.info(f"  Effective density: {density:.1f} kg/m³")
+                logger.info(f"  Weight saving: {equiv_props['weight_saving']:.1f}%")
+                logger.info(f"  Flexural rigidity: {equiv_props['flexural_rigidity']:.3e} N·m")
 
         logger.info(f"Generating BDF: {length}m x {width}m x {thickness}m, {nx}x{ny} mesh")
         logger.info(f"Material: E={youngs_modulus/1e9:.1f}GPa, rho={density:.0f}kg/m³")

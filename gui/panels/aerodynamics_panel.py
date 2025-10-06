@@ -728,9 +728,34 @@ Mesh Generated: {'✓ YES' if info['mesh_generated'] else '✗ NO'}
         self.preview_text.delete("1.0", "end")
         self.preview_text.insert("1.0", preview_text)
 
+    def _load_aerodynamic_config_from_project(self):
+        """Load aerodynamic config data from project and populate GUI fields."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        project = self.project_manager.current_project
+
+        # Load aerodynamic config if it exists
+        if project.aerodynamic_config:
+            try:
+                flow_conditions = project.aerodynamic_config.get('flow_conditions', {})
+
+                # Load flow conditions
+                if 'mach_number' in flow_conditions:
+                    self.mach_var.set(str(flow_conditions['mach_number']))
+                if 'altitude' in flow_conditions:
+                    self.alt_var.set(str(flow_conditions['altitude']))
+                if 'temperature' in flow_conditions and flow_conditions['temperature']:
+                    self.temp_var.set(str(flow_conditions['temperature']))
+
+                self.logger.info("Loaded aerodynamic config from project")
+            except Exception as e:
+                self.logger.warning(f"Error loading aerodynamic config from project: {e}")
+
     def refresh(self):
         """Refresh panel with current project data."""
         self._load_current_model()
+        self._load_aerodynamic_config_from_project()  # Load saved data into GUI fields
         self._update_flow_calculations()
         self._update_mesh_calculations()
         self._update_spline_info()

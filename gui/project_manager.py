@@ -2,12 +2,23 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
+# Add python_bridge to path for validator
+sys.path.insert(0, str(Path(__file__).parent.parent / "python_bridge"))
+
 from models.material import IsotropicMaterial, OrthotropicMaterial, CompositeLaminate, material_from_dict
+
+try:
+    from python_bridge.project_validator import ProjectValidator
+    VALIDATOR_AVAILABLE = True
+except ImportError:
+    VALIDATOR_AVAILABLE = False
+    print("Warning: ProjectValidator not available")
 
 @dataclass
 class Project:
@@ -190,6 +201,42 @@ class ProjectManager:
 
         return project
 
+    def validate_project(self, project: Project) -> tuple[bool, str]:
+        """
+        Validate project parameters.
+
+        Returns:
+            (is_valid, message)
+        """
+        if not VALIDATOR_AVAILABLE:
+            return True, "Validation skipped (validator not available)"
+
+        try:
+            validator = ProjectValidator()
+            project_dict = project.to_dict()
+            is_valid, issues = validator.validate_project(project_dict)
+
+            if not issues:
+                return True, "[OK] Validation passed - no issues found"
+
+            # Build message
+            error_count = validator.get_error_count()
+            warning_count = validator.get_warning_count()
+
+            message = f"Validation: {error_count} error(s), {warning_count} warning(s)\n\n"
+
+            for issue in issues:
+                message += f"[{issue.level}] {issue.category}: {issue.message}\n"
+                if issue.fix_suggestion:
+                    message += f"  Fix: {issue.fix_suggestion}\n"
+                message += "\n"
+
+            return is_valid, message.strip()
+
+        except Exception as e:
+            print(f"Validation error: {e}")
+            return True, f"Validation failed: {e}"
+
     def save_project(self, project: Optional[Project] = None) -> bool:
         """Save project to file."""
         if project is None:
@@ -199,6 +246,12 @@ class ProjectManager:
             return False
 
         try:
+            # Validate before saving
+            is_valid, validation_msg = self.validate_project(project)
+            if not is_valid:
+                print(f"Project validation warnings:\n{validation_msg}")
+                # Save anyway but print warnings
+
             project.modified_at = datetime.now()
             project_file = self.projects_dir / f"{project.id}.json"
 
@@ -227,6 +280,21 @@ class ProjectManager:
                 data = json.load(f)
 
             project = Project.from_dict(data)
+
+            # Validate loaded project
+            is_valid, validation_msg = self.validate_project(project)
+            if not is_valid:
+                print(f"\n{'='*80}")
+                print(f"WARNING: Project validation failed")
+                print(f"{'='*80}")
+                print(validation_msg)
+                print(f"{'='*80}\n")
+                # Still load but warn user
+            elif VALIDATOR_AVAILABLE:
+                # Check for warnings even if valid
+                if "WARNING" in validation_msg or "warning" in validation_msg:
+                    print(f"Project loaded with warnings:\n{validation_msg}")
+
             self.current_project = project
             self._add_to_recent(project)
 

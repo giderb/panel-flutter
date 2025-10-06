@@ -512,6 +512,9 @@ class StructuralPanel(BasePanel):
             success = self.current_model.generate_mesh()
 
             if success:
+                # Save geometry data to project
+                self._save_geometry_to_project()
+
                 self._update_preview()
                 messagebox.showinfo("Success", "Mesh generated successfully!")
                 self.logger.info(f"Generated mesh with {len(self.current_model.elements)} elements and {len(self.current_model.nodes)} nodes")
@@ -548,6 +551,10 @@ class StructuralPanel(BasePanel):
             # Save to project manager
             if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
                 self.project_manager.current_project.structural_model = self.current_model
+
+                # Also save geometry data to project.geometry for easy serialization
+                self._save_geometry_to_project()
+
                 self.project_manager.save_current_project()
                 messagebox.showinfo("Success", "Structural model saved successfully!")
                 self.logger.info("Structural model saved to project")
@@ -603,9 +610,55 @@ Validation: {'✓ PASSED' if info['mesh_generated'] else '✗ FAILED'}
         self.preview_text.delete("1.0", "end")
         self.preview_text.insert("1.0", preview_text)
 
+    def _save_geometry_to_project(self):
+        """Save current GUI field values to project.geometry dict."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        try:
+            self.project_manager.current_project.geometry = {
+                "length": float(self.length_var.get()),
+                "width": float(self.width_var.get()),
+                "thickness": float(self.thickness_var.get()),
+                "n_chord": int(self.nx_var.get()),
+                "n_span": int(self.ny_var.get()),
+                "element_type": self.element_type_var.get()
+            }
+            self.project_manager.current_project.boundary_conditions = self.bc_type_var.get()
+        except ValueError:
+            # If values can't be converted, skip saving
+            pass
+
+    def _load_geometry_from_project(self):
+        """Load geometry data from project and populate GUI fields."""
+        if not hasattr(self.project_manager, 'current_project') or not self.project_manager.current_project:
+            return
+
+        project = self.project_manager.current_project
+
+        # Load geometry data if it exists
+        if project.geometry:
+            try:
+                self.length_var.set(str(project.geometry.get("length", "1.0")))
+                self.width_var.set(str(project.geometry.get("width", "0.5")))
+                self.thickness_var.set(str(project.geometry.get("thickness", "0.002")))
+                self.nx_var.set(str(project.geometry.get("n_chord", "10")))
+                self.ny_var.set(str(project.geometry.get("n_span", "10")))
+                self.element_type_var.set(project.geometry.get("element_type", "CQUAD4"))
+            except Exception as e:
+                self.logger.warning(f"Error loading geometry from project: {e}")
+
+        # Load boundary conditions if they exist
+        if project.boundary_conditions:
+            try:
+                self.bc_type_var.set(project.boundary_conditions)
+            except Exception as e:
+                self.logger.warning(f"Error loading boundary conditions from project: {e}")
+
     def refresh_panel(self):
         """Refresh the panel with current data."""
         self._load_current_model()
+        self._load_geometry_from_project()  # Load saved data into GUI fields
         self._update_geometry_calculations()
         self._update_mesh_calculations()
         self._update_preview()

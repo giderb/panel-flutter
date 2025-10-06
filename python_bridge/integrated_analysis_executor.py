@@ -202,6 +202,12 @@ class IntegratedFlutterExecutor:
 
                 self.logger.info(f"Aerodynamic theory from model: {aero_theory}")
 
+                # Get material object from structural model if available (for sandwich panels)
+                material_object = None
+                if hasattr(structural_model, 'material') and structural_model.material:
+                    material_object = structural_model.material
+                    self.logger.info(f"Material object type: {type(material_object).__name__}")
+
                 # Generate BDF using validated SimpleBDFGenerator
                 bdf_file_path = self.bdf_generator.generate_flutter_bdf(
                     length=panel.length,
@@ -215,7 +221,8 @@ class IntegratedFlutterExecutor:
                     mach_number=flow.mach_number,
                     velocities=velocities,
                     output_file=str(bdf_path),
-                    aerodynamic_theory=aero_theory
+                    aerodynamic_theory=aero_theory,
+                    material_object=material_object  # Pass for sandwich panel support
                 )
                 
                 # Step 4: Execute NASTRAN if requested

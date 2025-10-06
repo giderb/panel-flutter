@@ -33,6 +33,9 @@ class MaterialPanel(BasePanel):
         # Header with gradient effect
         self._create_header()
 
+        # Project status warning (if no project exists)
+        self._create_project_status_warning()
+
         # Material type selection with beautiful tabs
         self._create_material_type_tabs()
 
@@ -84,6 +87,79 @@ class MaterialPanel(BasePanel):
         )
         subtitle_label.pack(anchor="w", pady=(2, 0))
 
+    def _create_project_status_warning(self):
+        """Create project status warning if no project exists."""
+        # Container for warning (we'll update visibility later)
+        self.project_warning_frame = ctk.CTkFrame(
+            self.scroll_frame,
+            fg_color="#ff6b6b",
+            corner_radius=10
+        )
+
+        # Warning content
+        warning_content = ctk.CTkFrame(self.project_warning_frame, fg_color="transparent")
+        warning_content.pack(fill="x", padx=20, pady=15)
+
+        # Icon and message
+        icon_label = self.theme_manager.create_styled_label(
+            warning_content,
+            text="⚠️",
+            font=ctk.CTkFont(size=24),
+            text_color="white"
+        )
+        icon_label.pack(side="left", padx=(0, 15))
+
+        text_frame = ctk.CTkFrame(warning_content, fg_color="transparent")
+        text_frame.pack(side="left", fill="both", expand=True)
+
+        title_label = self.theme_manager.create_styled_label(
+            text_frame,
+            text="No Project Created",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="white"
+        )
+        title_label.pack(anchor="w")
+
+        msg_label = self.theme_manager.create_styled_label(
+            text_frame,
+            text="You must create a project before adding custom materials. Predefined materials can still be selected.",
+            font=ctk.CTkFont(size=11),
+            text_color="#ffe0e0"
+        )
+        msg_label.pack(anchor="w", pady=(2, 0))
+
+        # Create project button
+        create_btn = ctk.CTkButton(
+            warning_content,
+            text="📁 Create Project",
+            command=self._quick_create_project,
+            fg_color="white",
+            text_color="#ff6b6b",
+            hover_color="#f0f0f0",
+            height=35,
+            width=140,
+            corner_radius=6,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        create_btn.pack(side="right", padx=(15, 0))
+
+        # Initially hide if project exists, show if not
+        self._update_project_warning_visibility()
+
+    def _quick_create_project(self):
+        """Quick project creation from material panel."""
+        # Navigate to home panel and trigger new project dialog
+        self.main_window._show_panel("home")
+        if "home" in self.main_window.panels:
+            self.main_window.panels["home"].show_new_project_dialog()
+
+    def _update_project_warning_visibility(self):
+        """Update visibility of project warning based on project status."""
+        if self.project_manager.current_project:
+            self.project_warning_frame.pack_forget()
+        else:
+            self.project_warning_frame.pack(fill="x", pady=(0, 20))
+
     def _create_material_type_tabs(self):
         """Create beautiful material type selection tabs."""
         tabs_frame = self.theme_manager.create_styled_frame(
@@ -102,7 +178,8 @@ class MaterialPanel(BasePanel):
         tabs_data = [
             ("isotropic", "🔧 Isotropic", "Uniform properties in all directions", self._show_isotropic_content),
             ("orthotropic", "📐 Orthotropic", "Different properties in principal directions", self._show_orthotropic_content),
-            ("composite", "📚 Composite", "Layered composite laminate", self._show_composite_content)
+            ("composite", "📚 Composite", "Layered composite laminate", self._show_composite_content),
+            ("sandwich", "🥪 Sandwich", "Honeycomb core with face sheets", self._show_sandwich_content)
         ]
 
         for i, (tab_id, label, description, command) in enumerate(tabs_data):
@@ -113,7 +190,7 @@ class MaterialPanel(BasePanel):
                 border_width=2,
                 corner_radius=10
             )
-            tab_frame.pack(side="left", fill="both", expand=True, padx=(0, 10) if i < 2 else 0)
+            tab_frame.pack(side="left", fill="both", expand=True, padx=(0, 10) if i < 3 else 0)
 
             # Make frame clickable
             tab_frame.bind("<Button-1>", lambda e, t=tab_id, c=command: self._select_tab(t, c))
@@ -699,8 +776,14 @@ class MaterialPanel(BasePanel):
                 self.project_manager.current_project.material = material
                 self.main_window.update_status()
                 self.show_info("Success", f"Created isotropic material: {name}")
+                # Clear the form
+                self.name_entry.delete(0, 'end')
+                self.e_entry.delete(0, 'end')
+                self.nu_entry.delete(0, 'end')
+                self.g_entry.delete(0, 'end')
+                self.rho_entry.delete(0, 'end')
             else:
-                self.show_warning("Warning", "Please create a project first.")
+                self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
 
         except ValueError as e:
             self.show_error("Error", f"Invalid input: Please enter valid numbers")
@@ -756,7 +839,7 @@ class MaterialPanel(BasePanel):
                 self.main_window.update_status()
                 self.show_info("Success", f"Created orthotropic material: {name}")
             else:
-                self.show_warning("Warning", "Please create a project first.")
+                self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
 
         except ValueError as e:
             self.show_error("Error", f"Invalid input: Please enter valid numbers")
@@ -945,10 +1028,338 @@ class MaterialPanel(BasePanel):
                 self.main_window.update_status()
                 self.show_info("Success", f"Created composite laminate: {name}\nTotal thickness: {laminate.total_thickness:.2f} mm")
             else:
-                self.show_warning("Warning", "Please create a project first.")
+                self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
 
         except Exception as e:
             self.show_error("Error", f"Failed to create laminate: {e}")
+
+    def _show_sandwich_content(self):
+        """Show honeycomb sandwich panel content."""
+        self.current_material_type = MaterialType.SANDWICH
+        self._clear_content_area()
+
+        # Import sandwich materials
+        from models.material import PredefinedMaterials, SandwichPanel
+
+        # Main container
+        main_frame = self.theme_manager.create_styled_frame(
+            self.content_area,
+            elevated=True
+        )
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Title
+        title_label = self.theme_manager.create_styled_label(
+            main_frame,
+            text="Honeycomb Sandwich Panel Configuration",
+            style="subheading"
+        )
+        title_label.pack(anchor="w", padx=20, pady=(20, 10))
+
+        # Predefined sandwich panels section
+        predefined_frame = self.theme_manager.create_styled_frame(main_frame)
+        predefined_frame.pack(fill="x", padx=20, pady=10)
+
+        pred_label = self.theme_manager.create_styled_label(
+            predefined_frame,
+            text="Predefined Sandwich Panels:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        pred_label.pack(anchor="w", padx=15, pady=(15, 5))
+
+        # Predefined options
+        predefined_options = [
+            ("Aluminum Sandwich (0.5\" core)", PredefinedMaterials.create_aluminum_sandwich),
+            ("Composite Sandwich (0.75\" core)", PredefinedMaterials.create_composite_sandwich)
+        ]
+
+        for name, factory_func in predefined_options:
+            btn_frame = ctk.CTkFrame(predefined_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", padx=15, pady=5)
+
+            select_btn = ctk.CTkButton(
+                btn_frame,
+                text=f"Load: {name}",
+                command=lambda f=factory_func: self._load_predefined_sandwich(f),
+                width=400,
+                height=35
+            )
+            select_btn.pack(side="left", padx=(0, 10))
+
+        # Custom sandwich panel section
+        custom_frame = self.theme_manager.create_styled_frame(main_frame)
+        custom_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        custom_label = self.theme_manager.create_styled_label(
+            custom_frame,
+            text="Custom Sandwich Panel:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        custom_label.pack(anchor="w", padx=15, pady=(15, 10))
+
+        # Configuration grid
+        config_grid = ctk.CTkFrame(custom_frame, fg_color="transparent")
+        config_grid.pack(fill="both", expand=True, padx=15, pady=10)
+
+        # Panel name
+        name_label = self.theme_manager.create_styled_label(config_grid, text="Panel Name:")
+        name_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
+        self.sandwich_name_entry = self.theme_manager.create_styled_entry(
+            config_grid,
+            placeholder_text="e.g., Custom Aluminum Sandwich"
+        )
+        self.sandwich_name_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+
+        # Face material selection
+        face_mat_label = self.theme_manager.create_styled_label(config_grid, text="Face Material:")
+        face_mat_label.grid(row=1, column=0, sticky="w", padx=10, pady=5)
+
+        self.face_material_var = ctk.StringVar(value="Aluminum 6061-T6")
+        face_material_dropdown = ctk.CTkComboBox(
+            config_grid,
+            variable=self.face_material_var,
+            values=["Aluminum 6061-T6", "Steel 4130", "Titanium Ti-6Al-4V"],
+            width=300
+        )
+        face_material_dropdown.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+
+        # Face thickness
+        face_thick_label = self.theme_manager.create_styled_label(config_grid, text="Face Thickness [mm]:")
+        face_thick_label.grid(row=2, column=0, sticky="w", padx=10, pady=5)
+        self.face_thickness_entry = self.theme_manager.create_styled_entry(
+            config_grid,
+            placeholder_text="0.5"
+        )
+        self.face_thickness_entry.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        self.face_thickness_entry.insert(0, "0.5")
+
+        # Core material selection
+        core_mat_label = self.theme_manager.create_styled_label(config_grid, text="Core Material:")
+        core_mat_label.grid(row=3, column=0, sticky="w", padx=10, pady=5)
+
+        self.core_material_var = ctk.StringVar(value="Al 5052 Honeycomb 1/4\"-3.0")
+        core_material_dropdown = ctk.CTkComboBox(
+            config_grid,
+            variable=self.core_material_var,
+            values=[
+                "Al 5052 Honeycomb 1/4\"-3.0",
+                "Al 5056 Honeycomb 3/16\"-4.5",
+                "Nomex Honeycomb 1/8\"-3.0"
+            ],
+            width=300
+        )
+        core_material_dropdown.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
+
+        # Core thickness
+        core_thick_label = self.theme_manager.create_styled_label(config_grid, text="Core Thickness [mm]:")
+        core_thick_label.grid(row=4, column=0, sticky="w", padx=10, pady=5)
+        self.core_thickness_entry = self.theme_manager.create_styled_entry(
+            config_grid,
+            placeholder_text="12.7"
+        )
+        self.core_thickness_entry.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
+        self.core_thickness_entry.insert(0, "12.7")
+
+        config_grid.grid_columnconfigure(1, weight=1)
+
+        # Properties display
+        props_frame = self.theme_manager.create_styled_frame(custom_frame)
+        props_frame.pack(fill="x", padx=15, pady=10)
+
+        props_title = self.theme_manager.create_styled_label(
+            props_frame,
+            text="Calculated Properties:",
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        props_title.pack(anchor="w", padx=15, pady=(10, 5))
+
+        self.sandwich_props_text = ctk.CTkTextbox(
+            props_frame,
+            height=120,
+            font=ctk.CTkFont(family="Consolas", size=10)
+        )
+        self.sandwich_props_text.pack(fill="x", padx=15, pady=(5, 15))
+        self.sandwich_props_text.insert("1.0", "Configure panel and click 'Calculate Properties' to see equivalent properties...")
+
+        # Buttons
+        button_frame = ctk.CTkFrame(custom_frame, fg_color="transparent")
+        button_frame.pack(fill="x", padx=15, pady=(5, 15))
+
+        calc_btn = ctk.CTkButton(
+            button_frame,
+            text="Calculate Properties",
+            command=self._calculate_sandwich_properties,
+            width=180,
+            height=35
+        )
+        calc_btn.pack(side="left", padx=(0, 10))
+
+        save_btn = self.theme_manager.create_styled_button(
+            button_frame,
+            text="💾 Save Sandwich Panel",
+            command=self._save_sandwich_panel,
+            style="primary",
+            width=180,
+            height=35
+        )
+        save_btn.pack(side="left")
+
+    def _load_predefined_sandwich(self, factory_func):
+        """Load a predefined sandwich panel."""
+        try:
+            sandwich = factory_func()
+
+            # Update UI fields
+            self.sandwich_name_entry.delete(0, 'end')
+            self.sandwich_name_entry.insert(0, sandwich.name)
+
+            self.face_material_var.set(sandwich.face_material.name)
+            self.face_thickness_entry.delete(0, 'end')
+            self.face_thickness_entry.insert(0, str(sandwich.face_thickness))
+
+            self.core_material_var.set(sandwich.core_material.name)
+            self.core_thickness_entry.delete(0, 'end')
+            self.core_thickness_entry.insert(0, str(sandwich.core_thickness))
+
+            # Calculate and display properties
+            self._calculate_sandwich_properties()
+
+            self.show_info("Loaded", f"Loaded predefined sandwich: {sandwich.name}")
+
+        except Exception as e:
+            self.show_error("Error", f"Failed to load predefined sandwich: {e}")
+
+    def _calculate_sandwich_properties(self):
+        """Calculate and display sandwich panel properties."""
+        try:
+            from models.material import (
+                PredefinedMaterials, SandwichPanel,
+                IsotropicMaterial, HoneycombCore
+            )
+
+            # Get face material
+            face_name = self.face_material_var.get()
+            if "6061" in face_name:
+                face_mat = PredefinedMaterials.aluminum_6061()
+            elif "4130" in face_name:
+                face_mat = PredefinedMaterials.steel_4130()
+            elif "Ti-6Al-4V" in face_name:
+                face_mat = PredefinedMaterials.titanium_6al4v()
+            else:
+                face_mat = PredefinedMaterials.aluminum_6061()
+
+            # Get core material
+            core_name = self.core_material_var.get()
+            if "5052" in core_name:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5052()
+            elif "5056" in core_name:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5056()
+            elif "Nomex" in core_name:
+                core_mat = PredefinedMaterials.nomex_honeycomb()
+            else:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5052()
+
+            # Get thicknesses
+            face_thick = float(self.face_thickness_entry.get())
+            core_thick = float(self.core_thickness_entry.get())
+
+            # Create temporary sandwich
+            temp_sandwich = SandwichPanel(
+                id=1,
+                name=self.sandwich_name_entry.get() or "Custom Sandwich",
+                face_material=face_mat,
+                face_thickness=face_thick,
+                core_material=core_mat,
+                core_thickness=core_thick
+            )
+
+            # Get properties
+            props = temp_sandwich.get_equivalent_properties()
+
+            # Display properties
+            self.sandwich_props_text.delete("1.0", "end")
+            prop_text = f"""Sandwich Panel Properties:
+Total Thickness:       {temp_sandwich.total_thickness:.3f} mm
+Mass per Area:         {props['mass_per_area']:.4f} kg/m²
+Flexural Rigidity (D): {props['flexural_rigidity']:.3e} N·m
+Effective E:           {props['effective_youngs_modulus']/1e9:.2f} GPa
+Weight Saving:         {props['weight_saving']:.1f}%
+Equiv. Solid Thick:    {props['equivalent_solid_thickness_m']*1000:.3f} mm
+
+For 508×254 mm panel (estimated):
+  First mode freq:     ~{491.85*(props['flexural_rigidity']/1753)**0.5 / (props['mass_per_area']/3.42)**0.5:.1f} Hz
+"""
+            self.sandwich_props_text.insert("1.0", prop_text)
+
+        except ValueError as e:
+            self.show_error("Error", "Please enter valid numeric values for thicknesses")
+        except Exception as e:
+            self.show_error("Error", f"Failed to calculate properties: {e}")
+
+    def _save_sandwich_panel(self):
+        """Save custom sandwich panel to project."""
+        try:
+            from models.material import (
+                PredefinedMaterials, SandwichPanel
+            )
+
+            if not self.project_manager.current_project:
+                self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
+                return
+
+            # Get face material
+            face_name = self.face_material_var.get()
+            if "6061" in face_name:
+                face_mat = PredefinedMaterials.aluminum_6061()
+            elif "4130" in face_name:
+                face_mat = PredefinedMaterials.steel_4130()
+            elif "Ti-6Al-4V" in face_name:
+                face_mat = PredefinedMaterials.titanium_6al4v()
+            else:
+                face_mat = PredefinedMaterials.aluminum_6061()
+
+            # Get core material
+            core_name = self.core_material_var.get()
+            if "5052" in core_name:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5052()
+            elif "5056" in core_name:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5056()
+            elif "Nomex" in core_name:
+                core_mat = PredefinedMaterials.nomex_honeycomb()
+            else:
+                core_mat = PredefinedMaterials.aluminum_honeycomb_5052()
+
+            # Get thicknesses
+            name = self.sandwich_name_entry.get() or "Custom Sandwich Panel"
+            face_thick = float(self.face_thickness_entry.get())
+            core_thick = float(self.core_thickness_entry.get())
+
+            # Create sandwich panel
+            sandwich = SandwichPanel(
+                id=1,
+                name=name,
+                face_material=face_mat,
+                face_thickness=face_thick,
+                core_material=core_mat,
+                core_thickness=core_thick,
+                description=f"Custom sandwich: {face_thick}mm {face_name} + {core_thick}mm {core_name}"
+            )
+
+            # Save to project
+            self.project_manager.current_project.material = sandwich
+            self.main_window.update_status()
+
+            props = sandwich.get_equivalent_properties()
+            self.show_info("Success",
+                          f"Saved sandwich panel: {name}\n\n"
+                          f"Total thickness: {sandwich.total_thickness:.2f} mm\n"
+                          f"Weight saving: {props['weight_saving']:.1f}%\n"
+                          f"Mass: {props['mass_per_area']:.2f} kg/m²")
+
+        except ValueError as e:
+            self.show_error("Error", "Please enter valid numeric values")
+        except Exception as e:
+            self.show_error("Error", f"Failed to save sandwich panel: {e}")
 
     def _create_navigation(self):
         """Create navigation buttons."""
@@ -980,6 +1391,9 @@ class MaterialPanel(BasePanel):
     def on_show(self):
         """Called when panel is shown."""
         self.main_window.update_status()
+        # Update project warning visibility
+        if hasattr(self, '_update_project_warning_visibility'):
+            self._update_project_warning_visibility()
 
     def refresh(self):
         """Refresh the material panel."""
