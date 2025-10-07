@@ -319,7 +319,12 @@ class IntegratedFlutterExecutor:
                     'mach_number': flow.mach_number,
                     'altitude': flow.altitude,
                     'temperature': flow.temperature,
-                    'air_density': flow.density
+                    'air_density': flow.density,
+                    # Add thickness and target speed for design recommendations
+                    'thickness': panel.thickness,  # m
+                    'panel_thickness': panel.thickness,  # m (alias)
+                    'target_flutter_speed': config.get('target_flutter_speed', config.get('velocity_max')),  # m/s
+                    'velocity_max': config.get('velocity_max')  # m/s
                 },
                 
                 # Validation - use NASTRAN validation if we have NASTRAN flutter results

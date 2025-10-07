@@ -163,16 +163,91 @@ class ResultsPanel(BasePanel):
         critical_card = self._create_card(scroll_frame, "⚡ Critical Flutter Point")
         critical_card.pack(fill="x", padx=10, pady=10)
 
+        # Get actual and target flutter speeds
+        actual_flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
+        config = self.analysis_results.get('configuration', {})
+
+        # Extract target speed from config (if provided by user)
+        # This could come from velocity_max or a specific target_flutter_speed field
+        target_flutter_speed = config.get('target_flutter_speed') or config.get('velocity_max')
+
         critical_data = [
-            ("Flutter Speed", f"{self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s"),
+            ("Actual Flutter Speed", f"{actual_flutter_speed:.1f} m/s"),
+        ]
+
+        # Add target speed comparison if available
+        if target_flutter_speed and target_flutter_speed > 0:
+            speed_ratio = actual_flutter_speed / target_flutter_speed
+            if speed_ratio >= 1.0:
+                comparison = f"✅ {speed_ratio:.2f}x target ({target_flutter_speed:.0f} m/s)"
+                comparison_color = "green"
+            else:
+                comparison = f"⚠️ {speed_ratio:.2f}x target ({target_flutter_speed:.0f} m/s)"
+                comparison_color = "orange"
+            critical_data.append(("Target Flutter Speed", comparison))
+
+        critical_data.extend([
             ("Flutter Frequency", f"{self.analysis_results.get('critical_flutter_frequency', 0):.1f} Hz"),
             ("Flutter Mode", f"Mode {self.analysis_results.get('critical_flutter_mode', 0)}"),
             ("Dynamic Pressure", f"{self.analysis_results.get('critical_dynamic_pressure', 0):.0f} Pa"),
             ("Safety Margin", f"{self.analysis_results.get('safety_margin', 0):.1f}%")
-        ]
+        ])
 
         for label, value in critical_data:
-            self._add_info_row(critical_card, label, value)
+            row = self._add_info_row(critical_card, label, value)
+            # Color the target comparison
+            if label == "Target Flutter Speed" and target_flutter_speed:
+                value_label = row.winfo_children()[-1]
+                if hasattr(value_label, 'configure'):
+                    value_label.configure(text_color=comparison_color if 'comparison_color' in locals() else None)
+
+        # Design Recommendations Card (if target speed is not met)
+        if target_flutter_speed and actual_flutter_speed < target_flutter_speed:
+            design_card = self._create_card(scroll_frame, "💡 Design Recommendations")
+            design_card.pack(fill="x", padx=10, pady=10)
+
+            # Calculate required thickness using flutter speed scaling
+            # V_flutter ∝ h (thickness) for same material and geometry
+            current_thickness = config.get('panel_thickness', config.get('thickness'))
+
+            if current_thickness:
+                speed_ratio = target_flutter_speed / actual_flutter_speed
+                required_thickness = current_thickness * speed_ratio
+
+                # Convert to mm for display
+                current_thickness_mm = current_thickness * 1000  # m to mm
+                required_thickness_mm = required_thickness * 1000  # m to mm
+                thickness_increase = ((required_thickness / current_thickness) - 1) * 100
+
+                design_data = [
+                    ("Current Thickness", f"{current_thickness_mm:.2f} mm"),
+                    ("Required Thickness", f"{required_thickness_mm:.2f} mm"),
+                    ("Thickness Increase", f"+{thickness_increase:.1f}%"),
+                    ("Speed Deficit", f"{target_flutter_speed - actual_flutter_speed:.1f} m/s"),
+                ]
+
+                for label, value in design_data:
+                    row = self._add_info_row(design_card, label, value)
+                    if label == "Required Thickness":
+                        value_label = row.winfo_children()[-1]
+                        if hasattr(value_label, 'configure'):
+                            # Use cyan for better visibility on dark backgrounds
+                            value_label.configure(text_color="#00D9FF", font=("Arial", 12, "bold"))
+
+                # Add explanatory note with larger, more readable text
+                note_frame = ctk.CTkFrame(design_card, fg_color="transparent")
+                note_frame.pack(fill="x", padx=15, pady=(10, 15))
+                note_label = ctk.CTkLabel(
+                    note_frame,
+                    text="ℹ️  Increasing thickness will increase stiffness and flutter speed.\n"
+                         "    Note: This is a first-order estimate. Re-run analysis to verify.",
+                    font=("Arial", 11),
+                    text_color=("#666666", "#AAAAAA"),
+                    justify="left"
+                )
+                note_label.pack(anchor="w")
+            else:
+                self._add_info_row(design_card, "Status", "⚠️ Thickness data not available for recommendation")
 
         # Configuration Card
         config_card = self._create_card(scroll_frame, "⚙️ Configuration")
