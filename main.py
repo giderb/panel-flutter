@@ -70,7 +70,7 @@ def main():
         except Exception as e:
             logger.warning(f"CustomTkinter theme setting failed: {e}")
             # Continue with defaults
-        root.title("NASTRAN Panel Flutter Analysis")
+        root.title("✈️ Panel Flutter - NASTRAN Analysis")
         root.geometry("1400x900")
         root.minsize(1200, 800)
 

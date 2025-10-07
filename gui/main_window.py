@@ -138,17 +138,36 @@ class MainWindow:
         self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
         self.sidebar.pack_propagate(False)
 
-        # Logo/Title
+        # Logo/Title - Sleek modern design
         title_frame = self.theme_manager.create_styled_frame(self.sidebar, corner_radius=0)
-        title_frame.pack(fill="x", padx=10, pady=(10, 20))
+        title_frame.pack(fill="x", padx=10, pady=(20, 30))
 
-        title_label = self.theme_manager.create_styled_label(
+        # Icon with gradient-style design
+        icon_label = ctk.CTkLabel(
             title_frame,
-            text="NASTRAN\nPanel Flutter",
-            style="heading",
-            font=ctk.CTkFont(size=18, weight="bold")
+            text="✈️",
+            font=ctk.CTkFont(size=32),
+            text_color=("#0066CC", "#00A8FF")  # Blue gradient effect
         )
-        title_label.pack(pady=10)
+        icon_label.pack(pady=(0, 5))
+
+        # App name - modern minimal design
+        title_label = ctk.CTkLabel(
+            title_frame,
+            text="Panel Flutter",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color=("#1a1a1a", "#ffffff")
+        )
+        title_label.pack(pady=(0, 2))
+
+        # Subtitle
+        subtitle_label = ctk.CTkLabel(
+            title_frame,
+            text="NASTRAN Analysis",
+            font=ctk.CTkFont(size=10),
+            text_color=("#666666", "#999999")
+        )
+        subtitle_label.pack(pady=(0, 10))
 
         # Navigation buttons
         nav_items = [
@@ -396,11 +415,11 @@ For detailed help, please refer to the README.md file.
     def _show_about(self):
         """Show about dialog."""
         about_text = """
-NASTRAN Panel Flutter Analysis GUI
+✈️ Panel Flutter - NASTRAN Analysis
 Version 1.0.0
 
-A modern interface for supersonic panel flutter analysis using NASTRAN
-and the nastran-aeroelasticity library.
+A modern, sleek interface for supersonic panel flutter analysis
+using NASTRAN and advanced aeroelastic methods.
 
 Built with customtkinter for a professional, modern appearance.
 
