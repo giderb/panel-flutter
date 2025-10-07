@@ -161,7 +161,13 @@ class TemplateBDFGenerator:
         """
         cards = []
 
-        if boundary_conditions.upper() == "SSSS":
+        # Handle Enum types
+        if hasattr(boundary_conditions, 'value'):
+            bc_str = boundary_conditions.value
+        else:
+            bc_str = str(boundary_conditions)
+
+        if bc_str.upper() == "SSSS":
             # Simply supported: W=0 and normal rotation=0 on edges
             # Plus in-plane constraints at corners for rigid body prevention
 
@@ -184,6 +190,61 @@ class TemplateBDFGenerator:
             cards.append(f"SPC1           1      12       1")
 
             # Bottom-right: V only
+            cards.append(f"SPC1           1       2{nx + 1:8d}")
+
+        elif bc_str.upper() == "CCCC":
+            # Clamped: all DOFs constrained on all edges
+            bottom_edge = [i + 1 for i in range(nx + 1)]
+            top_edge = [ny * (nx + 1) + i + 1 for i in range(nx + 1)]
+            left_edge = [j * (nx + 1) + 1 for j in range(1, ny)]  # Skip corners
+            right_edge = [j * (nx + 1) + nx + 1 for j in range(1, ny)]
+
+            all_edge_nodes = sorted(set(bottom_edge + top_edge + left_edge + right_edge))
+            cards.append(self._format_spc1(1, '123456', all_edge_nodes))
+
+        elif bc_str.upper() == "CFFF":
+            # Cantilever: clamped at x=0, free elsewhere
+            left_edge = [j * (nx + 1) + 1 for j in range(ny + 1)]
+            cards.append(self._format_spc1(1, '123456', left_edge))
+
+        elif bc_str.upper() == "CFCF":
+            # Clamped at x=0 and x=length, free at y=0 and y=width
+            left_edge = [j * (nx + 1) + 1 for j in range(ny + 1)]
+            right_edge = [j * (nx + 1) + nx + 1 for j in range(ny + 1)]
+            clamped_edges = sorted(set(left_edge + right_edge))
+            cards.append(self._format_spc1(1, '123456', clamped_edges))
+
+        elif bc_str.upper() == "SCSC":
+            # Left/right: simply supported (DOF 3), top/bottom: clamped (DOF 123456)
+            left_edge = [j * (nx + 1) + 1 for j in range(ny + 1)]
+            right_edge = [j * (nx + 1) + nx + 1 for j in range(ny + 1)]
+            ss_edges = sorted(set(left_edge + right_edge))
+            cards.append(self._format_spc1(1, '3', ss_edges))
+
+            # Top and bottom edges clamped (skip corners)
+            bottom_edge = [i + 1 for i in range(1, nx)]
+            top_edge = [ny * (nx + 1) + i + 1 for i in range(1, nx)]
+            c_edges = sorted(set(bottom_edge + top_edge))
+            if c_edges:
+                cards.append(self._format_spc1(1, '123456', c_edges))
+
+            # Corner constraint for rigid body prevention
+            cards.append(f"SPC1           1      12       1")
+
+        else:
+            # Unknown BC - default to SSSS with warning
+            cards.append(f"$ WARNING: Unknown boundary condition '{bc_str}' - defaulting to SSSS")
+            bottom_edge = [i + 1 for i in range(nx + 1)]
+            top_edge = [ny * (nx + 1) + i + 1 for i in range(nx + 1)]
+            left_edge = [j * (nx + 1) + 1 for j in range(ny + 1)]
+            right_edge = [j * (nx + 1) + nx + 1 for j in range(ny + 1)]
+
+            for nodes in [bottom_edge, top_edge]:
+                cards.append(self._format_spc1(1, '35', nodes))
+            for nodes in [left_edge, right_edge]:
+                cards.append(self._format_spc1(1, '34', nodes))
+
+            cards.append(f"SPC1           1      12       1")
             cards.append(f"SPC1           1       2{nx + 1:8d}")
 
         return '\n'.join(cards)

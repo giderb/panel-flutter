@@ -473,6 +473,133 @@ class PyNastranBDFGenerator:
                 nodes=[corner_br]
             )
 
+        elif bc_str.upper() == "CCCC":  # Clamped on all edges
+            # Clamped: constrain all translations and rotations on all edges
+            edge_nodes = []
+
+            # Bottom edge (j=0)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Top edge (j=ny)
+            for i in range(panel.nx + 1):
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+
+            # Left edge (i=0) - skip corners to avoid duplicates
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx) - skip corners to avoid duplicates
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            # Remove duplicates and sort
+            edge_nodes = sorted(set(edge_nodes))
+
+            # CCCC: Clamped - all DOFs constrained on all edges
+            self.model.add_spc1(
+                conid=1,
+                components='123456',  # All DOFs
+                nodes=edge_nodes
+            )
+
+        elif bc_str.upper() == "CFFF":  # Cantilever
+            # Cantilever: clamped at x=0, free elsewhere
+            left_edge_nodes = []
+
+            # Left edge only (i=0, all j)
+            for j in range(panel.ny + 1):
+                left_edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # CFFF: Clamped at left edge
+            self.model.add_spc1(
+                conid=1,
+                components='123456',  # All DOFs
+                nodes=left_edge_nodes
+            )
+
+        elif bc_str.upper() == "CFCF":  # Clamped-Free-Clamped-Free
+            # Clamped at x=0 and x=length, free at y=0 and y=width
+            edge_nodes = []
+
+            # Left edge (i=0, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            # Remove duplicates and sort
+            edge_nodes = sorted(set(edge_nodes))
+
+            # CFCF: Clamped at left and right edges
+            self.model.add_spc1(
+                conid=1,
+                components='123456',  # All DOFs
+                nodes=edge_nodes
+            )
+
+        elif bc_str.upper() == "SCSC":  # Simply supported-Clamped-Simply supported-Clamped
+            # Left and right edges: Simply supported (DOF 3 only)
+            ss_edge_nodes = []
+            for j in range(panel.ny + 1):
+                ss_edge_nodes.append(j * (panel.nx + 1) + 1)  # Left edge
+                ss_edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)  # Right edge
+            ss_edge_nodes = sorted(set(ss_edge_nodes))
+
+            self.model.add_spc1(
+                conid=1,
+                components='3',  # W only
+                nodes=ss_edge_nodes
+            )
+
+            # Bottom and top edges: Clamped (DOF 123456) - excluding corners
+            c_edge_nodes = []
+            for i in range(1, panel.nx):  # Skip corners
+                c_edge_nodes.append(i + 1)  # Bottom edge
+                c_edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)  # Top edge
+
+            if c_edge_nodes:
+                self.model.add_spc1(
+                    conid=1,
+                    components='123456',  # All DOFs
+                    nodes=c_edge_nodes
+                )
+
+            # Corner constraints for rigid body modes
+            corner_bl = 1
+            self.model.add_spc1(
+                conid=1,
+                components='12',  # U, V
+                nodes=[corner_bl]
+            )
+
+        else:
+            # Unknown boundary condition - default to SSSS with warning
+            logger.warning(f"Unknown boundary condition '{bc_str}' - defaulting to SSSS")
+
+            # Default to SSSS implementation
+            edge_nodes = []
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+            edge_nodes = sorted(set(edge_nodes))
+
+            self.model.add_spc1(
+                conid=1,
+                components='3',
+                nodes=edge_nodes
+            )
+
+            corner_bl = 1
+            corner_br = panel.nx + 1
+            self.model.add_spc1(conid=1, components='12', nodes=[corner_bl])
+            self.model.add_spc1(conid=1, components='2', nodes=[corner_br])
+
     def _add_eigenvalue_extraction(self, n_modes: int):
         """Add eigenvalue extraction cards using pyNastran"""
         self.model.add_eigrl(

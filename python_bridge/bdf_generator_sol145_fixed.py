@@ -171,15 +171,19 @@ class Sol145BDFGenerator:
         lines.append("$")
 
         # Boundary conditions
-        lines.append("$ Boundary Conditions (Simply Supported)")
+        lines.append("$ Boundary Conditions")
         # Handle both string and Enum types
         if hasattr(boundary_conditions, 'value'):
             bc_str = boundary_conditions.value
         else:
             bc_str = str(boundary_conditions)
 
+        # Calculate total nodes
+        total_nodes = (panel.nx + 1) * (panel.ny + 1)
+
         if bc_str.upper() == "SSSS":
             # Simply supported - constrain Z displacement on all edges
+            lines.append("$ SSSS: Simply Supported on all four edges")
             edge_nodes = []
 
             # Bottom edge (j=0)
@@ -211,8 +215,144 @@ class Sol145BDFGenerator:
             if spc_line.strip():
                 lines.append(spc_line)
 
-        # Calculate total nodes (needed for constraints below)
-        total_nodes = (panel.nx + 1) * (panel.ny + 1)
+        elif bc_str.upper() == "CCCC":
+            # Clamped - constrain all translations and rotations on all edges
+            lines.append("$ CCCC: Clamped on all four edges")
+            edge_nodes = []
+
+            # Bottom edge (j=0)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Top edge (j=ny)
+            for i in range(panel.nx + 1):
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+
+            # Left edge (i=0) - skip corners to avoid duplicates
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx) - skip corners to avoid duplicates
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            # Remove duplicates and sort
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Write SPC1 card constraining all DOFs (123456) on edge nodes
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "  # Continuation
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "CFFF":
+            # Cantilever - clamped at x=0, free elsewhere
+            lines.append("$ CFFF: Clamped at x=0 (left edge), Free-Free-Free on other edges")
+            left_edge_nodes = []
+
+            # Left edge only (i=0, all j)
+            for j in range(panel.ny + 1):
+                left_edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Write SPC1 card constraining all DOFs on left edge
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(left_edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "  # Continuation
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "CFCF":
+            # Clamped-Free-Clamped-Free: clamped at x=0 and x=length, free at y=0 and y=width
+            lines.append("$ CFCF: Clamped at x=0 and x=L, Free at y=0 and y=W")
+            edge_nodes = []
+
+            # Left edge (i=0, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            # Remove duplicates and sort
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Write SPC1 card constraining all DOFs on clamped edges
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "  # Continuation
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "SCSC":
+            # Simply supported-Clamped-Simply supported-Clamped
+            lines.append("$ SCSC: Simply Supported at x=0 and x=L, Clamped at y=0 and y=W")
+
+            # Left and right edges: Simply supported (DOF 3 only)
+            ss_edge_nodes = []
+            for j in range(panel.ny + 1):
+                ss_edge_nodes.append(j * (panel.nx + 1) + 1)  # Left edge
+                ss_edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)  # Right edge
+            ss_edge_nodes = sorted(set(ss_edge_nodes))
+
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(ss_edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "  # Continuation
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+            # Bottom and top edges: Clamped (DOF 123456) - excluding corners already constrained
+            c_edge_nodes = []
+            for i in range(1, panel.nx):  # Skip corners to avoid double constraint
+                c_edge_nodes.append(i + 1)  # Bottom edge
+                c_edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)  # Top edge
+
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(c_edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "  # Continuation
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        else:
+            # Unknown boundary condition - default to SSSS with warning
+            lines.append(f"$ WARNING: Unknown boundary condition '{bc_str}' - defaulting to SSSS")
+            lines.append("$ SSSS: Simply Supported on all four edges")
+            edge_nodes = []
+
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+
+            for j in range(1, panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
 
         # Add constraints to prevent in-plane rigid body modes (per MSC Nastran reference)
         # Constrain X translation at corner node 1 to prevent X rigid body translation
