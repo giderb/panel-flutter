@@ -39,6 +39,9 @@ class Project:
     # Results
     results: Optional[Dict[str, Any]] = None
 
+    # Custom materials for composite layups
+    custom_prepreg_materials: Optional[List[OrthotropicMaterial]] = None
+
     # File paths
     project_directory: Optional[str] = None
     bdf_file_path: Optional[str] = None
@@ -76,6 +79,10 @@ class Project:
             else:
                 data["structural_model"] = str(self.structural_model)  # Convert to string if no to_dict
 
+        # Handle custom prepreg materials serialization
+        if self.custom_prepreg_materials:
+            data["custom_prepreg_materials"] = [mat.to_dict() for mat in self.custom_prepreg_materials]
+
         return data
 
     @classmethod
@@ -96,6 +103,18 @@ class Project:
         # Parse structural model (for now, keep as None - will be created by structural panel)
         structural_model = data.get("structural_model")  # Keep as raw data for now
 
+        # Parse custom prepreg materials
+        custom_prepreg_materials = None
+        if data.get("custom_prepreg_materials"):
+            try:
+                custom_prepreg_materials = [
+                    OrthotropicMaterial(**{k: v for k, v in mat_data.items() if k != "type"})
+                    for mat_data in data["custom_prepreg_materials"]
+                ]
+            except Exception as e:
+                print(f"Warning: Could not load custom prepreg materials: {e}")
+                custom_prepreg_materials = None
+
         return cls(
             id=data["id"],
             name=data["name"],
@@ -109,6 +128,7 @@ class Project:
             aerodynamic_config=data.get("aerodynamic_config"),
             analysis_params=data.get("analysis_params"),
             results=data.get("results"),
+            custom_prepreg_materials=custom_prepreg_materials,
             project_directory=data.get("project_directory"),
             bdf_file_path=data.get("bdf_file_path"),
             f06_file_path=data.get("f06_file_path")

@@ -521,21 +521,356 @@ class MaterialPanel(BasePanel):
         self.current_material_type = MaterialType.COMPOSITE
         self._clear_content_area()
 
+        # Initialize custom prepreg materials in project if not present
+        if self.project_manager.current_project:
+            if self.project_manager.current_project.custom_prepreg_materials is None:
+                self.project_manager.current_project.custom_prepreg_materials = []
+
         # Main container
         main_frame = ctk.CTkFrame(self.content_area, fg_color="transparent")
         main_frame.pack(fill="both", expand=True)
 
-        # Top section - Laminate builder
-        top_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        top_frame.pack(fill="x", pady=(0, 20))
+        # Top section - Custom prepreg materials management
+        custom_mat_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        custom_mat_frame.pack(fill="x", pady=(0, 20))
 
-        self._create_laminate_builder(top_frame)
+        self._create_custom_prepreg_section(custom_mat_frame)
+
+        # Middle section - Laminate builder
+        middle_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        middle_frame.pack(fill="x", pady=(0, 20))
+
+        self._create_laminate_builder(middle_frame)
 
         # Bottom section - Layer list
         bottom_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         bottom_frame.pack(fill="both", expand=True)
 
         self._create_layer_list(bottom_frame)
+
+    def _create_custom_prepreg_section(self, parent):
+        """Create custom prepreg material management section."""
+        frame = self.theme_manager.create_styled_frame(parent, elevated=True)
+        frame.pack(fill="x")
+
+        # Header with toggle button
+        header_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(20, 15))
+
+        header = self.theme_manager.create_styled_label(
+            header_frame,
+            text="🎨 Custom Prepreg Materials",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        header.pack(side="left")
+
+        # Expandable section toggle
+        self.prepreg_section_expanded = False
+        self.toggle_prepreg_btn = ctk.CTkButton(
+            header_frame,
+            text="▼ Show",
+            command=self._toggle_prepreg_section,
+            width=100,
+            height=30,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.toggle_prepreg_btn.pack(side="right")
+
+        # Expandable content frame
+        self.prepreg_content_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        # Initially hidden
+
+        # Add prepreg form
+        form_frame = ctk.CTkFrame(self.prepreg_content_frame,
+                                  fg_color=self.theme_manager.get_color("surface"),
+                                  corner_radius=10)
+        form_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        form_header = self.theme_manager.create_styled_label(
+            form_frame,
+            text="Add New Prepreg Material",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        form_header.pack(anchor="w", padx=15, pady=(15, 10))
+
+        # Form fields in a scrollable area
+        form_scroll = ctk.CTkFrame(form_frame, fg_color="transparent")
+        form_scroll.pack(fill="x", padx=15, pady=(0, 15))
+
+        # Material name
+        self._create_input_field(form_scroll, "Material Name:", "prepreg_name_entry", "e.g., AS4/3501-6")
+
+        # Create two columns for properties
+        cols_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
+        cols_frame.pack(fill="x", pady=(10, 0))
+
+        left_col = ctk.CTkFrame(cols_frame, fg_color="transparent")
+        left_col.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        right_col = ctk.CTkFrame(cols_frame, fg_color="transparent")
+        right_col.pack(side="right", fill="x", expand=True, padx=(10, 0))
+
+        # Left column - Elastic properties
+        elastic_label = self.theme_manager.create_styled_label(
+            left_col,
+            text="Elastic Properties",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        elastic_label.pack(anchor="w", pady=(5, 5))
+
+        self._create_input_field(left_col, "E₁ (GPa):", "prepreg_e1_entry", "130.0")
+        self._create_input_field(left_col, "E₂ (GPa):", "prepreg_e2_entry", "10.5")
+        self._create_input_field(left_col, "ν₁₂:", "prepreg_nu12_entry", "0.28")
+        self._create_input_field(left_col, "G₁₂ (GPa):", "prepreg_g12_entry", "5.5")
+
+        # Right column - Additional properties
+        additional_label = self.theme_manager.create_styled_label(
+            right_col,
+            text="Additional Properties",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        additional_label.pack(anchor="w", pady=(5, 5))
+
+        self._create_input_field(right_col, "Density (kg/m³):", "prepreg_density_entry", "1600")
+        self._create_input_field(right_col, "G₁z (GPa) [optional]:", "prepreg_g1z_entry", "")
+        self._create_input_field(right_col, "G₂z (GPa) [optional]:", "prepreg_g2z_entry", "")
+
+        # Add button
+        add_prepreg_btn = ctk.CTkButton(
+            form_frame,
+            text="➕ Add Prepreg Material",
+            command=self._add_custom_prepreg,
+            height=35,
+            corner_radius=6,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        add_prepreg_btn.pack(pady=(0, 15))
+
+        # List of custom prepregs
+        list_frame = ctk.CTkFrame(self.prepreg_content_frame,
+                                  fg_color=self.theme_manager.get_color("surface"),
+                                  corner_radius=10)
+        list_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        list_header = self.theme_manager.create_styled_label(
+            list_frame,
+            text="Your Custom Prepreg Materials",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        list_header.pack(anchor="w", padx=15, pady=(15, 10))
+
+        # Scrollable list
+        self.custom_prepreg_list_frame = ctk.CTkScrollableFrame(list_frame, height=150)
+        self.custom_prepreg_list_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
+        # Update the list
+        self._update_custom_prepreg_list()
+
+    def _toggle_prepreg_section(self):
+        """Toggle the custom prepreg section visibility."""
+        self.prepreg_section_expanded = not self.prepreg_section_expanded
+
+        if self.prepreg_section_expanded:
+            self.prepreg_content_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+            self.toggle_prepreg_btn.configure(text="▲ Hide")
+        else:
+            self.prepreg_content_frame.pack_forget()
+            self.toggle_prepreg_btn.configure(text="▼ Show")
+
+    def _add_custom_prepreg(self):
+        """Add a custom prepreg material."""
+        if not self.project_manager.current_project:
+            self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
+            return
+
+        try:
+            # Get and validate material name
+            name = self.prepreg_name_entry.get().strip()
+            if not name:
+                self.show_error("Validation Error", "Please enter a material name.")
+                return
+
+            # Check for duplicate names
+            if self.project_manager.current_project.custom_prepreg_materials:
+                existing_names = [m.name for m in self.project_manager.current_project.custom_prepreg_materials]
+                if name in existing_names:
+                    self.show_error("Duplicate Material", f"A material named '{name}' already exists.\nPlease use a different name.")
+                    return
+
+            # Get and validate properties
+            e1 = float(self.prepreg_e1_entry.get()) * 1e9  # GPa to Pa
+            e2 = float(self.prepreg_e2_entry.get()) * 1e9
+            nu12 = float(self.prepreg_nu12_entry.get())
+            g12 = float(self.prepreg_g12_entry.get()) * 1e9
+            density = float(self.prepreg_density_entry.get())
+
+            # Validate ranges
+            if e1 <= 0 or e2 <= 0:
+                self.show_error("Validation Error", "Young's moduli (E₁, E₂) must be positive.")
+                return
+
+            if nu12 <= 0 or nu12 >= 1:
+                self.show_error("Validation Error", "Poisson's ratio (ν₁₂) must be between 0 and 1.")
+                return
+
+            if g12 <= 0:
+                self.show_error("Validation Error", "Shear modulus (G₁₂) must be positive.")
+                return
+
+            if density <= 0:
+                self.show_error("Validation Error", "Density must be positive.")
+                return
+
+            # Optional properties
+            g1z_text = self.prepreg_g1z_entry.get().strip()
+            g1z = float(g1z_text) * 1e9 if g1z_text else None
+
+            g2z_text = self.prepreg_g2z_entry.get().strip()
+            g2z = float(g2z_text) * 1e9 if g2z_text else None
+
+            # Create material
+            material = OrthotropicMaterial(
+                id=len(self.project_manager.current_project.custom_prepreg_materials) + 100,
+                name=name,
+                e1=e1,
+                e2=e2,
+                nu12=nu12,
+                g12=g12,
+                density=density,
+                g1z=g1z,
+                g2z=g2z,
+                description="Custom prepreg material"
+            )
+
+            # Add to project
+            self.project_manager.current_project.custom_prepreg_materials.append(material)
+            self.project_manager.save_current_project()
+
+            # Update UI
+            self._update_custom_prepreg_list()
+            self._update_layer_material_dropdown()
+
+            # Clear form
+            self.prepreg_name_entry.delete(0, 'end')
+            self.prepreg_e1_entry.delete(0, 'end')
+            self.prepreg_e2_entry.delete(0, 'end')
+            self.prepreg_nu12_entry.delete(0, 'end')
+            self.prepreg_g12_entry.delete(0, 'end')
+            self.prepreg_density_entry.delete(0, 'end')
+            self.prepreg_g1z_entry.delete(0, 'end')
+            self.prepreg_g2z_entry.delete(0, 'end')
+
+            self.show_info("Success", f"Added custom prepreg material: {name}")
+
+        except ValueError as e:
+            self.show_error("Invalid Input", "Please enter valid numbers for all material properties.")
+        except Exception as e:
+            self.show_error("Error", f"Failed to add material: {e}")
+
+    def _update_custom_prepreg_list(self):
+        """Update the list of custom prepreg materials."""
+        # Clear existing
+        for widget in self.custom_prepreg_list_frame.winfo_children():
+            widget.destroy()
+
+        if not self.project_manager.current_project or \
+           not self.project_manager.current_project.custom_prepreg_materials:
+            # Show empty message
+            empty_label = self.theme_manager.create_styled_label(
+                self.custom_prepreg_list_frame,
+                text="No custom prepreg materials yet. Add one above!",
+                font=ctk.CTkFont(size=11, slant="italic"),
+                text_color=self.theme_manager.get_color("text_secondary")
+            )
+            empty_label.pack(pady=20)
+            return
+
+        # Display each material
+        for material in self.project_manager.current_project.custom_prepreg_materials:
+            mat_card = ctk.CTkFrame(
+                self.custom_prepreg_list_frame,
+                fg_color=self.theme_manager.get_color("background"),
+                corner_radius=8
+            )
+            mat_card.pack(fill="x", pady=3)
+
+            # Material info
+            info_frame = ctk.CTkFrame(mat_card, fg_color="transparent")
+            info_frame.pack(side="left", fill="both", expand=True, padx=15, pady=10)
+
+            name_label = self.theme_manager.create_styled_label(
+                info_frame,
+                text=material.name,
+                font=ctk.CTkFont(size=12, weight="bold")
+            )
+            name_label.pack(anchor="w")
+
+            props_text = f"E₁={material.e1/1e9:.1f} GPa | E₂={material.e2/1e9:.1f} GPa | ν₁₂={material.nu12:.2f} | ρ={material.density:.0f} kg/m³"
+            props_label = self.theme_manager.create_styled_label(
+                info_frame,
+                text=props_text,
+                font=ctk.CTkFont(size=10),
+                text_color=self.theme_manager.get_color("text_secondary")
+            )
+            props_label.pack(anchor="w", pady=(2, 0))
+
+            # Delete button
+            delete_btn = ctk.CTkButton(
+                mat_card,
+                text="🗑️",
+                command=lambda m=material: self._delete_custom_prepreg(m),
+                width=35,
+                height=35,
+                fg_color="transparent",
+                hover_color="#ff6b6b"
+            )
+            delete_btn.pack(side="right", padx=10, pady=10)
+
+    def _delete_custom_prepreg(self, material):
+        """Delete a custom prepreg material."""
+        if not self.project_manager.current_project:
+            return
+
+        try:
+            # Confirm deletion
+            if messagebox.askyesno("Confirm Deletion",
+                                  f"Delete custom prepreg material '{material.name}'?\n\nThis action cannot be undone."):
+                self.project_manager.current_project.custom_prepreg_materials.remove(material)
+                self.project_manager.save_current_project()
+
+                # Update UI
+                self._update_custom_prepreg_list()
+                self._update_layer_material_dropdown()
+
+                self.show_info("Deleted", f"Removed material: {material.name}")
+
+        except Exception as e:
+            self.show_error("Error", f"Failed to delete material: {e}")
+
+    def _update_layer_material_dropdown(self):
+        """Update the layer material dropdown to include custom prepregs."""
+        if not hasattr(self, 'mat_combo'):
+            return
+
+        # Get predefined materials
+        predefined = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
+
+        # Add custom materials
+        custom_names = []
+        if self.project_manager.current_project and \
+           self.project_manager.current_project.custom_prepreg_materials:
+            custom_names = [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+
+        # Combine
+        all_materials = predefined + custom_names
+
+        # Update dropdown
+        try:
+            self.mat_combo.configure(values=all_materials)
+        except:
+            pass  # Ignore if widget doesn't exist anymore
 
     def _create_laminate_builder(self, parent):
         """Create composite laminate builder section."""
@@ -582,16 +917,22 @@ class MaterialPanel(BasePanel):
         )
         mat_label.pack(side="left")
 
-        # Get available materials for layers
-        layer_materials = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
+        # Get available materials for layers (predefined + custom)
+        predefined_materials = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
+        custom_materials = []
+        if self.project_manager.current_project and \
+           self.project_manager.current_project.custom_prepreg_materials:
+            custom_materials = [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+
+        layer_materials = predefined_materials + custom_materials
         self.layer_material_var = ctk.StringVar(value=layer_materials[0])
-        mat_combo = ctk.CTkComboBox(
+        self.mat_combo = ctk.CTkComboBox(
             mat_frame,
             variable=self.layer_material_var,
             values=layer_materials,
             width=250
         )
-        mat_combo.pack(side="left", padx=(10, 0))
+        self.mat_combo.pack(side="left", padx=(10, 0))
 
         # Thickness
         thick_frame = ctk.CTkFrame(props_frame, fg_color="transparent")
@@ -886,7 +1227,16 @@ class MaterialPanel(BasePanel):
             self.show_error("Error", f"Failed to add layer: {e}")
 
     def _create_layer_material(self, name: str) -> OrthotropicMaterial:
-        """Create a predefined layer material."""
+        """Create or retrieve a layer material (predefined or custom)."""
+        # Check if it's a custom material
+        if name.startswith("[Custom] "):
+            actual_name = name.replace("[Custom] ", "")
+            if self.project_manager.current_project and \
+               self.project_manager.current_project.custom_prepreg_materials:
+                for custom_mat in self.project_manager.current_project.custom_prepreg_materials:
+                    if custom_mat.name == actual_name:
+                        return custom_mat
+
         # Predefined properties for common composite materials
         materials_db = {
             "T300/5208 Carbon/Epoxy": {
