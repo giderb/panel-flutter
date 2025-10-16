@@ -873,16 +873,19 @@ class MaterialPanel(BasePanel):
             pass  # Ignore if widget doesn't exist anymore
 
     def _create_laminate_builder(self, parent):
-        """Create composite laminate builder section."""
+        """Create composite laminate builder section - COMPLETELY REDESIGNED."""
         frame = self.theme_manager.create_styled_frame(parent, elevated=True)
         frame.pack(fill="x")
 
+        # Initialize ply selection tracking
+        self.selected_ply_idx = None  # Currently selected ply index
+
         header = self.theme_manager.create_styled_label(
             frame,
-            text="🔨 Laminate Builder",
+            text="🔨 Laminate Builder - Professional Edition",
             font=ctk.CTkFont(size=16, weight="bold")
         )
-        header.pack(anchor="w", padx=20, pady=(20, 15))
+        header.pack(anchor="w", padx=20, pady=(20, 10))
 
         # Laminate info
         info_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -890,33 +893,57 @@ class MaterialPanel(BasePanel):
 
         self._create_input_field(info_frame, "Laminate Name:", "laminate_name_entry", "Custom Composite")
 
-        # Add layer section
-        add_layer_frame = ctk.CTkFrame(frame, fg_color=self.theme_manager.get_color("surface"), corner_radius=10)
-        add_layer_frame.pack(fill="x", padx=20, pady=(0, 20))
+        # Quick Templates Section
+        templates_frame = ctk.CTkFrame(frame, fg_color=self.theme_manager.get_color("surface"), corner_radius=10)
+        templates_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        temp_header = self.theme_manager.create_styled_label(
+            templates_frame,
+            text="⚡ Quick Templates",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        temp_header.pack(anchor="w", padx=15, pady=(12, 8))
+
+        temp_buttons_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        temp_buttons_frame.pack(fill="x", padx=15, pady=(0, 12))
+
+        templates = [
+            ("Unidirectional [0]₈", self._template_unidirectional),
+            ("[0/90]₂s", self._template_cross_ply),
+            ("[±45]₂s", self._template_angle_ply),
+            ("[0/±45/90]s", self._template_quasi_iso),
+        ]
+
+        for name, command in templates:
+            btn = ctk.CTkButton(
+                temp_buttons_frame,
+                text=name,
+                command=command,
+                height=30,
+                width=120,
+                corner_radius=6,
+                fg_color="transparent",
+                border_width=2,
+                border_color=self.theme_manager.get_color("border")
+            )
+            btn.pack(side="left", padx=(0, 8))
+
+        # Single Ply Add Section - Compact
+        single_add_frame = ctk.CTkFrame(frame, fg_color=self.theme_manager.get_color("surface"), corner_radius=10)
+        single_add_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         add_header = self.theme_manager.create_styled_label(
-            add_layer_frame,
-            text="Add New Layer",
-            font=ctk.CTkFont(size=14, weight="bold")
+            single_add_frame,
+            text="➕ Add Single Ply",
+            font=ctk.CTkFont(size=13, weight="bold")
         )
-        add_header.pack(anchor="w", padx=15, pady=(15, 10))
+        add_header.pack(anchor="w", padx=15, pady=(12, 8))
 
-        # Layer properties in grid
-        props_frame = ctk.CTkFrame(add_layer_frame, fg_color="transparent")
-        props_frame.pack(fill="x", padx=15, pady=(0, 15))
+        # Single row for all inputs
+        input_row = ctk.CTkFrame(single_add_frame, fg_color="transparent")
+        input_row.pack(fill="x", padx=15, pady=(0, 12))
 
-        # Material selection
-        mat_frame = ctk.CTkFrame(props_frame, fg_color="transparent")
-        mat_frame.pack(fill="x", pady=5)
-
-        mat_label = self.theme_manager.create_styled_label(
-            mat_frame,
-            text="Material:",
-            font=ctk.CTkFont(size=12),
-            width=100
-        )
-        mat_label.pack(side="left")
-
+        # Material dropdown
         # Get available materials for layers (predefined + custom)
         predefined_materials = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
         custom_materials = []
@@ -927,87 +954,178 @@ class MaterialPanel(BasePanel):
         layer_materials = predefined_materials + custom_materials
         self.layer_material_var = ctk.StringVar(value=layer_materials[0])
         self.mat_combo = ctk.CTkComboBox(
-            mat_frame,
+            input_row,
             variable=self.layer_material_var,
             values=layer_materials,
-            width=250
+            width=200
         )
-        self.mat_combo.pack(side="left", padx=(10, 0))
+        self.mat_combo.pack(side="left", padx=(0, 8))
 
         # Thickness
-        thick_frame = ctk.CTkFrame(props_frame, fg_color="transparent")
-        thick_frame.pack(fill="x", pady=5)
-
-        thick_label = self.theme_manager.create_styled_label(
-            thick_frame,
-            text="Thickness (mm):",
-            font=ctk.CTkFont(size=12),
+        self.layer_thickness_entry = ctk.CTkEntry(
+            input_row,
+            placeholder_text="Thickness (mm)",
             width=100
         )
-        thick_label.pack(side="left")
-
-        self.layer_thickness_entry = ctk.CTkEntry(
-            thick_frame,
-            placeholder_text="0.125",
-            width=250
-        )
-        self.layer_thickness_entry.pack(side="left", padx=(10, 0))
+        self.layer_thickness_entry.insert(0, "0.125")
+        self.layer_thickness_entry.pack(side="left", padx=(0, 8))
 
         # Orientation
-        orient_frame = ctk.CTkFrame(props_frame, fg_color="transparent")
-        orient_frame.pack(fill="x", pady=5)
-
-        orient_label = self.theme_manager.create_styled_label(
-            orient_frame,
-            text="Orientation (°):",
-            font=ctk.CTkFont(size=12),
-            width=100
-        )
-        orient_label.pack(side="left")
-
         self.layer_orientation_entry = ctk.CTkEntry(
-            orient_frame,
-            placeholder_text="0, 45, 90, -45",
-            width=250
+            input_row,
+            placeholder_text="Angle (°)",
+            width=80
         )
-        self.layer_orientation_entry.pack(side="left", padx=(10, 0))
+        self.layer_orientation_entry.insert(0, "0")
+        self.layer_orientation_entry.pack(side="left", padx=(0, 8))
 
-        # Add layer button
+        # Add button
         add_btn = ctk.CTkButton(
-            add_layer_frame,
-            text="➕ Add Layer",
-            command=self._add_composite_layer,
-            height=35,
+            input_row,
+            text="Add Ply",
+            command=self._add_single_ply,
+            height=32,
+            width=90,
             corner_radius=6
         )
-        add_btn.pack(pady=(0, 10))
+        add_btn.pack(side="left")
+
+        # Batch Add Button
+        batch_btn = ctk.CTkButton(
+            single_add_frame,
+            text="📦 Batch Add Multiple Plies...",
+            command=self._show_batch_add_dialog,
+            height=32,
+            corner_radius=6,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        batch_btn.pack(padx=15, pady=(0, 12))
 
     def _create_layer_list(self, parent):
-        """Create composite layer list section."""
+        """Create composite layer list section - WITH FULL EDITING."""
         frame = self.theme_manager.create_styled_frame(parent, elevated=True)
         frame.pack(fill="both", expand=True)
 
         header_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=20, pady=(20, 15))
+        header_frame.pack(fill="x", padx=20, pady=(20, 10))
 
         list_header = self.theme_manager.create_styled_label(
             header_frame,
-            text="📋 Layer Stack",
+            text="📋 Ply Stack Editor",
             font=ctk.CTkFont(size=16, weight="bold")
         )
         list_header.pack(side="left")
 
         self.total_thickness_label = self.theme_manager.create_styled_label(
             header_frame,
-            text="Total: 0.0 mm",
+            text="Total: 0.0 mm | 0 plies",
             font=ctk.CTkFont(size=12),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         self.total_thickness_label.pack(side="right")
 
-        # Layer list with scroll
-        self.layers_scroll = ctk.CTkScrollableFrame(frame, height=250)
-        self.layers_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        # Toolbar with ply operations
+        toolbar_frame = ctk.CTkFrame(frame, fg_color=self.theme_manager.get_color("surface"), corner_radius=8)
+        toolbar_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        toolbar_label = self.theme_manager.create_styled_label(
+            toolbar_frame,
+            text="Ply Operations:",
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        toolbar_label.pack(side="left", padx=(12, 10), pady=10)
+
+        # Toolbar buttons - compact
+        self.move_up_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="↑",
+            command=self._move_ply_up,
+            width=35,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.move_up_btn.pack(side="left", padx=2, pady=8)
+
+        self.move_down_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="↓",
+            command=self._move_ply_down,
+            width=35,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.move_down_btn.pack(side="left", padx=2, pady=8)
+
+        self.delete_ply_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="Delete",
+            command=self._delete_selected_ply,
+            width=60,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.delete_ply_btn.pack(side="left", padx=2, pady=8)
+
+        self.duplicate_ply_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="Duplicate",
+            command=self._duplicate_ply,
+            width=75,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.duplicate_ply_btn.pack(side="left", padx=2, pady=8)
+
+        sep = self.theme_manager.create_styled_label(
+            toolbar_frame,
+            text="|",
+            text_color=self.theme_manager.get_color("border")
+        )
+        sep.pack(side="left", padx=5, pady=8)
+
+        self.mirror_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="Mirror",
+            command=self._mirror_layup,
+            width=60,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.mirror_btn.pack(side="left", padx=2, pady=8)
+
+        self.reverse_btn = ctk.CTkButton(
+            toolbar_frame,
+            text="Reverse",
+            command=self._reverse_layup,
+            width=65,
+            height=28,
+            corner_radius=4,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border")
+        )
+        self.reverse_btn.pack(side="left", padx=2, pady=8)
+
+        # Layer list with scroll - EDITABLE
+        self.layers_scroll = ctk.CTkScrollableFrame(frame, height=300)
+        self.layers_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 15))
 
         # Control buttons
         control_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1015,27 +1133,15 @@ class MaterialPanel(BasePanel):
 
         clear_btn = ctk.CTkButton(
             control_frame,
-            text="🗑️ Clear All",
+            text="Clear All",
             command=self._clear_layers,
             fg_color="transparent",
             border_width=2,
             border_color=self.theme_manager.get_color("border"),
             height=35,
-            width=120
+            width=100
         )
-        clear_btn.pack(side="left", padx=(0, 10))
-
-        sym_btn = ctk.CTkButton(
-            control_frame,
-            text="↔️ Make Symmetric",
-            command=self._make_symmetric,
-            fg_color="transparent",
-            border_width=2,
-            border_color=self.theme_manager.get_color("border"),
-            height=35,
-            width=140
-        )
-        sym_btn.pack(side="left", padx=(0, 10))
+        clear_btn.pack(side="left", padx=(0, 8))
 
         save_btn = ctk.CTkButton(
             control_frame,
@@ -1270,54 +1376,121 @@ class MaterialPanel(BasePanel):
         )
 
     def _update_layer_display(self):
-        """Update the layer stack display."""
+        """Update the layer stack display - FULLY EDITABLE VERSION."""
         # Clear existing display
         for widget in self.layers_scroll.winfo_children():
             widget.destroy()
 
-        # Display each layer
+        if not self.composite_layers:
+            # Show empty state
+            empty_label = self.theme_manager.create_styled_label(
+                self.layers_scroll,
+                text="No plies yet. Add plies using the controls above or choose a template.",
+                font=ctk.CTkFont(size=11, slant="italic"),
+                text_color=self.theme_manager.get_color("text_secondary")
+            )
+            empty_label.pack(pady=40)
+            self.total_thickness_label.configure(text=f"Total: 0.0 mm | 0 plies")
+            return
+
+        # Display each layer with EDITABLE fields
         total_thickness = 0
         for i, layer in enumerate(self.composite_layers):
+            is_selected = (self.selected_ply_idx == i)
+
             layer_frame = ctk.CTkFrame(
                 self.layers_scroll,
-                fg_color=self.theme_manager.get_color("surface"),
-                corner_radius=8
+                fg_color=self.theme_manager.get_color("primary") if is_selected else self.theme_manager.get_color("surface"),
+                corner_radius=6
             )
             layer_frame.pack(fill="x", pady=2)
 
-            # Layer number
-            num_label = self.theme_manager.create_styled_label(
+            # Make frame clickable to select
+            layer_frame.bind("<Button-1>", lambda e, idx=i: self._select_ply(idx))
+
+            # Layer number - clickable
+            num_btn = ctk.CTkButton(
                 layer_frame,
                 text=f"#{i+1}",
-                font=ctk.CTkFont(size=12, weight="bold"),
-                width=40
+                command=lambda idx=i: self._select_ply(idx),
+                font=ctk.CTkFont(size=11, weight="bold"),
+                width=40,
+                height=35,
+                fg_color="transparent" if not is_selected else self.theme_manager.get_color("primary_dark"),
+                hover=False
             )
-            num_label.pack(side="left", padx=(15, 10), pady=10)
+            num_btn.pack(side="left", padx=(8, 6), pady=6)
 
-            # Layer info
-            info_text = f"{layer['material_name']} | {layer['thickness']} mm | {layer['orientation']}°"
-            info_label = self.theme_manager.create_styled_label(
+            # Editable material dropdown
+            materials_list = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
+            if self.project_manager.current_project and \
+               self.project_manager.current_project.custom_prepreg_materials:
+                materials_list += [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+
+            material_var = ctk.StringVar(value=layer['material_name'])
+            material_combo = ctk.CTkComboBox(
                 layer_frame,
-                text=info_text,
-                font=ctk.CTkFont(size=11)
+                variable=material_var,
+                values=materials_list,
+                command=lambda val, idx=i: self._update_ply_material(idx, val),
+                width=180,
+                height=28
             )
-            info_label.pack(side="left", fill="x", expand=True, pady=10)
+            material_combo.pack(side="left", padx=4, pady=8)
 
-            # Remove button
-            remove_btn = ctk.CTkButton(
+            # Editable thickness entry
+            thickness_entry = ctk.CTkEntry(
                 layer_frame,
-                text="❌",
+                width=70,
+                height=28
+            )
+            thickness_entry.insert(0, str(layer['thickness']))
+            thickness_entry.bind("<FocusOut>", lambda e, idx=i, entry=thickness_entry: self._update_ply_thickness(idx, entry.get()))
+            thickness_entry.bind("<Return>", lambda e, idx=i, entry=thickness_entry: self._update_ply_thickness(idx, entry.get()))
+            thickness_entry.pack(side="left", padx=4, pady=8)
+
+            mm_label = self.theme_manager.create_styled_label(
+                layer_frame,
+                text="mm",
+                font=ctk.CTkFont(size=10)
+            )
+            mm_label.pack(side="left", padx=(0, 8), pady=8)
+
+            # Editable orientation entry
+            orient_entry = ctk.CTkEntry(
+                layer_frame,
+                width=60,
+                height=28
+            )
+            orient_entry.insert(0, str(layer['orientation']))
+            orient_entry.bind("<FocusOut>", lambda e, idx=i, entry=orient_entry: self._update_ply_orientation(idx, entry.get()))
+            orient_entry.bind("<Return>", lambda e, idx=i, entry=orient_entry: self._update_ply_orientation(idx, entry.get()))
+            orient_entry.pack(side="left", padx=4, pady=8)
+
+            deg_label = self.theme_manager.create_styled_label(
+                layer_frame,
+                text="°",
+                font=ctk.CTkFont(size=10)
+            )
+            deg_label.pack(side="left", padx=(0, 8), pady=8)
+
+            # Delete button
+            del_btn = ctk.CTkButton(
+                layer_frame,
+                text="×",
                 command=lambda idx=i: self._remove_layer(idx),
-                width=30,
-                height=30,
-                fg_color="transparent"
+                width=28,
+                height=28,
+                corner_radius=4,
+                fg_color="transparent",
+                hover_color="#ff6b6b"
             )
-            remove_btn.pack(side="right", padx=10, pady=10)
+            del_btn.pack(side="right", padx=6, pady=8)
 
             total_thickness += layer['thickness']
 
         # Update total thickness
-        self.total_thickness_label.configure(text=f"Total: {total_thickness:.2f} mm")
+        self.total_thickness_label.configure(text=f"Total: {total_thickness:.3f} mm | {len(self.composite_layers)} plies")
 
     def _remove_layer(self, index: int):
         """Remove a layer from the composite."""
@@ -1327,23 +1500,372 @@ class MaterialPanel(BasePanel):
 
     def _clear_layers(self):
         """Clear all layers."""
-        self.composite_layers = []
+        if self.composite_layers:
+            if messagebox.askyesno("Confirm Clear", "Clear all plies from the layup?"):
+                self.composite_layers = []
+                self.selected_ply_idx = None
+                self._update_layer_display()
+
+    # ===== NEW: PLY SELECTION AND EDITING METHODS =====
+
+    def _select_ply(self, index: int):
+        """Select a ply for editing/operations."""
+        self.selected_ply_idx = index
         self._update_layer_display()
 
-    def _make_symmetric(self):
-        """Make the laminate symmetric."""
+    def _add_single_ply(self):
+        """Add a single ply to the laminate."""
+        try:
+            material_name = self.layer_material_var.get()
+            thickness = float(self.layer_thickness_entry.get() or "0.125")
+            orientation = float(self.layer_orientation_entry.get() or "0")
+
+            # Get or create material for layer
+            if material_name not in self.current_layer_materials:
+                self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+
+            material = self.current_layer_materials[material_name]
+
+            layer = {
+                'material': material,
+                'material_name': material_name,
+                'thickness': thickness,
+                'orientation': orientation
+            }
+            self.composite_layers.append(layer)
+            self._update_layer_display()
+
+        except ValueError:
+            self.show_error("Invalid Input", "Please enter valid numbers for thickness and orientation.")
+
+    def _update_ply_material(self, index: int, new_material_name: str):
+        """Update ply material."""
+        if 0 <= index < len(self.composite_layers):
+            if new_material_name not in self.current_layer_materials:
+                self.current_layer_materials[new_material_name] = self._create_layer_material(new_material_name)
+
+            self.composite_layers[index]['material'] = self.current_layer_materials[new_material_name]
+            self.composite_layers[index]['material_name'] = new_material_name
+            self._update_layer_display()
+
+    def _update_ply_thickness(self, index: int, thickness_str: str):
+        """Update ply thickness."""
+        try:
+            thickness = float(thickness_str)
+            if thickness <= 0:
+                self.show_error("Invalid Thickness", "Thickness must be positive.")
+                return
+            if 0 <= index < len(self.composite_layers):
+                self.composite_layers[index]['thickness'] = thickness
+                self._update_layer_display()
+        except ValueError:
+            self.show_error("Invalid Input", "Please enter a valid number for thickness.")
+
+    def _update_ply_orientation(self, index: int, orientation_str: str):
+        """Update ply orientation."""
+        try:
+            orientation = float(orientation_str)
+            if 0 <= index < len(self.composite_layers):
+                self.composite_layers[index]['orientation'] = orientation
+                self._update_layer_display()
+        except ValueError:
+            self.show_error("Invalid Input", "Please enter a valid number for orientation.")
+
+    def _delete_selected_ply(self):
+        """Delete the currently selected ply."""
+        if self.selected_ply_idx is not None:
+            self._remove_layer(self.selected_ply_idx)
+            self.selected_ply_idx = None
+
+    def _move_ply_up(self):
+        """Move selected ply up in the stack."""
+        if self.selected_ply_idx is not None and self.selected_ply_idx > 0:
+            idx = self.selected_ply_idx
+            self.composite_layers[idx], self.composite_layers[idx-1] = \
+                self.composite_layers[idx-1], self.composite_layers[idx]
+            self.selected_ply_idx = idx - 1
+            self._update_layer_display()
+
+    def _move_ply_down(self):
+        """Move selected ply down in the stack."""
+        if self.selected_ply_idx is not None and self.selected_ply_idx < len(self.composite_layers) - 1:
+            idx = self.selected_ply_idx
+            self.composite_layers[idx], self.composite_layers[idx+1] = \
+                self.composite_layers[idx+1], self.composite_layers[idx]
+            self.selected_ply_idx = idx + 1
+            self._update_layer_display()
+
+    def _duplicate_ply(self):
+        """Duplicate the selected ply."""
+        if self.selected_ply_idx is not None:
+            idx = self.selected_ply_idx
+            layer_copy = self.composite_layers[idx].copy()
+            self.composite_layers.insert(idx + 1, layer_copy)
+            self.selected_ply_idx = idx + 1
+            self._update_layer_display()
+
+    def _mirror_layup(self):
+        """Mirror the entire layup (create symmetric laminate)."""
         if not self.composite_layers:
-            self.show_warning("Warning", "No layers to make symmetric")
+            self.show_warning("No Plies", "Add plies first before mirroring.")
             return
 
-        # Duplicate layers in reverse order (excluding middle if odd number)
-        original_layers = self.composite_layers.copy()
-
-        # Add reversed layers
-        for layer in reversed(original_layers[:-1]):
-            self.composite_layers.append(layer.copy())
-
+        # Add mirrored plies (reverse order, excluding center)
+        mirrored = [layer.copy() for layer in reversed(self.composite_layers)]
+        self.composite_layers.extend(mirrored)
         self._update_layer_display()
+        self.show_info("Mirrored", f"Created symmetric layup with {len(self.composite_layers)} plies")
+
+    def _reverse_layup(self):
+        """Reverse the stacking order."""
+        if self.composite_layers:
+            self.composite_layers.reverse()
+            self._update_layer_display()
+
+    # ===== QUICK TEMPLATE METHODS =====
+
+    def _template_unidirectional(self):
+        """Create unidirectional [0]8 layup."""
+        if self.composite_layers and not messagebox.askyesno("Replace Layup?", "This will replace the current layup. Continue?"):
+            return
+
+        material_name = self.layer_material_var.get()
+        if material_name not in self.current_layer_materials:
+            self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+        material = self.current_layer_materials[material_name]
+
+        self.composite_layers = []
+        for i in range(8):
+            self.composite_layers.append({
+                'material': material,
+                'material_name': material_name,
+                'thickness': 0.125,
+                'orientation': 0
+            })
+
+        self.laminate_name_entry.delete(0, 'end')
+        self.laminate_name_entry.insert(0, "[0]₈")
+        self._update_layer_display()
+        self.show_info("Template Applied", "Created [0]₈ unidirectional layup")
+
+    def _template_cross_ply(self):
+        """Create cross-ply [0/90]2s layup."""
+        if self.composite_layers and not messagebox.askyesno("Replace Layup?", "This will replace the current layup. Continue?"):
+            return
+
+        material_name = self.layer_material_var.get()
+        if material_name not in self.current_layer_materials:
+            self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+        material = self.current_layer_materials[material_name]
+
+        self.composite_layers = []
+        # [0/90]2s = 0, 90, 90, 0
+        for angle in [0, 90, 90, 0]:
+            self.composite_layers.append({
+                'material': material,
+                'material_name': material_name,
+                'thickness': 0.125,
+                'orientation': angle
+            })
+
+        self.laminate_name_entry.delete(0, 'end')
+        self.laminate_name_entry.insert(0, "[0/90]₂s")
+        self._update_layer_display()
+        self.show_info("Template Applied", "Created [0/90]₂s cross-ply layup")
+
+    def _template_angle_ply(self):
+        """Create angle-ply [±45]2s layup."""
+        if self.composite_layers and not messagebox.askyesno("Replace Layup?", "This will replace the current layup. Continue?"):
+            return
+
+        material_name = self.layer_material_var.get()
+        if material_name not in self.current_layer_materials:
+            self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+        material = self.current_layer_materials[material_name]
+
+        self.composite_layers = []
+        # [±45]2s = 45, -45, -45, 45
+        for angle in [45, -45, -45, 45]:
+            self.composite_layers.append({
+                'material': material,
+                'material_name': material_name,
+                'thickness': 0.125,
+                'orientation': angle
+            })
+
+        self.laminate_name_entry.delete(0, 'end')
+        self.laminate_name_entry.insert(0, "[±45]₂s")
+        self._update_layer_display()
+        self.show_info("Template Applied", "Created [±45]₂s angle-ply layup")
+
+    def _template_quasi_iso(self):
+        """Create quasi-isotropic [0/±45/90]s layup."""
+        if self.composite_layers and not messagebox.askyesno("Replace Layup?", "This will replace the current layup. Continue?"):
+            return
+
+        material_name = self.layer_material_var.get()
+        if material_name not in self.current_layer_materials:
+            self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+        material = self.current_layer_materials[material_name]
+
+        self.composite_layers = []
+        # [0/±45/90]s = 0, 45, -45, 90, 90, -45, 45, 0
+        for angle in [0, 45, -45, 90, 90, -45, 45, 0]:
+            self.composite_layers.append({
+                'material': material,
+                'material_name': material_name,
+                'thickness': 0.125,
+                'orientation': angle
+            })
+
+        self.laminate_name_entry.delete(0, 'end')
+        self.laminate_name_entry.insert(0, "[0/±45/90]s")
+        self._update_layer_display()
+        self.show_info("Template Applied", "Created [0/±45/90]s quasi-isotropic layup")
+
+    def _show_batch_add_dialog(self):
+        """Show dialog for batch adding plies."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Batch Add Plies")
+        dialog.geometry("450x350")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        # Center dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (350 // 2)
+        dialog.geometry(f"450x350+{x}+{y}")
+
+        # Header
+        header = self.theme_manager.create_styled_label(
+            dialog,
+            text="Batch Add Multiple Plies",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        header.pack(pady=(20, 15))
+
+        # Material selection
+        mat_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        mat_frame.pack(fill="x", padx=30, pady=10)
+
+        mat_label = self.theme_manager.create_styled_label(
+            mat_frame,
+            text="Material:",
+            font=ctk.CTkFont(size=12)
+        )
+        mat_label.pack(anchor="w", pady=(0, 5))
+
+        materials_list = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
+        if self.project_manager.current_project and \
+           self.project_manager.current_project.custom_prepreg_materials:
+            materials_list += [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+
+        batch_mat_var = ctk.StringVar(value=self.layer_material_var.get())
+        mat_combo = ctk.CTkComboBox(
+            mat_frame,
+            variable=batch_mat_var,
+            values=materials_list,
+            width=390
+        )
+        mat_combo.pack(fill="x")
+
+        # Thickness
+        thick_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        thick_frame.pack(fill="x", padx=30, pady=10)
+
+        thick_label = self.theme_manager.create_styled_label(
+            thick_frame,
+            text="Thickness (mm):",
+            font=ctk.CTkFont(size=12)
+        )
+        thick_label.pack(anchor="w", pady=(0, 5))
+
+        thick_entry = ctk.CTkEntry(thick_frame, width=390)
+        thick_entry.insert(0, "0.125")
+        thick_entry.pack(fill="x")
+
+        # Orientations
+        orient_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        orient_frame.pack(fill="x", padx=30, pady=10)
+
+        orient_label = self.theme_manager.create_styled_label(
+            orient_frame,
+            text="Orientations (comma-separated, e.g., 0, 45, -45, 90):",
+            font=ctk.CTkFont(size=12)
+        )
+        orient_label.pack(anchor="w", pady=(0, 5))
+
+        orient_entry = ctk.CTkEntry(orient_frame, width=390)
+        orient_entry.insert(0, "0, 45, -45, 90")
+        orient_entry.pack(fill="x")
+
+        # Hint
+        hint_label = self.theme_manager.create_styled_label(
+            dialog,
+            text="Tip: Enter orientations in stacking order. Each orientation creates one ply.",
+            font=ctk.CTkFont(size=10, slant="italic"),
+            text_color=self.theme_manager.get_color("text_secondary")
+        )
+        hint_label.pack(pady=(10, 20))
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=30, pady=(0, 20))
+
+        cancel_btn = ctk.CTkButton(
+            btn_frame,
+            text="Cancel",
+            command=dialog.destroy,
+            fg_color="transparent",
+            border_width=2,
+            border_color=self.theme_manager.get_color("border"),
+            width=180
+        )
+        cancel_btn.pack(side="left")
+
+        def add_batch():
+            try:
+                material_name = batch_mat_var.get()
+                thickness = float(thick_entry.get())
+                orientations_text = orient_entry.get()
+
+                # Parse orientations
+                orientations = [float(x.strip()) for x in orientations_text.split(",")]
+
+                if not orientations:
+                    self.show_error("Invalid Input", "Please enter at least one orientation.")
+                    return
+
+                # Get or create material
+                if material_name not in self.current_layer_materials:
+                    self.current_layer_materials[material_name] = self._create_layer_material(material_name)
+                material = self.current_layer_materials[material_name]
+
+                # Add all plies
+                for orientation in orientations:
+                    layer = {
+                        'material': material,
+                        'material_name': material_name,
+                        'thickness': thickness,
+                        'orientation': orientation
+                    }
+                    self.composite_layers.append(layer)
+
+                self._update_layer_display()
+                dialog.destroy()
+                self.show_info("Plies Added", f"Added {len(orientations)} plies to layup")
+
+            except ValueError:
+                self.show_error("Invalid Input", "Please enter valid numbers.")
+
+        add_btn = ctk.CTkButton(
+            btn_frame,
+            text="Add Plies",
+            command=add_batch,
+            width=180
+        )
+        add_btn.pack(side="right")
 
     def _save_composite_material(self):
         """Save composite laminate."""

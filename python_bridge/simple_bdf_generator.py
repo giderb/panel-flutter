@@ -74,10 +74,12 @@ class SimpleBDFGenerator:
             Path to generated BDF file
         """
 
-        # Check if material is a sandwich panel and extract equivalent properties
+        # Check material type and handle accordingly
         is_sandwich = False
+        is_composite = False
         if material_object is not None:
             material_type = type(material_object).__name__
+
             if material_type == 'SandwichPanel':
                 is_sandwich = True
                 logger.info(f"Detected SandwichPanel: {material_object.name}")
@@ -99,6 +101,31 @@ class SimpleBDFGenerator:
                 logger.info(f"  Effective density: {density:.1f} kg/m³")
                 logger.info(f"  Weight saving: {equiv_props['weight_saving']:.1f}%")
                 logger.info(f"  Flexural rigidity: {equiv_props['flexural_rigidity']:.3e} N·m")
+
+            elif material_type == 'CompositeLaminate':
+                is_composite = True
+                logger.info(f"Detected CompositeLaminate: {material_object.name}")
+                logger.info(f"  Number of plies: {len(material_object.laminas)}")
+                logger.info(f"  Total thickness: {material_object.total_thickness} mm")
+
+                # For composite, thickness comes from laminate
+                thickness = material_object.total_thickness / 1000  # mm -> m
+
+                # Calculate effective density (weighted average)
+                total_mass = 0
+                for lamina in material_object.laminas:
+                    lamina_mass = lamina.material.density * lamina.thickness
+                    total_mass += lamina_mass
+                density = total_mass / material_object.total_thickness  # kg/m³
+
+                logger.info(f"Composite properties:")
+                logger.info(f"  Total thickness: {thickness*1000:.3f} mm")
+                logger.info(f"  Effective density: {density:.1f} kg/m³")
+
+                # Note: E and nu not used for composite - will write PCOMP/MAT8 cards instead
+                # Set dummy values to avoid errors in downstream code
+                youngs_modulus = 100e9  # Dummy value
+                poissons_ratio = 0.3     # Dummy value
 
         logger.info(f"Generating BDF: {length}m x {width}m x {thickness}m, {nx}x{ny} mesh")
         logger.info(f"Material: E={youngs_modulus/1e9:.1f}GPa, rho={density:.0f}kg/m³")
@@ -157,7 +184,8 @@ class SimpleBDFGenerator:
                 boundary_conditions=boundary_conditions,
                 n_modes=n_modes,
                 output_filename=output_file,
-                aerodynamic_theory=aerodynamic_theory
+                aerodynamic_theory=aerodynamic_theory,
+                material_object=material_object if is_composite else None  # Pass composite material object
             )
 
             logger.info(f"BDF file generated successfully: {bdf_path}")

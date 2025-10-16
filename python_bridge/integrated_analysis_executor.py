@@ -227,9 +227,15 @@ class IntegratedFlutterExecutor:
                 else:
                     self.logger.info(f"Using specified aerodynamic theory: {aero_theory}")
 
-                # Get material object from structural model if available (for sandwich panels)
+                # Get material object from structural model if available (for composites/sandwich panels)
                 material_object = None
-                if hasattr(structural_model, 'material') and structural_model.material:
+                if hasattr(structural_model, 'materials') and structural_model.materials:
+                    # StructuralModel stores materials in plural list
+                    material_object = structural_model.materials[0] if structural_model.materials else None
+                    if material_object:
+                        self.logger.info(f"Material object type: {type(material_object).__name__}")
+                elif hasattr(structural_model, 'material') and structural_model.material:
+                    # Fallback for single material attribute
                     material_object = structural_model.material
                     self.logger.info(f"Material object type: {type(material_object).__name__}")
 
@@ -369,12 +375,14 @@ class IntegratedFlutterExecutor:
         """Convert GUI structural model to analysis format"""
 
         # Extract material properties
-        # Try multiple paths: model.material, model.materials[0], or project.material
+        # Try multiple paths: model.materials[0] (correct), or model.material (fallback)
         material = None
-        if hasattr(model, 'material') and model.material:
-            material = model.material
-        elif hasattr(model, 'materials') and model.materials:
+        if hasattr(model, 'materials') and model.materials:
+            # StructuralModel stores materials in plural list - this is correct
             material = model.materials[0] if isinstance(model.materials, list) else model.materials
+        elif hasattr(model, 'material') and model.material:
+            # Fallback for single material attribute
+            material = model.material
 
         if material:
             E = getattr(material, 'youngs_modulus', 71.7e9)

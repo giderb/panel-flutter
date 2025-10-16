@@ -63,12 +63,17 @@ class Sol145BDFGenerator:
         boundary_conditions: str = "SSSS",
         n_modes: int = 10,
         output_filename: str = "flutter_analysis.bdf",
-        aerodynamic_theory: Optional[str] = None
+        aerodynamic_theory: Optional[str] = None,
+        material_object: Optional[Any] = None
     ) -> str:
         """Generate a NASTRAN BDF file for SOL145 flutter analysis with correct cards"""
 
         filepath = self.output_dir / output_filename
         lines = []
+
+        # Check if we have a composite laminate
+        is_composite = (material_object is not None and
+                       type(material_object).__name__ == 'CompositeLaminate')
 
         # Header comments
         lines.append("$ NASTRAN SOL145 FLUTTER ANALYSIS - CORRECTED PISTON THEORY")
@@ -97,50 +102,118 @@ class Sol145BDFGenerator:
         lines.append("PARAM   VREF    1.0")  # Will be adjusted based on unit system
         lines.append("$")
 
-        # Material - VALIDATED FORMAT
-        # Calculate shear modulus if not provided
-        if material.shear_modulus is None:
-            G = material.youngs_modulus / (2 * (1 + material.poissons_ratio))
+        # Material and Property Cards - Handle isotropic vs composite
+        if is_composite:
+            lines.append("$ Composite Laminate Material Properties")
+            lines.append(f"$ Laminate: {material_object.name}")
+            lines.append(f"$ Total thickness: {material_object.total_thickness} mm")
+            lines.append(f"$ Number of plies: {len(material_object.laminas)}")
+            lines.append("$")
+
+            # Write MAT8 cards for each unique material
+            # Track unique materials to avoid duplicates
+            unique_materials = {}
+            mat_id = 1
+
+            for lamina in material_object.laminas:
+                mat_name = lamina.material.name
+                if mat_name not in unique_materials:
+                    unique_materials[mat_name] = (mat_id, lamina.material)
+                    mat_id += 1
+
+            # Write MAT8 cards
+            lines.append("$ Orthotropic Material Cards (MAT8)")
+            for mat_name, (mid, mat) in unique_materials.items():
+                lines.append(f"$ Material: {mat_name}")
+                # MAT8 format: MID E1 E2 NU12 G12 G1Z G2Z RHO
+                # Convert from Pa to MPa (N/mm²)
+                e1_mpa = mat.e1 / 1e6
+                e2_mpa = mat.e2 / 1e6
+                g12_mpa = mat.g12 / 1e6
+                g1z_mpa = (mat.g1z / 1e6) if mat.g1z else g12_mpa
+                g2z_mpa = (mat.g2z / 1e6) if mat.g2z else (g12_mpa * 0.5)
+                rho_kg_mm3 = mat.density * 1e-9  # kg/m³ to kg/mm³
+
+                lines.append(f"MAT8    {mid:<8}{e1_mpa:<8.1f}{e2_mpa:<8.1f}{mat.nu12:<8.3f}{g12_mpa:<8.1f}{g1z_mpa:<8.1f}{g2z_mpa:<8.1f}{rho_kg_mm3:<8.2E}")
+            lines.append("$")
+
+            # Write PCOMP card
+            lines.append("$ Composite Property Card (PCOMP)")
+            lines.append(f"$ Laminate: {material_object.name}")
+            # PCOMP format: PID Z0 NSM SB FT TREF GE LAM
+            # PID=1, Z0=blank (symmetric offset), NSM=0, SB=blank, FT=HILL, TREF=blank, GE=blank, LAM=SYM/MEM/BEND/SMEAR
+            lines.append(f"PCOMP   1                               HILL                    +PC1")
+
+            # Write continuation cards with ply data
+            # Format: MID T THETA SOUT
+            ply_line = "+PC1    "
+            for i, lamina in enumerate(material_object.laminas):
+                mat_name = lamina.material.name
+                mid = unique_materials[mat_name][0]
+                thickness_mm = lamina.thickness  # Already in mm
+                theta = lamina.orientation
+
+                # Add ply data (4 fields per ply: MID, T, THETA, SOUT)
+                ply_line += f"{mid:<8}{thickness_mm:<8.4f}{theta:<8.1f}YES     "
+
+                # NASTRAN fixed format: max 10 fields per line (80 chars)
+                # Each line can have 2 complete plies (4 fields each = 8 fields) + continuation
+                if (i + 1) % 2 == 0 and (i + 1) < len(material_object.laminas):
+                    # Write line and start new continuation
+                    ply_line += f"+PC{i+2}"
+                    lines.append(ply_line)
+                    ply_line = f"+PC{i+2}    "
+
+            # Write final ply line
+            if ply_line.strip() != f"+PC{len(material_object.laminas)+1}":
+                lines.append(ply_line)
+            lines.append("$")
+
         else:
-            G = material.shear_modulus
+            # Isotropic material - MAT1 and PSHELL
+            # Calculate shear modulus if not provided
+            if material.shear_modulus is None:
+                G = material.youngs_modulus / (2 * (1 + material.poissons_ratio))
+            else:
+                G = material.shear_modulus
 
-        lines.append("$ Material Properties (SI units in mm)")
-        # MAT1: MID E G NU RHO A TREF GE
-        # CRITICAL: Must use proper 8-character fixed field format
-        # Match format from working examples: "73100.  " style (note: single decimal point)
+            lines.append("$ Material Properties (SI units in mm)")
+            # MAT1: MID E G NU RHO A TREF GE
+            # CRITICAL: Must use proper 8-character fixed field format
+            # Match format from working examples: "73100.  " style (note: single decimal point)
 
-        # Format E and G - use format with single decimal point and spaces
-        # .1f already includes decimal point, so don't add another
-        E_str = f"{material.youngs_modulus:.1f}"
-        E_field = f"{E_str:<8.8}"  # Left-align, pad to 8 chars
+            # Format E and G - use format with single decimal point and spaces
+            # .1f already includes decimal point, so don't add another
+            E_str = f"{material.youngs_modulus:.1f}"
+            E_field = f"{E_str:<8.8}"  # Left-align, pad to 8 chars
 
-        G_str = f"{G:.1f}"
-        G_field = f"{G_str:<8.8}"
+            G_str = f"{G:.1f}"
+            G_field = f"{G_str:<8.8}"
 
-        # Poisson's ratio as .XX format
-        nu_str = f".{int(material.poissons_ratio*100):02d}"
-        nu_field = f"{nu_str:<8.8}"
+            # Poisson's ratio as .XX format
+            nu_str = f".{int(material.poissons_ratio*100):02d}"
+            nu_field = f"{nu_str:<8.8}"
 
-        # Density in scientific notation (space before to match working format)
-        rho_str = f"{material.density:.2E}"
-        # Ensure proper spacing - add space before if needed
-        rho_field = f" {rho_str}" if len(rho_str) == 7 else rho_str
-        rho_field = f"{rho_field:<8.8}"
+            # Density in scientific notation (space before to match working format)
+            rho_str = f"{material.density:.2E}"
+            # Ensure proper spacing - add space before if needed
+            rho_field = f" {rho_str}" if len(rho_str) == 7 else rho_str
+            rho_field = f"{rho_field:<8.8}"
 
-        # Thermal expansion coefficient
-        A_str = f"{2.1E-05:.1E}"
-        A_field = f" {A_str}" if len(A_str) == 7 else A_str
-        A_field = f"{A_field:<8.8}"
+            # Thermal expansion coefficient
+            A_str = f"{2.1E-05:.1E}"
+            A_field = f" {A_str}" if len(A_str) == 7 else A_str
+            A_field = f"{A_field:<8.8}"
 
-        mat1_line = f"MAT1    1       {E_field}{G_field}{nu_field}{rho_field}{A_field}"
-        lines.append(mat1_line)
-        lines.append("$")
+            mat1_line = f"MAT1    1       {E_field}{G_field}{nu_field}{rho_field}{A_field}"
+            lines.append(mat1_line)
+            lines.append("$")
 
-        # Shell property
-        lines.append("$ Shell Property")
-        # Use sufficient precision for thin panels
-        lines.append(f"PSHELL  1       1       {panel.thickness:.4f}")
-        lines.append("$")
+            # Shell property
+            lines.append("$ Shell Property")
+            # Use sufficient precision for thin panels
+            lines.append(f"PSHELL  1       1       {panel.thickness:.4f}")
+            lines.append("$")
 
         # Grid points
         lines.append("$ Grid Points")
