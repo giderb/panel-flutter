@@ -137,12 +137,29 @@ class Sol145BDFGenerator:
                 lines.append(f"MAT8    {mid:<8}{e1_mpa:<8.1f}{e2_mpa:<8.1f}{mat.nu12:<8.3f}{g12_mpa:<8.1f}{g1z_mpa:<8.1f}{g2z_mpa:<8.1f}{rho_kg_mm3:<8.2E}")
             lines.append("$")
 
-            # Write PCOMP card
+            # Write PCOMP card with proper NASTRAN format
             lines.append("$ Composite Property Card (PCOMP)")
             lines.append(f"$ Laminate: {material_object.name}")
-            # PCOMP format: PID Z0 NSM SB FT TREF GE LAM
-            # PID=1, Z0=blank (symmetric offset), NSM=0, SB=blank, FT=HILL, TREF=blank, GE=blank, LAM=SYM/MEM/BEND/SMEAR
-            lines.append(f"PCOMP   1                               HILL                    +PC1")
+            # PCOMP format: PCOMP PID Z0 NSM SB FT TREF GE LAM +
+            # For SOL 145 flutter: PID=1, Z0=-h/2 (symmetric), FT=HILL
+            # Calculate Z0 as -total_thickness/2 (in mm) for symmetric laminate
+            total_thickness_mm = material_object.total_thickness
+            z0 = -total_thickness_mm / 2.0
+            # Format with proper 8-character fields per NASTRAN specification
+            # Fields: PCOMP(8) PID(8) Z0(8) NSM(8) SB(8) FT(8) TREF(8) GE(8) LAM(8) +(8)
+            pid = 1
+            pcomp_line = (
+                f"{'PCOMP':<8}"      # Field 1: Card name
+                f"{pid:<8}"           # Field 2: Property ID
+                f"{z0:<8.4f}"         # Field 3: Z0 (fiber reference)
+                f"{'':8}"             # Field 4: NSM (blank)
+                f"{'':8}"             # Field 5: SB (blank)
+                f"{'HILL':<8}"        # Field 6: Failure theory
+                f"{'':8}"             # Field 7: TREF (blank)
+                f"{'':8}"             # Field 8: GE (blank)
+                f"{'+PC1':<8}"        # Field 9: Continuation
+            )
+            lines.append(pcomp_line)
 
             # Write continuation cards with ply data
             # Format: MID T THETA SOUT
