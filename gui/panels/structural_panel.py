@@ -566,7 +566,16 @@ class StructuralPanel(BasePanel):
         try:
             # Save to project manager
             if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
-                self.project_manager.current_project.structural_model = self.current_model
+                project = self.project_manager.current_project
+
+                # Sync material from project.material to structural_model.materials
+                if hasattr(project, 'material') and project.material:
+                    if not self.current_model.materials or self.current_model.materials[0] != project.material:
+                        self.current_model.materials = [project.material]
+                        material_name = getattr(project.material, 'name', 'Unknown')
+                        self.logger.info(f"Synced material to structural model: {material_name}")
+
+                project.structural_model = self.current_model
 
                 # Also save geometry data to project.geometry for easy serialization
                 self._save_geometry_to_project()

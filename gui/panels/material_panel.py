@@ -1184,7 +1184,15 @@ class MaterialPanel(BasePanel):
     def _select_material(self, material):
         """Select a predefined material."""
         if self.project_manager.current_project:
-            self.project_manager.current_project.material = material
+            project = self.project_manager.current_project
+            project.material = material
+
+            # Also sync to structural_model.materials if it exists
+            if hasattr(project, 'structural_model') and project.structural_model:
+                if hasattr(project.structural_model, 'materials'):
+                    project.structural_model.materials = [material]
+                    self.logger.info(f"Synced predefined material to structural model: {material.name}")
+
             self.main_window.update_status()
             self.show_info("Success", f"Selected material: {material.name}")
         else:
@@ -1220,7 +1228,15 @@ class MaterialPanel(BasePanel):
 
             # Save to project
             if self.project_manager.current_project:
-                self.project_manager.current_project.material = material
+                project = self.project_manager.current_project
+                project.material = material
+
+                # Also sync to structural_model.materials if it exists
+                if hasattr(project, 'structural_model') and project.structural_model:
+                    if hasattr(project.structural_model, 'materials'):
+                        project.structural_model.materials = [material]
+                        self.logger.info(f"Synced isotropic material to structural model: {name}")
+
                 self.main_window.update_status()
                 self.show_info("Success", f"Created isotropic material: {name}")
                 # Clear the form
@@ -1896,7 +1912,15 @@ class MaterialPanel(BasePanel):
 
             # Save to project
             if self.project_manager.current_project:
-                self.project_manager.current_project.material = laminate
+                project = self.project_manager.current_project
+                project.material = laminate
+
+                # Also sync to structural_model.materials if it exists
+                if hasattr(project, 'structural_model') and project.structural_model:
+                    if hasattr(project.structural_model, 'materials'):
+                        project.structural_model.materials = [laminate]
+                        self.logger.info(f"Synced composite to structural model: {name}")
+
                 self.main_window.update_status()
                 self.show_info("Success", f"Created composite laminate: {name}\nTotal thickness: {laminate.total_thickness:.2f} mm")
             else:
