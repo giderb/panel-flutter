@@ -137,52 +137,45 @@ class Sol145BDFGenerator:
                 lines.append(f"MAT8    {mid:<8}{e1_mpa:<8.1f}{e2_mpa:<8.1f}{mat.nu12:<8.3f}{g12_mpa:<8.1f}{g1z_mpa:<8.1f}{g2z_mpa:<8.1f}{rho_kg_mm3:<8.2E}")
             lines.append("$")
 
-            # Write PCOMP card with proper NASTRAN format
+            # Write PCOMP card - NASTRAN 2017 compatible format
             lines.append("$ Composite Property Card (PCOMP)")
             lines.append(f"$ Laminate: {material_object.name}")
-            # PCOMP format: PCOMP PID Z0 NSM SB FT TREF GE LAM +
-            # For SOL 145 flutter: PID=1, Z0=-h/2 (symmetric), FT=HILL
-            # Calculate Z0 as -total_thickness/2 (in mm) for symmetric laminate
-            total_thickness_mm = material_object.total_thickness
-            z0 = -total_thickness_mm / 2.0
-            # Format with proper 8-character fields per NASTRAN specification
-            # Fields: PCOMP(8) PID(8) Z0(8) NSM(8) SB(8) FT(8) TREF(8) GE(8) LAM(8) +(8)
+            # PCOMP format for NASTRAN 2017: PCOMP PID Z0 NSM SB FT TREF GE LAM +
+            # NASTRAN 2017 requires: simple continuation (+1, +2), proper field counts
             pid = 1
-            pcomp_line = (
-                f"{'PCOMP':<8}"      # Field 1: Card name
-                f"{pid:<8}"           # Field 2: Property ID
-                f"{z0:<8.4f}"         # Field 3: Z0 (fiber reference)
-                f"{'':8}"             # Field 4: NSM (blank)
-                f"{'':8}"             # Field 5: SB (blank)
-                f"{'HILL':<8}"        # Field 6: Failure theory
-                f"{'':8}"             # Field 7: TREF (blank)
-                f"{'':8}"             # Field 8: GE (blank)
-                f"{'+PC1':<8}"        # Field 9: Continuation
-            )
-            lines.append(pcomp_line)
+            # 8-character fixed field format (9 fields + continuation = 80 chars)
+            lines.append(f"PCOMP   {pid:<8}                                                        +1")
 
-            # Write continuation cards with ply data
-            # Format: MID T THETA SOUT
-            ply_line = "+PC1    "
+            # Write continuation cards with ply data - NASTRAN 2017 format
+            # Continuation format: +1, +2, +3... (simple numbering)
+            # Each line: continuation_marker(8) + 2 plies max (8 fields) + next_continuation(8)
+            # Format per ply: MID(8) T(8) THETA(8) SOUT(8)
+
+            cont_num = 1
+            ply_count = 0
+            ply_line = f"+{cont_num:<7}"  # +1, +2, etc (8 chars total with padding)
+
             for i, lamina in enumerate(material_object.laminas):
                 mat_name = lamina.material.name
                 mid = unique_materials[mat_name][0]
                 thickness_mm = lamina.thickness  # Already in mm
                 theta = lamina.orientation
 
-                # Add ply data (4 fields per ply: MID, T, THETA, SOUT)
-                ply_line += f"{mid:<8}{thickness_mm:<8.4f}{theta:<8.1f}YES     "
+                # Add ply data: MID T THETA SOUT (each field 8 chars)
+                ply_line += f"{mid:<8}{thickness_mm:<8.4f}{theta:<8.1f}{'':8}"
+                ply_count += 1
 
-                # NASTRAN fixed format: max 10 fields per line (80 chars)
-                # Each line can have 2 complete plies (4 fields each = 8 fields) + continuation
-                if (i + 1) % 2 == 0 and (i + 1) < len(material_object.laminas):
-                    # Write line and start new continuation
-                    ply_line += f"+PC{i+2}"
+                # Two plies per line max (2 plies = 8 fields)
+                if ply_count == 2 and (i + 1) < len(material_object.laminas):
+                    # Add continuation marker and write line
+                    cont_num += 1
+                    ply_line += f"+{cont_num:<7}"
                     lines.append(ply_line)
-                    ply_line = f"+PC{i+2}    "
+                    ply_line = f"+{cont_num:<7}"
+                    ply_count = 0
 
-            # Write final ply line
-            if ply_line.strip() != f"+PC{len(material_object.laminas)+1}":
+            # Write final line if there's remaining data
+            if ply_count > 0:
                 lines.append(ply_line)
             lines.append("$")
 
