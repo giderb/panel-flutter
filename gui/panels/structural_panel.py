@@ -486,13 +486,74 @@ class StructuralPanel(BasePanel):
             nx = int(self.nx_var.get())
             ny = int(self.ny_var.get())
 
+            # CRITICAL FIX: Comprehensive input range validation for physical parameters
+
+            # Dimension validation
             if length <= 0 or width <= 0 or thickness <= 0:
                 messagebox.showerror("Error", "All dimensions must be positive")
                 return
 
+            # Physical constraint checks
+            if length > 100.0:  # 100m maximum panel length
+                messagebox.showerror("Error", f"Panel length ({length}m) exceeds maximum (100m)")
+                return
+
+            if width > 100.0:  # 100m maximum panel width
+                messagebox.showerror("Error", f"Panel width ({width}m) exceeds maximum (100m)")
+                return
+
+            if thickness < 1e-6:  # 1 micron minimum thickness
+                messagebox.showerror("Error", f"Panel thickness ({thickness*1000:.3f}mm) too small (min: 0.001mm)")
+                return
+
+            if thickness > 1.0:  # 1m maximum thickness
+                messagebox.showerror("Error", f"Panel thickness ({thickness}m) exceeds maximum (1m)")
+                return
+
+            # Check thickness-to-length ratio for thin plate theory validity
+            thickness_ratio = thickness / min(length, width)
+            if thickness_ratio > 0.1:
+                result = messagebox.askokcancel(
+                    "Validity Warning",
+                    f"Thickness ratio ({thickness_ratio:.3f}) exceeds thin plate theory limit (0.1).\n\n"
+                    "Plate theory assumptions may not be valid. Consider using thick plate or shell theory.\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Mesh density validation
             if nx < 1 or ny < 1:
                 messagebox.showerror("Error", "Number of elements must be at least 1")
                 return
+
+            if nx > 500 or ny > 500:
+                messagebox.showerror("Error", f"Mesh too dense (max: 500 elements per direction)")
+                return
+
+            # Element quality check
+            dx = length / nx
+            dy = width / ny
+            element_aspect_ratio = max(dx, dy) / min(dx, dy)
+
+            if element_aspect_ratio > 10.0:
+                messagebox.showerror(
+                    "Mesh Quality Error",
+                    f"Element aspect ratio ({element_aspect_ratio:.2f}) exceeds maximum (10:1).\n\n"
+                    f"Current: {dx*1000:.1f}mm × {dy*1000:.1f}mm\n\n"
+                    f"Recommended: Adjust nx={nx} or ny={ny} to balance element dimensions."
+                )
+                return
+            elif element_aspect_ratio > 5.0:
+                result = messagebox.askokcancel(
+                    "Mesh Quality Warning",
+                    f"Element aspect ratio ({element_aspect_ratio:.2f}) exceeds recommended limit (5:1).\n\n"
+                    f"This may cause accuracy loss up to 20% in flutter calculations.\n\n"
+                    f"Element size: {dx*1000:.2f}mm × {dy*1000:.2f}mm\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
 
             # Create geometry and mesh parameters
             geometry = PanelGeometry(length, width, thickness)

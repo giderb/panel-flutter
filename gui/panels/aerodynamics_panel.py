@@ -582,6 +582,73 @@ class AerodynamicsPanel(BasePanel):
             alt = float(self.alt_var.get())
             temp = float(self.temp_var.get())
 
+            # CRITICAL FIX: Comprehensive input validation for aerodynamic parameters
+
+            # Mach number validation
+            if mach <= 0:
+                messagebox.showerror("Error", "Mach number must be positive")
+                return
+
+            if mach > 25.0:
+                messagebox.showerror("Error", f"Mach number ({mach}) exceeds maximum (25)")
+                return
+
+            # Altitude validation
+            if alt < 0:
+                messagebox.showerror("Error", "Altitude cannot be negative")
+                return
+
+            if alt > 100000:  # 100km Karman line
+                result = messagebox.askokcancel(
+                    "Altitude Warning",
+                    f"Altitude ({alt}m) exceeds typical atmosphere (100km).\n\n"
+                    "Atmospheric model may not be valid.\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Temperature validation
+            if temp <= 0:
+                messagebox.showerror("Error", "Temperature must be positive (Kelvin)")
+                return
+
+            if temp < 180 or temp > 330:
+                result = messagebox.askokcancel(
+                    "Temperature Warning",
+                    f"Temperature ({temp}K = {temp-273.15:.1f}°C) outside typical range (180-330K).\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Theory-specific validation
+            theory = AerodynamicTheory(self.theory_var.get())
+
+            # DLM/Piston Theory Mach number compatibility check (removed enforcement per user request)
+            if theory == AerodynamicTheory.DOUBLET_LATTICE and mach > 1.5:
+                result = messagebox.askokcancel(
+                    "Theory Selection Notice",
+                    f"Doublet-Lattice Method selected for M={mach:.2f}.\n\n"
+                    "Note: DLM is most accurate for M < 1.5 (subsonic/transonic).\n"
+                    "For M > 1.5, Piston Theory is typically recommended.\n\n"
+                    "Continue with DLM anyway?"
+                )
+                if not result:
+                    return
+
+            # Aerodynamic mesh validation
+            nx_aero = int(self.nx_aero_var.get())
+            ny_aero = int(self.ny_aero_var.get())
+
+            if nx_aero < 2 or ny_aero < 2:
+                messagebox.showerror("Error", "Aerodynamic mesh must have at least 2 elements per direction")
+                return
+
+            if nx_aero > 100 or ny_aero > 100:
+                messagebox.showerror("Error", f"Aerodynamic mesh too dense (max: 100 per direction)")
+                return
+
             # Calculate dynamic pressure from atmospheric conditions
             # Standard atmosphere approximation
             if alt == 0:

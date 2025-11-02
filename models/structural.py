@@ -196,10 +196,31 @@ class StructuralModel:
         self.nodes.clear()
         self.elements.clear()
 
-        # Generate nodes
+        # CRITICAL FIX: Validate element aspect ratio
         dx = self.geometry.length / self.mesh_params.nx
         dy = self.geometry.width / self.mesh_params.ny
 
+        element_aspect_ratio = max(dx, dy) / min(dx, dy)
+
+        # Warn if aspect ratio exceeds recommended limits
+        if element_aspect_ratio > 5.0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"MESH QUALITY WARNING: Element aspect ratio ({element_aspect_ratio:.2f}) exceeds 5:1. "
+                f"This can cause up to 20% error in flutter calculations. "
+                f"Element dimensions: {dx*1000:.2f}mm x {dy*1000:.2f}mm. "
+                f"Recommendation: Adjust nx={self.mesh_params.nx} and ny={self.mesh_params.ny} to balance element dimensions."
+            )
+        elif element_aspect_ratio > 3.0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"MESH QUALITY NOTICE: Element aspect ratio is {element_aspect_ratio:.2f}. "
+                f"For best accuracy, keep aspect ratio below 3:1."
+            )
+
+        # Generate nodes
         node_id = 1
         for j in range(self.mesh_params.ny + 1):
             for i in range(self.mesh_params.nx + 1):

@@ -1212,6 +1212,60 @@ class MaterialPanel(BasePanel):
             g = float(self.g_entry.get()) * 1e9  # GPa to Pa
             rho = float(self.rho_entry.get())
 
+            # CRITICAL FIX: Comprehensive material property validation
+
+            # Young's modulus validation
+            if e <= 0:
+                self.show_error("Validation Error", "Young's modulus must be positive")
+                return
+            if e < 1e6:  # 1 MPa minimum (very soft materials)
+                self.show_error("Validation Error", f"Young's modulus ({e/1e9:.1f} GPa) too low.\nMinimum: 0.001 GPa")
+                return
+            if e > 1e12:  # 1000 GPa maximum (diamond ~1200 GPa)
+                self.show_error("Validation Error", f"Young's modulus ({e/1e9:.1f} GPa) exceeds maximum (1000 GPa)")
+                return
+
+            # Poisson's ratio validation
+            if nu < -1.0 or nu >= 0.5:
+                self.show_error("Validation Error", f"Poisson's ratio ({nu:.3f}) must be in range [-1.0, 0.5).\nTypical range: 0.1 to 0.45")
+                return
+            if nu < 0:
+                result = messagebox.askokcancel(
+                    "Unusual Property",
+                    f"Poisson's ratio ({nu:.3f}) is negative (auxetic material).\n\nThis is unusual but valid for certain metamaterials.\n\nContinue?"
+                )
+                if not result:
+                    return
+
+            # Shear modulus validation
+            if g <= 0:
+                self.show_error("Validation Error", "Shear modulus must be positive")
+                return
+            # Check isotropic relationship: G = E / [2(1 + nu)]
+            g_expected = e / (2 * (1 + nu))
+            g_error = abs(g - g_expected) / g_expected * 100
+            if g_error > 10:  # More than 10% deviation
+                result = messagebox.askokcancel(
+                    "Material Consistency Warning",
+                    f"Shear modulus ({g/1e9:.2f} GPa) deviates {g_error:.1f}% from isotropic relationship.\n\n"
+                    f"Expected: G = E/[2(1+ν)] = {g_expected/1e9:.2f} GPa\n\n"
+                    "This may indicate input error or anisotropic material.\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Density validation
+            if rho <= 0:
+                self.show_error("Validation Error", "Density must be positive")
+                return
+            if rho < 10:  # 10 kg/m³ minimum (aerogel ~1 kg/m³)
+                self.show_error("Validation Error", f"Density ({rho} kg/m³) too low.\nMinimum: 10 kg/m³")
+                return
+            if rho > 25000:  # 25000 kg/m³ maximum (tungsten ~19300, osmium ~22600)
+                self.show_error("Validation Error", f"Density ({rho} kg/m³) exceeds maximum (25000 kg/m³)")
+                return
+
             # REMOVED: Thermal expansion processing - not used in flutter analysis
             alpha = None
 
@@ -1267,6 +1321,63 @@ class MaterialPanel(BasePanel):
             nu12 = float(self.nu12_entry.get())
             g12 = float(self.g12_entry.get()) * 1e9  # GPa to Pa
             rho = float(self.ortho_rho_entry.get())
+
+            # CRITICAL FIX: Orthotropic material property validation
+
+            # E1 (fiber direction) validation
+            if e1 <= 0:
+                self.show_error("Validation Error", "E₁ (fiber modulus) must be positive")
+                return
+            if e1 < 1e9 or e1 > 1e12:
+                self.show_error("Validation Error", f"E₁ ({e1/1e9:.1f} GPa) out of range.\nTypical: 1-1000 GPa")
+                return
+
+            # E2 (transverse direction) validation
+            if e2 <= 0:
+                self.show_error("Validation Error", "E₂ (transverse modulus) must be positive")
+                return
+            if e2 < 1e9 or e2 > 1e12:
+                self.show_error("Validation Error", f"E₂ ({e2/1e9:.1f} GPa) out of range.\nTypical: 1-1000 GPa")
+                return
+
+            # Check E1 > E2 for typical fiber composites
+            if e2 > e1:
+                result = messagebox.askokcancel(
+                    "Material Property Notice",
+                    f"E₂ ({e2/1e9:.1f} GPa) > E₁ ({e1/1e9:.1f} GPa)\n\n"
+                    "This is unusual for fiber composites.\n"
+                    "Typically E₁ (fiber direction) > E₂ (transverse).\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Poisson's ratio validation
+            if nu12 < -1.0 or nu12 >= 1.0:
+                self.show_error("Validation Error", f"ν₁₂ ({nu12:.3f}) must be in range [-1.0, 1.0).\nTypical: 0.2 to 0.4")
+                return
+
+            # Shear modulus validation
+            if g12 <= 0:
+                self.show_error("Validation Error", "G₁₂ must be positive")
+                return
+            if g12 > min(e1, e2) / 2:
+                result = messagebox.askokcancel(
+                    "Material Consistency Warning",
+                    f"G₁₂ ({g12/1e9:.2f} GPa) seems high compared to E₁ and E₂.\n\n"
+                    f"Typically: G₁₂ < min(E₁, E₂)/2 = {min(e1,e2)/2e9:.2f} GPa\n\n"
+                    "Continue anyway?"
+                )
+                if not result:
+                    return
+
+            # Density validation
+            if rho <= 0:
+                self.show_error("Validation Error", "Density must be positive")
+                return
+            if rho < 100 or rho > 10000:
+                self.show_error("Validation Error", f"Density ({rho} kg/m³) out of typical range.\nComposites: 100-10000 kg/m³")
+                return
 
             # Optional values
             alpha1_text = self.alpha1_entry.get().strip()
