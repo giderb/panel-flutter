@@ -37,15 +37,22 @@ PARAM   KDAMP   1
 ```
 Specifies which TABDMP1 table to use for structural damping.
 
-**2. TABDMP1 Card (Line 636):**
+**2. TABDMP1 Card (Lines 640-642):**
 ```nastran
-TABDMP1 1       0.0     0.03    1000.0  0.03    ENDT
+TABDMP1 1       CRIT
++       0.0     0.03    1000.0  0.03    ENDT
 ```
 Defines frequency-dependent structural damping:
 - ID = 1 (referenced by PARAM KDAMP)
-- f1 = 0.0 Hz: g = 0.03 (3% damping)
-- f2 = 1000.0 Hz: g = 0.03 (3% damping)
+- TYPE = CRIT (critical damping ratio)
+- f1 = 0.0 Hz: g = 0.03 (3% critical damping)
+- f2 = 1000.0 Hz: g = 0.03 (3% critical damping)
 - ENDT: End of table
+
+**IMPORTANT:** TABDMP1 requires multi-line format:
+- Line 1: TABDMP1  TID  TYPE
+- Line 2: +  f1  g1  f2  g2  ENDT
+- Single-line format will cause NASTRAN fatal errors!
 
 ## Technical Background
 
