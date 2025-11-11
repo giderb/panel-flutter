@@ -147,7 +147,8 @@ class IntegratedFlutterExecutor:
                 method='auto',  # Automatic method selection
                 validate=True,
                 velocity_range=velocity_range,
-                velocity_points=velocity_points
+                velocity_points=velocity_points,
+                apply_corrections=True  # Apply transonic and temperature corrections
             )
             
             # Step 3: Generate NASTRAN BDF if available

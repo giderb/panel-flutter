@@ -869,17 +869,23 @@ class FlutterAnalyzer:
             FlutterResult with validated critical flutter parameters and applied corrections
         """
 
-        # CRITICAL FIX: Enhanced aerodynamic method selection logic
-        # User requested: DLM for M < 1.5, Piston Theory for M >= 1.5
+        # CRITICAL FIX: Correct aerodynamic method selection based on Mach regime
+        # DLM valid for M < 1.0 (subsonic/transonic)
+        # Piston Theory valid for M > 1.2 (supersonic)
         if method == 'auto':
-            if flow.mach_number < 1.5:
-                # Use Doublet-Lattice Method for subsonic/transonic up to M=1.5
+            if flow.mach_number < 1.0:
+                # Use Doublet-Lattice Method for subsonic/transonic
                 method = 'doublet'
-                self.logger.info(f"Auto-selected Doublet-Lattice Method for M={flow.mach_number:.2f} (M < 1.5)")
-            else:
-                # Use Piston Theory for supersonic M >= 1.5
+                self.logger.info(f"Auto-selected Doublet-Lattice Method for M={flow.mach_number:.2f} (M < 1.0)")
+            elif flow.mach_number >= 1.2:
+                # Use Piston Theory for supersonic
                 method = 'piston'
-                self.logger.info(f"Auto-selected Piston Theory for M={flow.mach_number:.2f} (M >= 1.5)")
+                self.logger.info(f"Auto-selected Piston Theory for M={flow.mach_number:.2f} (M >= 1.2)")
+            else:
+                # Transonic gap (1.0 <= M < 1.2): Use piston theory with caution
+                method = 'piston'
+                self.logger.warning(f"Transonic regime M={flow.mach_number:.2f} (1.0-1.2): Using Piston Theory (limited accuracy)")
+                self.logger.warning("Consider using NASTRAN for improved accuracy in transonic regime")
 
         self.logger.info(f"Analyzing flutter using {method} method at M={flow.mach_number:.2f}")
 

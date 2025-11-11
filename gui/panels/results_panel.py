@@ -212,7 +212,29 @@ class ResultsPanel(BasePanel):
 
             if current_thickness:
                 speed_ratio = target_flutter_speed / actual_flutter_speed
-                required_thickness = current_thickness * speed_ratio
+
+                # Check if scaling is valid (flutter speed proportional to thickness for small changes)
+                if speed_ratio > 1.5 or speed_ratio < 0.67:
+                    # Large change - linear scaling unreliable
+                    required_thickness_base = current_thickness * speed_ratio
+                    required_thickness = required_thickness_base * 1.25  # Add 25% safety margin for uncertainty
+                    is_reliable = False
+                    scaling_warning = (
+                        f"⚠️ WARNING: Required thickness change ({(speed_ratio-1)*100:+.0f}%) "
+                        f"exceeds linear approximation validity!\n\n"
+                        f"This estimate is UNRELIABLE. Consider alternative approaches:\n"
+                        f"  • Structural redesign (add ribs, stiffeners, or frames)\n"
+                        f"  • Different material or layup orientation (for composites)\n"
+                        f"  • Reduce panel dimensions (length or width)\n"
+                        f"  • Sandwich construction or hybrid design\n\n"
+                        f"Re-run iterative analyses with structural modifications."
+                    )
+                else:
+                    # Small change - linear scaling acceptable with modest safety margin
+                    required_thickness_base = current_thickness * speed_ratio
+                    required_thickness = required_thickness_base * 1.10  # Add 10% safety margin
+                    is_reliable = True
+                    scaling_warning = None
 
                 # Convert to mm for display
                 current_thickness_mm = current_thickness * 1000  # m to mm
@@ -224,6 +246,7 @@ class ResultsPanel(BasePanel):
                     ("Required Thickness", f"{required_thickness_mm:.2f} mm"),
                     ("Thickness Increase", f"+{thickness_increase:.1f}%"),
                     ("Speed Deficit", f"{target_flutter_speed - actual_flutter_speed:.1f} m/s"),
+                    ("Estimate Reliability", "✅ Good (±10%)" if is_reliable else "❌ Poor (>±25%)"),
                 ]
 
                 for label, value in design_data:
@@ -231,21 +254,42 @@ class ResultsPanel(BasePanel):
                     if label == "Required Thickness":
                         value_label = row.winfo_children()[-1]
                         if hasattr(value_label, 'configure'):
-                            # Use cyan for better visibility on dark backgrounds
-                            value_label.configure(text_color="#00D9FF", font=("Arial", 12, "bold"))
+                            # Use cyan for reliable, orange for unreliable
+                            color = "#00D9FF" if is_reliable else "#FFA500"
+                            value_label.configure(text_color=color, font=("Arial", 12, "bold"))
+                    elif label == "Estimate Reliability":
+                        value_label = row.winfo_children()[-1]
+                        if hasattr(value_label, 'configure'):
+                            color = "green" if is_reliable else "red"
+                            value_label.configure(text_color=color, font=("Arial", 11, "bold"))
 
-                # Add explanatory note with larger, more readable text
+                # Add explanatory note with scaling warning if unreliable
                 note_frame = ctk.CTkFrame(design_card, fg_color="transparent")
                 note_frame.pack(fill="x", padx=15, pady=(10, 15))
-                note_label = ctk.CTkLabel(
+
+                if scaling_warning:
+                    # Show warning for large changes
+                    note_label = ctk.CTkLabel(
+                        note_frame,
+                        text=scaling_warning,
+                        font=("Arial", 10),
+                        text_color=("#CC0000", "#FF6666"),
+                        justify="left",
+                        wraplength=550
+                    )
+                    note_label.pack(anchor="w", pady=(0, 10))
+
+                # Standard note
+                standard_note = ctk.CTkLabel(
                     note_frame,
-                    text="ℹ️  Increasing thickness will increase stiffness and flutter speed.\n"
-                         "    Note: This is a first-order estimate. Re-run analysis to verify.",
-                    font=("Arial", 11),
+                    text="ℹ️  Flutter speed ∝ thickness (linear approximation). "
+                         "Safety margin included. Re-run analysis to verify.",
+                    font=("Arial", 10),
                     text_color=("#666666", "#AAAAAA"),
-                    justify="left"
+                    justify="left",
+                    wraplength=550
                 )
-                note_label.pack(anchor="w")
+                standard_note.pack(anchor="w")
             else:
                 self._add_info_row(design_card, "Status", "⚠️ Thickness data not available for recommendation")
 
