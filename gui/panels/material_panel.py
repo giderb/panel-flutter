@@ -548,6 +548,11 @@ class MaterialPanel(BasePanel):
 
         self._create_layer_list(bottom_frame)
 
+        # CRITICAL FIX: Update display with any existing composite_layers data
+        # This ensures loaded project data is displayed when tab is shown
+        if self.composite_layers:
+            self._update_layer_display()
+
     def _create_custom_prepreg_section(self, parent):
         """Create custom prepreg material management section."""
         frame = self.theme_manager.create_styled_frame(parent, elevated=True)
@@ -2418,8 +2423,8 @@ For 508×254 mm panel (estimated):
 
         # Determine material type and load data
         if isinstance(material, CompositeLaminate):
-            # Switch to composite tab
-            self._select_tab("composite", self._show_composite_content)
+            # CRITICAL: Load data FIRST, then switch tabs
+            # This ensures _show_composite_content() sees the new data
 
             # Clear existing layers
             self.composite_layers = []
@@ -2439,13 +2444,9 @@ For 508×254 mm panel (estimated):
                 for prepreg in project.custom_prepreg_materials:
                     if prepreg.name not in self.current_layer_materials:
                         self.current_layer_materials[prepreg.name] = prepreg
-                # Update the custom prepreg list display
-                if hasattr(self, '_update_custom_prepreg_list'):
-                    self._update_custom_prepreg_list()
 
-            # Refresh the layer list display
-            if hasattr(self, '_update_layer_display'):
-                self._update_layer_display()
+            # NOW switch to composite tab - it will see the loaded data and display it
+            self._select_tab("composite", self._show_composite_content)
 
         elif isinstance(material, IsotropicMaterial):
             # Switch to isotropic tab

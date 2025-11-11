@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.6] - 2025-11-11 - CRITICAL FIX: Composite Plies Display Order
+
+### Fixed
+
+#### Composite Laminate Plies STILL Not Showing - Execution Order Bug
+- **Issue:** User still reported "I still cannot see laminate plies in saved project" even after v2.1.5
+- **Root Cause:** WRONG EXECUTION ORDER in refresh() method
+- **The Problem:**
+  ```python
+  # WRONG ORDER (v2.1.5):
+  1. Switch to composite tab (_show_composite_content() called)
+  2. Clear self.composite_layers = []
+  3. Load laminas into self.composite_layers
+  4. Try to call _update_layer_display()
+
+  # Result: When _show_composite_content() ran, self.composite_layers was empty!
+  ```
+- **The Fix:**
+  ```python
+  # CORRECT ORDER (v2.1.6):
+  1. Clear and load data into self.composite_layers FIRST
+  2. Load custom prepreg materials
+  3. THEN switch to composite tab
+  4. _show_composite_content() checks if data exists and displays it automatically
+  ```
+- **Files Modified:**
+  - `gui/panels/material_panel.py:2426-2449` - Reordered: load data BEFORE switching tabs
+  - `gui/panels/material_panel.py:551-554` - Added automatic display check at end of _show_composite_content()
+- **Key Changes:**
+  1. Moved data loading (lines 2429-2446) BEFORE tab switching (line 2449)
+  2. Added display check in _show_composite_content() after UI is built (lines 551-554):
+     ```python
+     if self.composite_layers:
+         self._update_layer_display()
+     ```
+  3. This ensures that whenever composite tab is shown with data loaded, it displays automatically
+- **Why This Works:**
+  - Data is ready BEFORE _show_composite_content() is called
+  - _show_composite_content() builds the entire UI (including self.layers_scroll)
+  - At the END of _show_composite_content(), it checks for data and displays it
+  - No race conditions, no timing issues, no missing widgets
+- **Testing:**
+  - Close GUI completely
+  - Restart GUI
+  - Load bberkuk project
+  - Click Material tab
+  - Should immediately show all 32 laminas with IM7 material properties
+
+#### Updated
+- Version: 2.1.5 → 2.1.6
+- All version references in setup.py
+
+---
+
 ## [2.1.5] - 2025-11-11 - BUG FIX: Composite Layers Not Displaying
 
 ### Fixed
