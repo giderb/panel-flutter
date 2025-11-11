@@ -1,0 +1,65 @@
+{
+  "id": "20251111_070749_metallic_panel",
+  "name": "Metallic Panel",
+  "created_at": "2025-11-11T07:07:49.561185",
+  "modified_at": "2025-11-11T16:26:06.072013",
+  "description": "Standard aluminum aircraft skin panel",
+  "geometry": {
+    "length": 0.5,
+    "width": 0.4,
+    "thickness": 0.003,
+    "n_chord": 10,
+    "n_span": 10,
+    "element_type": "CQUAD4"
+  },
+  "boundary_conditions": "SSSS",
+  "aerodynamic_config": {
+    "flow_conditions": {
+      "mach_number": 0.8,
+      "velocity_min": 100,
+      "velocity_max": 1000,
+      "velocity_points": 20,
+      "altitude": 10000,
+      "temperature": 223.15
+    },
+    "theory": "doublet_lattice",
+    "velocities": [
+      155.7,
+      233.6,
+      311.5,
+      350.4,
+      389.4,
+      428.3,
+      467.2,
+      636.0,
+      804.7,
+      973.4
+    ]
+  },
+  "analysis_params": {
+    "n_modes": "10",
+    "mesh_nx": "10",
+    "mesh_ny": "10",
+    "velocity_min": "156",
+    "velocity_max": "973",
+    "velocity_points": "10",
+    "method": "nastran",
+    "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
+  },
+  "results": null,
+  "project_directory": "projects\\20251111_070749_metallic_panel",
+  "bdf_file_path": null,
+  "f06_file_path": null,
+  "material": {
+    "type": "isotropic",
+    "id": 1,
+    "name": "Aluminum 6061-T6",
+    "youngs_modulus": 71700000000.0,
+    "poissons_ratio": 0.33,
+    "shear_modulus": 26900000000.0,
+    "density": 2810,
+    "thermal_expansion": 2.1e-05,
+    "description": "Common aerospace aluminum alloy"
+  },
+  "structural_model": "<models.structural.StructuralModel object at 0x0000019B24672710>"
+}

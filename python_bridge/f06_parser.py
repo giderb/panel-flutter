@@ -249,8 +249,9 @@ class F06Parser:
                                 critical_velocity = v1 + t * (v2 - v1)
                                 critical_frequency = f1 + t * (f2 - f1)
 
-                                logger.info(f"Flutter detected: V={critical_velocity/1000:.1f} m/s, f={critical_frequency:.1f} Hz")
-                                logger.info(f"  Transition: V1={v1/1000:.1f}m/s (g={d1:.4f}), V2={v2/1000:.1f}m/s (g={d2:.4f})")
+                                # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
+                                logger.info(f"Flutter detected: V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
+                                logger.info(f"  Transition: V1={v1/100:.1f}m/s (g={d1:.4f}), V2={v2/100:.1f}m/s (g={d2:.4f})")
                                 break
 
                 if critical_velocity is not None:

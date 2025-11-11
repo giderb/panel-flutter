@@ -301,14 +301,14 @@ class IntegratedFlutterExecutor:
                 self.logger.info(f"  Flutter: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
 
                 if nastran_result and nastran_result.get('critical_flutter_velocity'):
-                    nastran_v = nastran_result['critical_flutter_velocity'] / 1000.0
+                    nastran_v = nastran_result['critical_flutter_velocity'] / 100.0  # NASTRAN outputs cm/s
                     self.logger.warning(f"  NASTRAN reported V={nastran_v:.1f} m/s but this is likely false positive (invalid theory)")
 
             elif nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
                 # SUPERSONIC: NASTRAN piston theory valid, use it
-                # Convert from mm/s to m/s
+                # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
                 converged = True
-                flutter_speed = nastran_result['critical_flutter_velocity'] / 1000.0  # mm/s to m/s
+                flutter_speed = nastran_result['critical_flutter_velocity'] / 100.0  # cm/s to m/s
                 flutter_frequency = nastran_result['critical_flutter_frequency']
                 flutter_mode = 1  # From NASTRAN
                 self.logger.info(f"M={flow.mach_number:.2f} > 1.0: Using NASTRAN piston theory results")
@@ -326,6 +326,20 @@ class IntegratedFlutterExecutor:
                 flutter_frequency = physics_result.flutter_frequency
                 flutter_mode = physics_result.flutter_mode
                 self.logger.info(f"Using Python DLM fallback: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+
+            # v2.1.1 FIX: Add warning if not converged
+            if not converged:
+                self.logger.warning("=" * 70)
+                self.logger.warning("⚠️  CONVERGENCE WARNING")
+                self.logger.warning("=" * 70)
+                self.logger.warning(f"Analysis did not converge properly!")
+                self.logger.warning(f"Reported flutter speed: {flutter_speed:.1f} m/s")
+                self.logger.warning(f"Validation status: {physics_result.validation_status}")
+                if "INCREASE velocity range" in physics_result.validation_status:
+                    self.logger.warning("RECOMMENDATION: Increase maximum velocity in Analysis panel")
+                    self.logger.warning(f"Current range: {config.get('velocity_min', 100)}-{config.get('velocity_max', 2000)} m/s")
+                    self.logger.warning(f"Suggested range: 100-{flutter_speed * 1.5:.0f} m/s")
+                self.logger.warning("=" * 70)
 
             results = {
                 'success': True,
@@ -669,11 +683,12 @@ class IntegratedFlutterExecutor:
                        nastran_result: Dict[str, Any]) -> Dict[str, Any]:
         """Cross-validate physics and NASTRAN results"""
 
-        # Get NASTRAN flutter speed (convert from mm/s to m/s if needed)
+        # Get NASTRAN flutter speed (convert from cm/s to m/s if needed)
+        # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
         nastran_speed = nastran_result.get('critical_flutter_velocity')
-        self.logger.info(f"NASTRAN velocity from F06: {nastran_speed} mm/s")
-        if nastran_speed and nastran_speed > 1000:  # Likely in mm/s
-            nastran_speed = nastran_speed / 1000.0  # Convert to m/s
+        self.logger.info(f"NASTRAN velocity from F06: {nastran_speed} cm/s")
+        if nastran_speed and nastran_speed > 100:  # Likely in cm/s
+            nastran_speed = nastran_speed / 100.0  # Convert cm/s to m/s
             self.logger.info(f"Converted to: {nastran_speed} m/s")
 
         comparison = {

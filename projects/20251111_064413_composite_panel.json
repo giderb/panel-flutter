@@ -1,0 +1,223 @@
+{
+  "id": "20251111_064413_composite_panel",
+  "name": "Composite Panel",
+  "created_at": "2025-11-11T06:44:13.604814",
+  "modified_at": "2025-11-11T06:45:20.920868",
+  "description": "Carbon fiber composite panel for advanced aircraft",
+  "geometry": {
+    "length": 0.6,
+    "width": 0.5,
+    "thickness": 0.001,
+    "n_chord": 12,
+    "n_span": 12,
+    "element_type": "CQUAD4"
+  },
+  "boundary_conditions": "SSSS",
+  "aerodynamic_config": {
+    "flow_conditions": {
+      "mach_number": 0.85,
+      "velocity_min": 150,
+      "velocity_max": 1200,
+      "velocity_points": 25,
+      "altitude": 12000,
+      "temperature": 216.65
+    },
+    "theory": "doublet_lattice",
+    "velocities": [
+      46.0,
+      69.0,
+      92.0,
+      103.5,
+      115.0,
+      126.5,
+      138.0,
+      187.8,
+      237.6,
+      287.4
+    ]
+  },
+  "analysis_params": {
+    "n_modes": "15",
+    "mesh_nx": "10",
+    "mesh_ny": "10",
+    "velocity_min": "200",
+    "velocity_max": "800",
+    "velocity_points": "8",
+    "method": "nastran",
+    "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
+  },
+  "results": null,
+  "project_directory": "projects\\20251111_064413_composite_panel",
+  "bdf_file_path": null,
+  "f06_file_path": null,
+  "material": {
+    "type": "composite",
+    "id": 1,
+    "name": "Quasi-isotropic Carbon/Epoxy [0/45/-45/90]s",
+    "laminas": [
+      {
+        "id": 1,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      },
+      {
+        "id": 2,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 45
+      },
+      {
+        "id": 3,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": -45
+      },
+      {
+        "id": 4,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 90
+      },
+      {
+        "id": 5,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 90
+      },
+      {
+        "id": 6,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": -45
+      },
+      {
+        "id": 7,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 45
+      },
+      {
+        "id": 8,
+        "material": {
+          "type": "orthotropic",
+          "id": 1,
+          "name": "T300/5208 Carbon/Epoxy",
+          "e1": 181000000000.0,
+          "e2": 10300000000.0,
+          "nu12": 0.28,
+          "g12": 7170000000.0,
+          "density": 1600,
+          "alpha1": -5e-07,
+          "alpha2": 2.81e-05,
+          "g1z": null,
+          "g2z": null,
+          "description": null
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      }
+    ],
+    "total_thickness": 1.0,
+    "description": "8-ply quasi-isotropic carbon fiber laminate"
+  },
+  "structural_model": "<models.structural.StructuralModel object at 0x0000029D04B96ED0>"
+}

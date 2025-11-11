@@ -145,13 +145,14 @@ class AnalysisPanel(BasePanel):
         # Configuration grid
         # Note: 10x10 mesh is optimal for most analyses
         # Higher densities (15x15, 20x20) can cause NASTRAN crashes
+        # v2.1.1: Extended velocity range from 200-800 to 100-2000 m/s for better supersonic coverage
         params = [
             ("Number of Modes:", "n_modes", "15"),
             ("Mesh Density (NX):", "mesh_nx", "10"),
             ("Mesh Density (NY):", "mesh_ny", "10"),
-            ("Min Velocity (m/s):", "velocity_min", "200"),
-            ("Max Velocity (m/s):", "velocity_max", "800"),
-            ("Velocity Points:", "velocity_points", "8")
+            ("Min Velocity (m/s):", "velocity_min", "100"),
+            ("Max Velocity (m/s):", "velocity_max", "2000"),
+            ("Velocity Points:", "velocity_points", "12")
         ]
 
         self.config_vars = {}

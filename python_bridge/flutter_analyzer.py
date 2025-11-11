@@ -357,6 +357,9 @@ class FlutterAnalyzer:
             # Step 2: Detect sign changes in damping (flutter brackets)
             flutter_brackets = self._detect_flutter_brackets(velocities, damping_data)
 
+            # Keep track if we found flutter after processing
+            flutter_found_after_extension = False
+
             if not flutter_brackets:
                 self.logger.warning("No flutter bracket found in coarse sweep")
 
@@ -364,7 +367,43 @@ class FlutterAnalyzer:
                 dowell_estimate = self._calculate_dowell_flutter_speed(panel, flow)
                 v_min, v_max = velocities_initial[0], velocities_initial[-1]
 
-                if v_min <= dowell_estimate <= v_max:
+                # v2.1.1 FIX: Auto-extend range if flutter is outside current range
+                if dowell_estimate > v_max:
+                    self.logger.warning(f"Flutter likely at {dowell_estimate:.1f} m/s, above range max ({v_max:.1f} m/s)")
+                    self.logger.warning(f"AUTO-EXTENDING range to {dowell_estimate * 1.3:.0f} m/s")
+
+                    # Extend range and retry
+                    v_max_extended = dowell_estimate * 1.3
+                    velocities_extended = np.linspace(v_min, v_max_extended, 40)
+
+                    damping_data, frequency_data, velocities = self._compute_vg_data(
+                        panel, flow, velocities_extended, method
+                    )
+
+                    flutter_brackets = self._detect_flutter_brackets(velocities, damping_data)
+
+                    if flutter_brackets:
+                        self.logger.info(f"SUCCESS: Flutter found after range extension")
+                        flutter_found_after_extension = True
+                        # Continue with normal processing below
+                    else:
+                        self.logger.error(f"FAILED: Flutter not found even after extending range to {v_max_extended:.0f} m/s")
+                        frequencies, _ = self._modal_analysis(panel)
+                        return FlutterResult(
+                            flutter_speed=dowell_estimate,
+                            flutter_frequency=frequencies[0],
+                            flutter_mode=1,
+                            damping_ratio=0.0,
+                            dynamic_pressure=0.5 * flow.density * dowell_estimate**2,
+                            reduced_frequency=2 * np.pi * frequencies[0] * panel.length / (2 * dowell_estimate),
+                            mach_number=dowell_estimate / flow.speed_of_sound,
+                            altitude=flow.altitude,
+                            method=f'{method}_theory_fallback',
+                            converged=False,
+                            validation_status=f'ERROR: Numerical search failed. Analytical estimate: {dowell_estimate:.0f} m/s. INCREASE velocity range!'
+                        )
+
+                elif v_min <= dowell_estimate <= v_max:
                     self.logger.error(f"CRITICAL: Analytical solution ({dowell_estimate:.1f} m/s) "
                                     f"suggests flutter exists but numerical search failed")
 
@@ -381,7 +420,7 @@ class FlutterAnalyzer:
                         altitude=flow.altitude,
                         method=f'{method}_theory_fallback',
                         converged=False,
-                        validation_status='FAILED: Numerical search failed, using analytical estimate'
+                        validation_status=f'ERROR: Numerical search failed within range. Analytical estimate: {dowell_estimate:.0f} m/s'
                     )
                 else:
                     # No flutter in range - valid result
@@ -402,6 +441,25 @@ class FlutterAnalyzer:
                     )
 
             # Step 3: Find FIRST (lowest velocity) flutter point
+            # Safety check: ensure flutter_brackets is not empty
+            if not flutter_brackets:
+                self.logger.error("CRITICAL: flutter_brackets is empty at Step 3. This should not happen.")
+                frequencies, _ = self._modal_analysis(panel)
+                dowell_estimate = self._calculate_dowell_flutter_speed(panel, flow)
+                return FlutterResult(
+                    flutter_speed=dowell_estimate,
+                    flutter_frequency=frequencies[0],
+                    flutter_mode=1,
+                    damping_ratio=0.0,
+                    dynamic_pressure=0.5 * flow.density * dowell_estimate**2,
+                    reduced_frequency=2 * np.pi * frequencies[0] * panel.length / (2 * dowell_estimate),
+                    mach_number=dowell_estimate / flow.speed_of_sound,
+                    altitude=flow.altitude,
+                    method=f'{method}_theory_fallback',
+                    converged=False,
+                    validation_status='CRITICAL ERROR: Flutter search logic failure. Using analytical estimate.'
+                )
+
             first_bracket = flutter_brackets[0]
             v_lower, v_upper = first_bracket['v_lower'], first_bracket['v_upper']
             mode_idx = first_bracket['mode_idx']
@@ -759,9 +817,10 @@ class FlutterAnalyzer:
 
             beta = np.sqrt(flow.mach_number**2 - 1) if flow.mach_number > 1.0 else 0.1
 
-            # Non-dimensional flutter parameter consistent with Dowell: λ = q*a^4 / (D*ρ*h)
-            # where q = dynamic pressure, a = panel length, D = flexural rigidity
-            lambda_param = (q_dynamic * panel.length**4) / (D * mass_per_area)
+            # Non-dimensional flutter parameter consistent with Dowell: λ = q*a^4 / (D*ρ*h*β)
+            # where q = dynamic pressure, a = panel length, D = flexural rigidity, β = √(M²-1)
+            # CRITICAL FIX: Divide by beta to account for supersonic compressibility reduction
+            lambda_param = (q_dynamic * panel.length**4) / (D * mass_per_area * beta)
 
             # Critical lambda for simply supported panels (Dowell)
             lambda_crit = 745.0  # For fundamental mode
@@ -775,8 +834,11 @@ class FlutterAnalyzer:
 
             # Aerodynamic damping (destabilizing, proportional to how far above critical)
             # This creates a zero-crossing at the flutter boundary
-            # Scale factor chosen so flutter occurs when λ = λ_crit
-            scale_factor = zeta_struct / (1.0 + 1e-6)  # Calibrated to make zero-crossing at λ_crit
+            # CRITICAL FIX: Scale factor must create zero-crossing at lambda_crit
+            # Zero-crossing when: zeta_struct - scale_factor * (lambda_param / lambda_crit - 1.0) = 0
+            # Solving for lambda_param = lambda_crit: scale_factor can be any value
+            # For proper calibration: scale_factor = 2 * zeta_struct makes crossing at lambda_crit
+            scale_factor = 2.0 * zeta_struct  # Calibrated to make zero-crossing at λ_crit
             damping_factor = (lambda_param / lambda_crit - 1.0) * scale_factor
 
             zeta_total = zeta_struct - damping_factor

@@ -159,6 +159,52 @@ class ResultsPanel(BasePanel):
         )
         scroll_frame.pack(fill="both", expand=True)
 
+        # v2.1.1 FIX: Add prominent warning if analysis did not converge
+        if not self.analysis_results.get('converged', True):
+            warning_card = self._create_card(scroll_frame, "⚠️ CONVERGENCE WARNING")
+            warning_card.pack(fill="x", padx=10, pady=10)
+
+            warning_text = """
+⚠️  Analysis did not converge properly!
+
+The flutter search algorithm could not find a definitive flutter point.
+This usually means:
+
+• Flutter speed is OUTSIDE the velocity range you specified
+• Velocity range is too narrow to capture the flutter boundary
+• Numerical issues in the flutter detection algorithm
+
+RECOMMENDED ACTIONS:
+1. Check the validation message below for specific guidance
+2. Increase the maximum velocity in the Analysis panel
+3. Use the auto-calculate feature to set appropriate velocity range
+4. Review the logged warnings in the console
+
+The reported flutter speed may be an ANALYTICAL ESTIMATE rather than
+a numerically converged solution. Use with caution!
+"""
+
+            warning_label = ctk.CTkLabel(
+                warning_card,
+                text=warning_text,
+                justify="left",
+                text_color="orange",
+                font=("Courier", 11)
+            )
+            warning_label.pack(padx=10, pady=5, anchor="w")
+
+            # Show validation status prominently
+            validation_status = self.analysis_results.get('validation_status', 'Unknown')
+            if validation_status and validation_status != 'Unknown':
+                val_label = ctk.CTkLabel(
+                    warning_card,
+                    text=f"Validation Status:\n{validation_status}",
+                    justify="left",
+                    text_color="red",
+                    font=("Courier", 10, "bold")
+                )
+                val_label.pack(padx=10, pady=5, anchor="w")
+
         # Critical Results Card
         critical_card = self._create_card(scroll_frame, "⚡ Critical Flutter Point")
         critical_card.pack(fill="x", padx=10, pady=10)
