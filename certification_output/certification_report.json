@@ -1,0 +1,207 @@
+{
+  "timestamp": "2025-11-11T05:59:06.576128",
+  "certification_level": "PRELIMINARY",
+  "nastran_available": true,
+  "total_tests": 10,
+  "tests_passed": 2,
+  "critical_tests": 5,
+  "critical_passed": 2,
+  "certification_status": "NOT APPROVED - Critical failures",
+  "test_cases": [
+    {
+      "test_id": "CERT-001",
+      "name": "Unit System Validation",
+      "category": "System Validation",
+      "description": "Verify correct density unit conversion: 2810 kg/m^3 = 2.81e-6 kg/mm^3",
+      "passed": true,
+      "critical": true,
+      "results": {
+        "BDF generated": "certification_output\\test_unit_system.bdf",
+        "MAT1 density field": "2.81E-06",
+        "Parsed density value": "2.81E-06 kg/mm\u00b3",
+        "Density range check": "PASS (within expected range)",
+        "Density value check": "PASS (within 2% of expected 2.81e-6: error=0.00%)",
+        "AERO density field": "4.127-10",
+        "AERO density value": "4.13E-10 kg/mm\u00b3",
+        "Altitude density check": "PASS (0.7% error)"
+      },
+      "errors": [],
+      "warnings": [],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-002",
+      "name": "Dowell Benchmark with Corrected Density",
+      "category": "Benchmark Validation",
+      "description": "Validate modal frequencies match theory after density correction",
+      "passed": false,
+      "critical": true,
+      "results": {
+        "BDF file": "certification_output\\cert_dowell_corrected.bdf",
+        "Theoretical Mode 1 frequency": "53.90 Hz",
+        "NASTRAN execution": "SUCCESS"
+      },
+      "errors": [
+        "F06 file not generated"
+      ],
+      "warnings": [],
+      "acceptance_criteria": [
+        [
+          "Mode 1 frequency error",
+          5.0
+        ]
+      ],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-003",
+      "name": "Multi-Mode Frequency Accuracy",
+      "category": "Modal Analysis",
+      "description": "Validate first 5 modal frequencies against analytical solutions",
+      "passed": true,
+      "critical": true,
+      "results": {
+        "Theoretical Mode (1,1)": "63.52 Hz",
+        "Theoretical Mode (1,2)": "108.55 Hz",
+        "Theoretical Mode (2,1)": "91.62 Hz",
+        "Theoretical Mode (2,2)": "127.05 Hz",
+        "Theoretical Mode (1,3)": "157.15 Hz",
+        "Number of modes to validate": 5
+      },
+      "errors": [],
+      "warnings": [],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-004",
+      "name": "Aerodynamic Coupling Verification",
+      "category": "Aero-Structural Coupling",
+      "description": "Verify non-zero aerodynamic damping and velocity-dependent behavior",
+      "passed": false,
+      "critical": true,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-005",
+      "name": "Flutter Detection Accuracy",
+      "category": "Flutter Analysis",
+      "description": "Validate flutter speed prediction against Dowell analytical solution",
+      "passed": false,
+      "critical": true,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-006",
+      "name": "Mesh Convergence Study",
+      "category": "Convergence",
+      "description": "Verify results converge with mesh refinement",
+      "passed": false,
+      "critical": false,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-007",
+      "name": "Sensitivity Analysis",
+      "category": "Sensitivity",
+      "description": "Analyze sensitivity to material and geometric parameters",
+      "passed": false,
+      "critical": false,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-008",
+      "name": "Boundary Condition Validation",
+      "category": "Boundary Conditions",
+      "description": "Verify SSSS, CCCC, CFFF boundary conditions",
+      "passed": false,
+      "critical": false,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-009",
+      "name": "Composite Material Validation",
+      "category": "Materials",
+      "description": "Verify composite laminate modeling with MAT8/PCOMP",
+      "passed": false,
+      "critical": false,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    },
+    {
+      "test_id": "CERT-010",
+      "name": "Extended Velocity Range",
+      "category": "Flutter Analysis",
+      "description": "Verify velocity range extends 15% beyond predicted flutter",
+      "passed": false,
+      "critical": false,
+      "results": {
+        "Status": "Test implementation pending"
+      },
+      "errors": [],
+      "warnings": [
+        "Full implementation pending"
+      ],
+      "acceptance_criteria": [],
+      "actual_values": {},
+      "reference_values": {}
+    }
+  ]
+}

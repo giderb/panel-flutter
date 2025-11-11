@@ -101,9 +101,16 @@ class Sol145BDFGenerator:
         lines.append("PARAM   GRDPNT  0")
         # PARAM VREF for velocity conversion (if velocities in in/s, converts to ft/s for output)
         lines.append("PARAM   VREF    1.0")  # Will be adjusted based on unit system
-        # PARAM KDAMP specifies which TABDMP1 table to use for structural damping
+
+        # Structural Damping - CRITICAL FIX for NASTRAN 2019 bug
+        # TABDMP1 is not applied correctly in SOL 145 PK method in some NASTRAN versions
+        # Use PARAM W3 as workaround: W3 = critical damping ratio (0.03 = 3% damping)
+        lines.append("PARAM   W3      0.03")
+        lines.append("$ W3=0.03: Uniform 3% critical damping on all modes (aerospace standard)")
+        # Keep TABDMP1 for compatibility with newer NASTRAN versions
         lines.append("PARAM   KDAMP   1")
-        lines.append("$ KDAMP=1: Use TABDMP1 with ID=1 for structural damping")
+        lines.append("$ KDAMP=1: Use TABDMP1 with ID=1 (backup for NASTRAN versions that support it)")
+
         # PARAM OPPHIPA for higher-order piston theory (includes angle-of-attack effects)
         # Only add if using piston theory (checked later in code)
         if aerodynamic_theory == "PISTON_THEORY" or (aerodynamic_theory is None and aero.mach_number >= 1.5):
@@ -231,8 +238,14 @@ class Sol145BDFGenerator:
 
             # Shell property
             lines.append("$ Shell Property")
-            # Use sufficient precision for thin panels
-            lines.append(f"PSHELL  1       1       {panel.thickness:.4f}")
+            # PSHELL format: PID MID1 T MID2 12I/T^3 MID3 TS/T NSM Z1 Z2
+            # Field positions: 1-8, 9-16, 17-24, 25-32, 33-40, ...
+            # CRITICAL FIX: MID2 must be in field 4 (columns 25-32), not field 5
+            # Previous bug had extra spaces causing MID2=1 to land in 12I/T^3 field
+            # Correct format: PID, MID1, T, MID2 all in separate 8-char fields (NASTRAN fixed format)
+            # Field 1: Card name, Field 2: PID, Field 3: MID1, Field 4: T, Field 5: MID2
+            t_str = f"{panel.thickness:.4f}"
+            lines.append(f"PSHELL  1       1       {t_str:<8}{'1':<8}")
             lines.append("$")
 
         # Grid points

@@ -1078,39 +1078,48 @@ class FlutterAnalyzer:
     
     def _modal_analysis(self, panel: 'PanelProperties') -> Tuple[np.ndarray, np.ndarray]:
         """
-        Calculate panel natural frequencies and mode shapes
-        Using classical plate theory
+        Calculate panel natural frequencies and mode shapes using classical plate theory.
+
+        Reference: Leissa, A.W. "Vibration of Plates", NASA SP-160, 1969
+        For simply-supported rectangular plate:
+            ω_mn = π² * sqrt(D/(ρ*h)) * [(m/a)² + (n/b)²]
+
+        where:
+            D = flexural rigidity = E*h³/(12*(1-ν²))
+            ρ = material density
+            h = plate thickness
+            a, b = plate dimensions
+            m, n = mode numbers (integers ≥ 1)
         """
-        
-        # Simply supported panel natural frequencies (Hz)
-        # ω_mn = (π²/2) * sqrt(D/ρh) * sqrt((m/a)² + (n/b)²)²
-        
-        D = panel.flexural_rigidity()  # Flexural rigidity
-        rho_h = panel.density * panel.thickness  # Mass per unit area
-        
+
+        D = panel.flexural_rigidity()  # Flexural rigidity (N·m)
+        rho_h = panel.density * panel.thickness  # Mass per unit area (kg/m²)
+
         frequencies = []
         mode_shapes = []
-        
+
         # Calculate first 10 modes
         for m in range(1, 5):
             for n in range(1, 5):
                 if len(frequencies) >= 10:
                     break
-                
-                # Natural frequency - corrected formula for simply supported plate
-                omega_mn = np.pi**2 * np.sqrt(D / rho_h) * \
-                          np.sqrt((m / panel.length)**2 + (n / panel.width)**2)
-                
+
+                # CRITICAL FIX: Correct Leissa formula
+                # ω_mn = π² * sqrt(D/(ρ*h)) * [(m/a)² + (n/b)²]  <- NOTE: squared term, not sqrt!
+                # Previous bug had extra sqrt() wrapper reducing frequency by factor of ~3.2x
+                term = (m / panel.length)**2 + (n / panel.width)**2
+                omega_mn = np.pi**2 * np.sqrt(D / rho_h) * term  # Corrected: multiply by term, not sqrt(term)
+
                 freq_hz = omega_mn / (2 * np.pi)
                 frequencies.append(freq_hz)
-                
+
                 # Mode shape function (normalized)
-                def mode_shape(x, y):
+                def mode_shape(x, y, m=m, n=n):  # Capture m, n in closure
                     return np.sin(m * np.pi * x / panel.length) * \
                            np.sin(n * np.pi * y / panel.width)
-                
+
                 mode_shapes.append((m, n, mode_shape))
-        
+
         return np.array(frequencies), mode_shapes
     
     def _build_dlm_aic_matrix(self, panel: 'PanelProperties', flow: 'FlowConditions',

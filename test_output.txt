@@ -1,0 +1,409 @@
+INFO     | Running analysis WITH transonic correction...
+INFO     | Analyzing flutter using doublet method at M=0.95
+INFO     | Starting Doublet-Lattice Method analysis at M=0.95
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [196.6, 220.7] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 211.983 m/s (error = 0.081%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 211.98 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+WARNING  | CRITICAL: Transonic dip correction applied at M=0.950
+WARNING  |   Uncorrected flutter speed: 212.0 m/s
+WARNING  |   Corrected flutter speed:   159.0 m/s
+WARNING  |   Reduction: 25.0% (correction factor = 0.750)
+WARNING  |   SAFETY IMPLICATION: Flutter margin reduced by 25.0%
+WARNING  |   RECOMMENDATION: Require additional testing in transonic regime
+INFO     |   Transonic correction factor: 0.7500
+INFO     |   Corrected flutter speed: 158.99 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  211.98 m/s
+INFO     |   Corrected flutter speed:    158.99 m/s
+INFO     |   Combined reduction:         25.0%
+INFO     |   Transonic factor:           0.7500
+INFO     |   Temperature factor:         1.0000
+WARNING  | CRITICAL: Combined corrections exceed 20%. Flutter margin significantly reduced.
+WARNING  | RECOMMENDATION: Require wind tunnel testing and flight test validation.
+INFO     | ======================================================================
+INFO     | 
+Running analysis WITHOUT corrections for comparison...
+INFO     | Analyzing flutter using doublet method at M=0.95
+INFO     | Starting Doublet-Lattice Method analysis at M=0.95
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [196.6, 220.7] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 211.983 m/s (error = 0.081%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 211.98 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | Analyzing flutter using doublet method at M=0.84
+INFO     | Starting Doublet-Lattice Method analysis at M=0.84
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [293.1, 317.2] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 294.741 m/s (error = 0.058%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 294.74 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  294.74 m/s
+INFO     |   Corrected flutter speed:    294.74 m/s
+INFO     |   Combined reduction:         0.0%
+INFO     |   Transonic factor:           1.0000
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=0.85
+INFO     | Starting Doublet-Lattice Method analysis at M=0.85
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [269.0, 293.1] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 289.569 m/s (error = 0.060%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 289.57 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+INFO     | MODERATE: Transonic correction M=0.850, factor=0.948
+INFO     |   Flutter speed: 289.6 \u2192 274.4 m/s (5.2% reduction)
+INFO     |   Transonic correction factor: 0.9476
+INFO     |   Corrected flutter speed: 274.39 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  289.57 m/s
+INFO     |   Corrected flutter speed:    274.39 m/s
+INFO     |   Combined reduction:         5.2%
+INFO     |   Transonic factor:           0.9476
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=0.90
+INFO     | Starting Doublet-Lattice Method analysis at M=0.90
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [244.8, 269.0] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 258.879 m/s (error = 0.067%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 258.88 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+WARNING  | CRITICAL: Transonic dip correction applied at M=0.900
+WARNING  |   Uncorrected flutter speed: 258.9 m/s
+WARNING  |   Corrected flutter speed:   215.1 m/s
+WARNING  |   Reduction: 16.9% (correction factor = 0.831)
+WARNING  |   SAFETY IMPLICATION: Flutter margin reduced by 16.9%
+WARNING  |   RECOMMENDATION: Require additional testing in transonic regime
+INFO     |   Transonic correction factor: 0.8308
+INFO     |   Corrected flutter speed: 215.09 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  258.88 m/s
+INFO     |   Corrected flutter speed:    215.09 m/s
+INFO     |   Combined reduction:         16.9%
+INFO     |   Transonic factor:           0.8308
+INFO     |   Temperature factor:         1.0000
+WARNING  | WARNING: Combined corrections exceed 10%. Additional analysis and testing recommended.
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=0.95
+INFO     | Starting Doublet-Lattice Method analysis at M=0.95
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [196.6, 220.7] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 211.983 m/s (error = 0.081%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 211.98 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+WARNING  | CRITICAL: Transonic dip correction applied at M=0.950
+WARNING  |   Uncorrected flutter speed: 212.0 m/s
+WARNING  |   Corrected flutter speed:   159.0 m/s
+WARNING  |   Reduction: 25.0% (correction factor = 0.750)
+WARNING  |   SAFETY IMPLICATION: Flutter margin reduced by 25.0%
+WARNING  |   RECOMMENDATION: Require additional testing in transonic regime
+INFO     |   Transonic correction factor: 0.7500
+INFO     |   Corrected flutter speed: 158.99 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  211.98 m/s
+INFO     |   Corrected flutter speed:    158.99 m/s
+INFO     |   Combined reduction:         25.0%
+INFO     |   Transonic factor:           0.7500
+INFO     |   Temperature factor:         1.0000
+WARNING  | CRITICAL: Combined corrections exceed 20%. Flutter margin significantly reduced.
+WARNING  | RECOMMENDATION: Require wind tunnel testing and flight test validation.
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=1.00
+INFO     | Starting Doublet-Lattice Method analysis at M=1.00
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1174: RuntimeWarning: invalid value encountered in scalar divide
+  dy_comp = (y_cp - y_v) / beta  # Prandtl-Glauert transform
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1191: RuntimeWarning: divide by zero encountered in scalar divide
+  AIC_full[i, j] = 1.0 / (2 * np.pi * np.sqrt(dx * dy) * beta)
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1174: RuntimeWarning: divide by zero encountered in scalar divide
+  dy_comp = (y_cp - y_v) / beta  # Prandtl-Glauert transform
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1182: RuntimeWarning: invalid value encountered in scalar multiply
+  kernel_real = 1.0 / (2 * np.pi * r_comp * beta)
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1186: RuntimeWarning: invalid value encountered in scalar divide
+  kernel_imag = -k_eff / (2 * np.pi * beta) * np.exp(-k_eff * r_comp)
+C:\Users\giderb\PycharmProjects\panel-flutter\python_bridge\flutter_analyzer.py:1186: RuntimeWarning: invalid value encountered in scalar multiply
+  kernel_imag = -k_eff / (2 * np.pi * beta) * np.exp(-k_eff * r_comp)
+WARNING  | No flutter bracket found in coarse sweep
+INFO     | No flutter in range 100-800 m/s. Analytical estimate: 1091.4 m/s
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  9999.00 m/s
+INFO     |   Corrected flutter speed:    9999.00 m/s
+INFO     |   Combined reduction:         0.0%
+INFO     |   Transonic factor:           1.0000
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=1.10
+INFO     | Starting Doublet-Lattice Method analysis at M=1.10
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [244.8, 269.0] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 266.638 m/s (error = 0.065%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 266.64 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+INFO     |   Transonic correction factor: 0.9926
+INFO     |   Corrected flutter speed: 264.66 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  266.64 m/s
+INFO     |   Corrected flutter speed:    264.66 m/s
+INFO     |   Combined reduction:         0.7%
+INFO     |   Transonic factor:           0.9926
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=1.15
+INFO     | Starting Doublet-Lattice Method analysis at M=1.15
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [293.1, 317.2] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 302.672 m/s (error = 0.057%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 302.67 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 1: Applying transonic dip correction (Tijdeman method)
+INFO     |   Transonic correction factor: 0.9995
+INFO     |   Corrected flutter speed: 302.53 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  302.67 m/s
+INFO     |   Corrected flutter speed:    302.53 m/s
+INFO     |   Combined reduction:         0.0%
+INFO     |   Transonic factor:           0.9995
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Analyzing flutter using doublet method at M=1.16
+INFO     | Starting Doublet-Lattice Method analysis at M=1.16
+INFO     | DLM using default velocity range: 100-800 m/s
+INFO     | Starting adaptive flutter search using doublet method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+INFO     | Flutter bracket found: Mode 1, V \u2208 [293.1, 317.2] m/s
+INFO     | Step 2: Adaptive refinement near flutter boundary
+INFO     | Step 3: Bisection method for precise flutter speed
+INFO     | Bisection converged in 3 iterations: V_flutter = 309.052 m/s (error = 0.056%)
+INFO     | Step 4: Mode coalescence detection
+INFO     | Step 5: Validation checks
+INFO     | Flutter analysis complete: V_flutter = 309.05 m/s, f_flutter = 20.22 Hz, Mode = 1
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  309.05 m/s
+INFO     |   Corrected flutter speed:    309.05 m/s
+INFO     |   Combined reduction:         0.0%
+INFO     |   Transonic factor:           1.0000
+INFO     |   Temperature factor:         1.0000
+INFO     | ======================================================================
+INFO     | Running analysis WITH temperature correction...
+INFO     | Analyzing flutter using piston method at M=3.00
+INFO     | Using default velocity range: 10-3000 m/s
+INFO     | Starting adaptive flutter search using piston method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+WARNING  | No flutter bracket found in coarse sweep
+ERROR    | CRITICAL: Analytical solution (1625.7 m/s) suggests flutter exists but numerical search failed
+INFO     | ======================================================================
+INFO     | CERTIFICATION CORRECTIONS
+INFO     | ======================================================================
+INFO     | STEP 2: Applying temperature degradation correction
+WARNING  | CRITICAL: Significant aerodynamic heating at M=3.00, Alt=15.0 km
+WARNING  |   Static temperature:   216.7 K (-56.5°C)
+WARNING  |   Wall temperature:     566.1 K (292.9°C)
+WARNING  |   Temperature rise:     349.4°C
+WARNING  |   SAFETY IMPLICATION: Material properties will degrade significantly
+WARNING  |   RECOMMENDATION: Apply temperature degradation to structural properties
+INFO     |   Wall temperature: 566.1 K (292.9°C)
+INFO     |   Material degradation factor: 0.9181
+INFO     |   Flutter speed correction: 0.9582
+INFO     |   Corrected flutter speed: 1557.77 m/s
+INFO     | ======================================================================
+INFO     | CORRECTION SUMMARY
+INFO     | ======================================================================
+INFO     |   Uncorrected flutter speed:  1625.75 m/s
+INFO     |   Corrected flutter speed:    1557.77 m/s
+INFO     |   Combined reduction:         4.2%
+INFO     |   Transonic factor:           1.0000
+INFO     |   Temperature factor:         0.9181
+INFO     | ======================================================================
+INFO     | 
+Running analysis WITHOUT corrections...
+INFO     | Analyzing flutter using piston method at M=3.00
+INFO     | Using default velocity range: 10-3000 m/s
+INFO     | Starting adaptive flutter search using piston method
+INFO     | Step 1: Coarse sweep to detect flutter bracket
+WARNING  | No flutter bracket found in coarse sweep
+ERROR    | CRITICAL: Analytical solution (1625.7 m/s) suggests flutter exists but numerical search failed
+
+================================================================================
+CERTIFICATION CORRECTIONS TEST SUITE
+================================================================================
+
+Implementing:
+  1. Transonic Dip Correction (Tijdeman Method)
+  2. Temperature-Dependent Material Properties
+
+Standards Compliance:
+  - MIL-A-8870C: Transonic flutter considerations
+  - MIL-HDBK-5J: Temperature effects on materials
+  - EASA CS-25: Aeroelastic stability requirements
+
+================================================================================
+TEST 1: TRANSONIC DIP CORRECTION AT M=0.95 (PEAK TRANSONIC)
+================================================================================
+
+--------------------------------------------------------------------------------
+VALIDATION AGAINST F-16 FLIGHT TEST DATA
+--------------------------------------------------------------------------------
+Uncorrected flutter speed:    212.0 m/s
+Corrected flutter speed:      159.0 m/s
+Transonic correction factor:  0.7500
+Flutter speed reduction:      25.0%
+
+Expected reduction range:     20.0% - 30.0%
+[PASS] Correction within expected range for M=0.95
+[PASS] Corrected speed < uncorrected (transonic dip observed)
+[PASS] Correction factor in valid range [0.70, 0.80]
+
+================================================================================
+TEST 1 RESULT: PASSED
+================================================================================
+
+================================================================================
+TEST 2: TRANSONIC CORRECTION AT REGIME BOUNDARIES
+================================================================================
+
+Mach    Correction Factor    Reduction %    Status
+------------------------------------------------------------
+0.84    1.0000               0.0%       [PASS] No correction (outside range)
+0.85    0.9476               5.2%       [PASS] Partial correction
+0.90    0.8308              16.9%       [FAIL] Partial correction
+0.95    0.7500              25.0%       [PASS] Maximum correction (~25%)
+1.00    1.0000               0.0%       [PASS] Partial correction
+1.10    0.9926               0.7%       [PASS] Partial correction
+1.15    0.9995               0.0%       [PASS] Partial correction
+1.16    1.0000               0.0%       [PASS] No correction (outside range)
+
+================================================================================
+TEST 2 RESULT: FAILED
+================================================================================
+
+================================================================================
+TEST 3: TEMPERATURE DEGRADATION AT M=3.0 (SUPERSONIC)
+================================================================================
+
+--------------------------------------------------------------------------------
+VALIDATION AGAINST SR-71 FLIGHT TEST DATA
+--------------------------------------------------------------------------------
+Static temperature:           216.7 K (-56.5°C)
+Adiabatic wall temperature:   566.1 K (292.9°C)
+Temperature rise:             349.4°C
+
+Material degradation factor:  0.9181
+Young's modulus reduction:    8.2%
+
+Uncorrected flutter speed:    1625.7 m/s
+Corrected flutter speed:      1557.8 m/s
+Flutter speed reduction:      4.2%
+
+--------------------------------------------------------------------------------
+EXPECTED VALUES
+--------------------------------------------------------------------------------
+Temperature rise:             120-180°C (typical for M=3.0)
+Modulus reduction:            15-20% (aluminum at ~130-160°C)
+Traceback (most recent call last):
+  File "C:\Users\giderb\PycharmProjects\panel-flutter\test_certification_corrections.py", line 465, in <module>
+    success = run_all_tests()
+  File "C:\Users\giderb\PycharmProjects\panel-flutter\test_certification_corrections.py", line 432, in run_all_tests
+    test_results.append(("Temperature Degradation (M=3.0)", test_temperature_degradation_supersonic()))
+                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\giderb\PycharmProjects\panel-flutter\test_certification_corrections.py", line 257, in test_temperature_degradation_supersonic
+    print("Flutter speed reduction:      7-10% (\u221d \u221aE)")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u221d' in position 37: character maps to <undefined>

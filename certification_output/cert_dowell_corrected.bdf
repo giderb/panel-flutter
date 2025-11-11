@@ -1,0 +1,339 @@
+$ NASTRAN SOL145 FLUTTER ANALYSIS - CORRECTED PISTON THEORY
+$ Generated: 2025-11-11 05:59:06.519800
+$ Panel: 300.0mm x 300.0mm
+$ Mach number: 2.0
+$
+SOL 145
+CEND
+TITLE = Panel Flutter Analysis - Piston Theory
+ECHO = NONE
+SPC = 1
+METHOD = 1
+FMETHOD = 1
+BEGIN BULK
+$
+PARAM   COUPMASS1
+PARAM   GRDPNT  0
+PARAM   VREF    1.0
+PARAM   OPPHIPA 1
+$ OPPHIPA=1: Use higher-order piston theory for better accuracy at M<3
+$
+$ Material Properties (NASTRAN mm-kg-s-N system)
+MAT1    1       71700.0 26954.9 .33     2.81E-06 2.1E-05
+$
+$ Shell Property
+PSHELL  1       1       1.5000
+$
+$ Grid Points
+GRID    1               0.0     0.0     0.0     
+GRID    2               30.0    0.0     0.0     
+GRID    3               60.0    0.0     0.0     
+GRID    4               90.0    0.0     0.0     
+GRID    5               120.0   0.0     0.0     
+GRID    6               150.0   0.0     0.0     
+GRID    7               180.0   0.0     0.0     
+GRID    8               210.0   0.0     0.0     
+GRID    9               240.0   0.0     0.0     
+GRID    10              270.0   0.0     0.0     
+GRID    11              300.0   0.0     0.0     
+GRID    12              0.0     30.0    0.0     
+GRID    13              30.0    30.0    0.0     
+GRID    14              60.0    30.0    0.0     
+GRID    15              90.0    30.0    0.0     
+GRID    16              120.0   30.0    0.0     
+GRID    17              150.0   30.0    0.0     
+GRID    18              180.0   30.0    0.0     
+GRID    19              210.0   30.0    0.0     
+GRID    20              240.0   30.0    0.0     
+GRID    21              270.0   30.0    0.0     
+GRID    22              300.0   30.0    0.0     
+GRID    23              0.0     60.0    0.0     
+GRID    24              30.0    60.0    0.0     
+GRID    25              60.0    60.0    0.0     
+GRID    26              90.0    60.0    0.0     
+GRID    27              120.0   60.0    0.0     
+GRID    28              150.0   60.0    0.0     
+GRID    29              180.0   60.0    0.0     
+GRID    30              210.0   60.0    0.0     
+GRID    31              240.0   60.0    0.0     
+GRID    32              270.0   60.0    0.0     
+GRID    33              300.0   60.0    0.0     
+GRID    34              0.0     90.0    0.0     
+GRID    35              30.0    90.0    0.0     
+GRID    36              60.0    90.0    0.0     
+GRID    37              90.0    90.0    0.0     
+GRID    38              120.0   90.0    0.0     
+GRID    39              150.0   90.0    0.0     
+GRID    40              180.0   90.0    0.0     
+GRID    41              210.0   90.0    0.0     
+GRID    42              240.0   90.0    0.0     
+GRID    43              270.0   90.0    0.0     
+GRID    44              300.0   90.0    0.0     
+GRID    45              0.0     120.0   0.0     
+GRID    46              30.0    120.0   0.0     
+GRID    47              60.0    120.0   0.0     
+GRID    48              90.0    120.0   0.0     
+GRID    49              120.0   120.0   0.0     
+GRID    50              150.0   120.0   0.0     
+GRID    51              180.0   120.0   0.0     
+GRID    52              210.0   120.0   0.0     
+GRID    53              240.0   120.0   0.0     
+GRID    54              270.0   120.0   0.0     
+GRID    55              300.0   120.0   0.0     
+GRID    56              0.0     150.0   0.0     
+GRID    57              30.0    150.0   0.0     
+GRID    58              60.0    150.0   0.0     
+GRID    59              90.0    150.0   0.0     
+GRID    60              120.0   150.0   0.0     
+GRID    61              150.0   150.0   0.0     
+GRID    62              180.0   150.0   0.0     
+GRID    63              210.0   150.0   0.0     
+GRID    64              240.0   150.0   0.0     
+GRID    65              270.0   150.0   0.0     
+GRID    66              300.0   150.0   0.0     
+GRID    67              0.0     180.0   0.0     
+GRID    68              30.0    180.0   0.0     
+GRID    69              60.0    180.0   0.0     
+GRID    70              90.0    180.0   0.0     
+GRID    71              120.0   180.0   0.0     
+GRID    72              150.0   180.0   0.0     
+GRID    73              180.0   180.0   0.0     
+GRID    74              210.0   180.0   0.0     
+GRID    75              240.0   180.0   0.0     
+GRID    76              270.0   180.0   0.0     
+GRID    77              300.0   180.0   0.0     
+GRID    78              0.0     210.0   0.0     
+GRID    79              30.0    210.0   0.0     
+GRID    80              60.0    210.0   0.0     
+GRID    81              90.0    210.0   0.0     
+GRID    82              120.0   210.0   0.0     
+GRID    83              150.0   210.0   0.0     
+GRID    84              180.0   210.0   0.0     
+GRID    85              210.0   210.0   0.0     
+GRID    86              240.0   210.0   0.0     
+GRID    87              270.0   210.0   0.0     
+GRID    88              300.0   210.0   0.0     
+GRID    89              0.0     240.0   0.0     
+GRID    90              30.0    240.0   0.0     
+GRID    91              60.0    240.0   0.0     
+GRID    92              90.0    240.0   0.0     
+GRID    93              120.0   240.0   0.0     
+GRID    94              150.0   240.0   0.0     
+GRID    95              180.0   240.0   0.0     
+GRID    96              210.0   240.0   0.0     
+GRID    97              240.0   240.0   0.0     
+GRID    98              270.0   240.0   0.0     
+GRID    99              300.0   240.0   0.0     
+GRID    100             0.0     270.0   0.0     
+GRID    101             30.0    270.0   0.0     
+GRID    102             60.0    270.0   0.0     
+GRID    103             90.0    270.0   0.0     
+GRID    104             120.0   270.0   0.0     
+GRID    105             150.0   270.0   0.0     
+GRID    106             180.0   270.0   0.0     
+GRID    107             210.0   270.0   0.0     
+GRID    108             240.0   270.0   0.0     
+GRID    109             270.0   270.0   0.0     
+GRID    110             300.0   270.0   0.0     
+GRID    111             0.0     300.0   0.0     
+GRID    112             30.0    300.0   0.0     
+GRID    113             60.0    300.0   0.0     
+GRID    114             90.0    300.0   0.0     
+GRID    115             120.0   300.0   0.0     
+GRID    116             150.0   300.0   0.0     
+GRID    117             180.0   300.0   0.0     
+GRID    118             210.0   300.0   0.0     
+GRID    119             240.0   300.0   0.0     
+GRID    120             270.0   300.0   0.0     
+GRID    121             300.0   300.0   0.0     
+$
+$ Elements
+CQUAD4  1       1       1       2       13      12      
+CQUAD4  2       1       2       3       14      13      
+CQUAD4  3       1       3       4       15      14      
+CQUAD4  4       1       4       5       16      15      
+CQUAD4  5       1       5       6       17      16      
+CQUAD4  6       1       6       7       18      17      
+CQUAD4  7       1       7       8       19      18      
+CQUAD4  8       1       8       9       20      19      
+CQUAD4  9       1       9       10      21      20      
+CQUAD4  10      1       10      11      22      21      
+CQUAD4  11      1       12      13      24      23      
+CQUAD4  12      1       13      14      25      24      
+CQUAD4  13      1       14      15      26      25      
+CQUAD4  14      1       15      16      27      26      
+CQUAD4  15      1       16      17      28      27      
+CQUAD4  16      1       17      18      29      28      
+CQUAD4  17      1       18      19      30      29      
+CQUAD4  18      1       19      20      31      30      
+CQUAD4  19      1       20      21      32      31      
+CQUAD4  20      1       21      22      33      32      
+CQUAD4  21      1       23      24      35      34      
+CQUAD4  22      1       24      25      36      35      
+CQUAD4  23      1       25      26      37      36      
+CQUAD4  24      1       26      27      38      37      
+CQUAD4  25      1       27      28      39      38      
+CQUAD4  26      1       28      29      40      39      
+CQUAD4  27      1       29      30      41      40      
+CQUAD4  28      1       30      31      42      41      
+CQUAD4  29      1       31      32      43      42      
+CQUAD4  30      1       32      33      44      43      
+CQUAD4  31      1       34      35      46      45      
+CQUAD4  32      1       35      36      47      46      
+CQUAD4  33      1       36      37      48      47      
+CQUAD4  34      1       37      38      49      48      
+CQUAD4  35      1       38      39      50      49      
+CQUAD4  36      1       39      40      51      50      
+CQUAD4  37      1       40      41      52      51      
+CQUAD4  38      1       41      42      53      52      
+CQUAD4  39      1       42      43      54      53      
+CQUAD4  40      1       43      44      55      54      
+CQUAD4  41      1       45      46      57      56      
+CQUAD4  42      1       46      47      58      57      
+CQUAD4  43      1       47      48      59      58      
+CQUAD4  44      1       48      49      60      59      
+CQUAD4  45      1       49      50      61      60      
+CQUAD4  46      1       50      51      62      61      
+CQUAD4  47      1       51      52      63      62      
+CQUAD4  48      1       52      53      64      63      
+CQUAD4  49      1       53      54      65      64      
+CQUAD4  50      1       54      55      66      65      
+CQUAD4  51      1       56      57      68      67      
+CQUAD4  52      1       57      58      69      68      
+CQUAD4  53      1       58      59      70      69      
+CQUAD4  54      1       59      60      71      70      
+CQUAD4  55      1       60      61      72      71      
+CQUAD4  56      1       61      62      73      72      
+CQUAD4  57      1       62      63      74      73      
+CQUAD4  58      1       63      64      75      74      
+CQUAD4  59      1       64      65      76      75      
+CQUAD4  60      1       65      66      77      76      
+CQUAD4  61      1       67      68      79      78      
+CQUAD4  62      1       68      69      80      79      
+CQUAD4  63      1       69      70      81      80      
+CQUAD4  64      1       70      71      82      81      
+CQUAD4  65      1       71      72      83      82      
+CQUAD4  66      1       72      73      84      83      
+CQUAD4  67      1       73      74      85      84      
+CQUAD4  68      1       74      75      86      85      
+CQUAD4  69      1       75      76      87      86      
+CQUAD4  70      1       76      77      88      87      
+CQUAD4  71      1       78      79      90      89      
+CQUAD4  72      1       79      80      91      90      
+CQUAD4  73      1       80      81      92      91      
+CQUAD4  74      1       81      82      93      92      
+CQUAD4  75      1       82      83      94      93      
+CQUAD4  76      1       83      84      95      94      
+CQUAD4  77      1       84      85      96      95      
+CQUAD4  78      1       85      86      97      96      
+CQUAD4  79      1       86      87      98      97      
+CQUAD4  80      1       87      88      99      98      
+CQUAD4  81      1       89      90      101     100     
+CQUAD4  82      1       90      91      102     101     
+CQUAD4  83      1       91      92      103     102     
+CQUAD4  84      1       92      93      104     103     
+CQUAD4  85      1       93      94      105     104     
+CQUAD4  86      1       94      95      106     105     
+CQUAD4  87      1       95      96      107     106     
+CQUAD4  88      1       96      97      108     107     
+CQUAD4  89      1       97      98      109     108     
+CQUAD4  90      1       98      99      110     109     
+CQUAD4  91      1       100     101     112     111     
+CQUAD4  92      1       101     102     113     112     
+CQUAD4  93      1       102     103     114     113     
+CQUAD4  94      1       103     104     115     114     
+CQUAD4  95      1       104     105     116     115     
+CQUAD4  96      1       105     106     117     116     
+CQUAD4  97      1       106     107     118     117     
+CQUAD4  98      1       107     108     119     118     
+CQUAD4  99      1       108     109     120     119     
+CQUAD4  100     1       109     110     121     120     
+$
+$ Boundary Conditions
+$ SSSS: Simply Supported on all four edges
+SPC1    1       3       1       2       3       4       5       6       
++       7       8       9       10      11      12      
++       22      23      33      34      44      45      
++       55      56      66      67      77      78      
++       88      89      99      100     110     111     
++       112     113     114     115     116     117     
++       118     119     120     121     
+SPC1    1       1       1
+SPC1    1       2       1       121
+SPC1    1       6       1       THRU    121
+$
+$ Eigenvalue Extraction
+EIGRL          1                      10       0
+$
+$ Aerodynamic Reference
+$ AERO: ACSID VELOCITY REFC RHOREF
+$   ACSID=0: Basic coordinate system
+$   VELOCITY=1.0: Reference velocity (actual velocities in FLFACT)
+$   REFC=300.0: Reference chord length (mm)
+$   RHOREF: Reference density (kg/mm³ = kg/m³ × 1e-9)
+$ Reference density: 0.4127 kg/m³ (altitude: 10000m)
+AERO    0       1.      300.0   4.127-10
+$
+$ Piston Theory (CAERO5) - Supersonic Aerodynamics
+$ Reference: MSC Nastran Aeroelastic Analysis User's Guide, Example HA145HA
+$
+$ Thickness Integrals (I1-I6) - flat panel
+AEFACT  10      0.0     0.0     0.0     0.0     0.0     0.0     
+$
+$ Mach and Alpha Combinations
+AEFACT  20      2.0     0.0     3.0     0.0     
+$
+$ Piston Theory Property
+PAERO5  1001    1       20                                              +PA5
++PA5    0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     +PA51
++PA51   0.0     0.0     
+$
+$ PISTON THEORY PANEL (CAERO5)
+$
+CAERO5  1001    1001            10                      10              +CA00
++CA00   0.0     0.0     0.0     300.0   0.0     30.0    0.0     300.0   
+CAERO5  2001    1001            10                      10              +CA01
++CA01   0.0     30.0    0.0     300.0   0.0     60.0    0.0     300.0   
+CAERO5  3001    1001            10                      10              +CA02
++CA02   0.0     60.0    0.0     300.0   0.0     90.0    0.0     300.0   
+CAERO5  4001    1001            10                      10              +CA03
++CA03   0.0     90.0    0.0     300.0   0.0     120.0   0.0     300.0   
+CAERO5  5001    1001            10                      10              +CA04
++CA04   0.0     120.0   0.0     300.0   0.0     150.0   0.0     300.0   
+CAERO5  6001    1001            10                      10              +CA05
++CA05   0.0     150.0   0.0     300.0   0.0     180.0   0.0     300.0   
+CAERO5  7001    1001            10                      10              +CA06
++CA06   0.0     180.0   0.0     300.0   0.0     210.0   0.0     300.0   
+CAERO5  8001    1001            10                      10              +CA07
++CA07   0.0     210.0   0.0     300.0   0.0     240.0   0.0     300.0   
+CAERO5  9001    1001            10                      10              +CA08
++CA08   0.0     240.0   0.0     300.0   0.0     270.0   0.0     300.0   
+CAERO5  10001   1001            10                      10              +CA09
++CA09   0.0     270.0   0.0     300.0   0.0     300.0   0.0     300.0   
+$
+$ SPLINE - SURFACE INTERPOLATION
+SPLINE1 1       1001    1001    1010    1       
+SPLINE1 2       2001    2001    2010    1       
+SPLINE1 3       3001    3001    3010    1       
+SPLINE1 4       4001    4001    4010    1       
+SPLINE1 5       5001    5001    5010    1       
+SPLINE1 6       6001    6001    6010    1       
+SPLINE1 7       7001    7001    7010    1       
+SPLINE1 8       8001    8001    8010    1       
+SPLINE1 9       9001    9001    9010    1       
+SPLINE1 10      10001   10001   10010   1       
+SET1    1       1       THRU    121
+$
+$ Flutter Analysis
+FLUTTER 1       PK      1       2       3       L
+FLFACT  1       0.5
+FLFACT  2       2.0     3.0
+FLFACT  3       500000. 600000. 700000. 800000. 900000. 1.00+6  1.10+6  +FL3    
++FL3    1.20+6  1.30+6  1.40+6  1.50+6  1.60+6  1.70+6  1.80+6  1.90+6  +FL3    
++FL3    2.00+6  
+$
+$ Aerodynamic Matrices - Piston Theory (MKAERO1)
+MKAERO1 2.0     3.0                                                     +MK1     
++MK1    0.001   0.1     0.2     0.4
+$
+ENDDATA
