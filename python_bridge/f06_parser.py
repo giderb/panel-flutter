@@ -199,6 +199,9 @@ class F06Parser:
         critical_frequency = None
 
         if self.flutter_results:
+            # Log all flutter points found for debugging
+            logger.info(f"F06 Parser: Found {len(self.flutter_results)} flutter points")
+
             # Group flutter points by velocity
             from collections import defaultdict
             velocity_groups = defaultdict(list)
@@ -207,9 +210,10 @@ class F06Parser:
 
             # Sort velocities
             sorted_velocities = sorted(velocity_groups.keys())
+            logger.info(f"F06 Parser: Velocity range: {sorted_velocities[0]/100:.1f} to {sorted_velocities[-1]/100:.1f} m/s")
 
-            # Look for mode transitions between consecutive velocities
-            # Focus on structural panel flutter modes (5-100 Hz)
+            # STRATEGY 1: Look for damping sign change (negative to positive) at ANY frequency
+            # This captures low-frequency/rigid-body flutter modes that have frequency=0
             for i in range(len(sorted_velocities) - 1):
                 v1 = sorted_velocities[i]
                 v2 = sorted_velocities[i + 1]
@@ -219,25 +223,35 @@ class F06Parser:
 
                 # Try to match modes by frequency (same mode will have similar frequency)
                 for m1 in modes_v1:
-                    # Skip modes outside realistic panel flutter range
-                    if m1.frequency < 5.0 or m1.frequency > 100.0:
+                    # CRITICAL FIX: Accept ALL frequencies including 0 Hz (rigid-body modes)
+                    # Only filter out obviously bad data (negative frequencies)
+                    if m1.frequency < 0:
                         continue
 
-                    # Find matching mode at next velocity (frequency within 20% tolerance)
+                    # Find matching mode at next velocity
                     for m2 in modes_v2:
-                        if m2.frequency < 5.0 or m2.frequency > 100.0:
+                        if m2.frequency < 0:
                             continue
 
-                        # Check if this is likely the same mode (frequency similar)
-                        freq_ratio = abs(m2.frequency - m1.frequency) / m1.frequency if m1.frequency > 0 else float('inf')
-                        if freq_ratio < 0.2:  # Frequency within 20%
+                        # Check if this is likely the same mode
+                        # For zero-frequency modes, they always match
+                        # For non-zero frequency, require similarity
+                        is_same_mode = False
+                        if m1.frequency < 0.1 and m2.frequency < 0.1:
+                            # Both near-zero frequency - assume same mode
+                            is_same_mode = True
+                        elif m1.frequency > 0.1 and m2.frequency > 0.1:
+                            # Both non-zero - check frequency ratio
+                            freq_ratio = abs(m2.frequency - m1.frequency) / m1.frequency
+                            if freq_ratio < 0.3:  # Relaxed from 20% to 30%
+                                is_same_mode = True
+
+                        if is_same_mode:
                             # Check for flutter onset (negative to positive damping)
                             if m1.damping < 0 and m2.damping > 0:
-                                # Filter out numerical noise (damping very close to zero)
-                                # These are often zero-frequency modes or numerical artifacts
-                                if abs(m1.damping) < 0.1 or abs(m2.damping) < 0.1:
-                                    logger.debug(f"Filtered numerical zero: V1={v1/1000:.1f}m/s g1={m1.damping:.6f}, V2={v2/1000:.1f}m/s g2={m2.damping:.6f}")
-                                    continue
+                                # CRITICAL FIX: REMOVED overly aggressive damping filter
+                                # Accept ANY damping crossing, including small values
+                                # The crossing itself is the flutter point, regardless of magnitude
 
                                 # Linear interpolation to zero damping
                                 d1 = m1.damping
@@ -246,16 +260,55 @@ class F06Parser:
                                 f2 = m2.frequency
 
                                 t = -d1 / (d2 - d1)
-                                critical_velocity = v1 + t * (v2 - v1)
-                                critical_frequency = f1 + t * (f2 - f1)
+                                candidate_velocity = v1 + t * (v2 - v1)
+                                candidate_frequency = f1 + t * (f2 - f1)
 
                                 # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
-                                logger.info(f"Flutter detected: V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
-                                logger.info(f"  Transition: V1={v1/100:.1f}m/s (g={d1:.4f}), V2={v2/100:.1f}m/s (g={d2:.4f})")
-                                break
+                                logger.info(f"Flutter detected: V={candidate_velocity/100:.1f} m/s, f={candidate_frequency:.1f} Hz")
+                                logger.info(f"  Transition: V1={v1/100:.1f}m/s (g={d1:.4f}, f={f1:.1f}Hz), V2={v2/100:.1f}m/s (g={d2:.4f}, f={f2:.1f}Hz)")
+
+                                # CRITICAL: Keep the LOWEST velocity flutter point (most conservative)
+                                # Multiple modes may go unstable at different velocities
+                                if critical_velocity is None or candidate_velocity < critical_velocity:
+                                    critical_velocity = candidate_velocity
+                                    critical_frequency = candidate_frequency
+                                    logger.info(f"  → This is the LOWEST flutter point so far")
+
+            # After checking all velocities, we have the lowest flutter point
+            if critical_velocity is not None:
+                logger.info(f"FINAL: Lowest flutter point at V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
+
+            # STRATEGY 2: If no zero-crossing found, check for modes with positive damping
+            # This handles cases where flutter is already established at lowest velocity
+            if critical_velocity is None:
+                logger.info("F06 Parser: No damping zero-crossing found, checking for already-unstable modes")
+                for v in sorted_velocities:
+                    modes = velocity_groups[v]
+                    for mode in modes:
+                        # Look for modes with positive damping (unstable) and realistic frequency
+                        if mode.damping > 0:
+                            logger.info(f"  Unstable mode at V={v/100:.1f}m/s: g={mode.damping:.4f}, f={mode.frequency:.1f}Hz")
+                            # Report the lowest velocity with positive damping
+                            if critical_velocity is None or v < critical_velocity:
+                                critical_velocity = v
+                                critical_frequency = mode.frequency
+                                logger.info(f"  Using this as critical flutter point")
 
                 if critical_velocity is not None:
-                    break
+                    logger.info(f"Flutter onset (already unstable): V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
+
+            # Log if no flutter found
+            if critical_velocity is None:
+                logger.warning("F06 Parser: No flutter detected in velocity range")
+                logger.warning(f"  Checked {len(sorted_velocities)} velocities from {sorted_velocities[0]/100:.1f} to {sorted_velocities[-1]/100:.1f} m/s")
+                # Log sample of damping values for diagnosis
+                for i, v in enumerate(sorted_velocities[:5]):  # First 5 velocities
+                    modes = velocity_groups[v]
+                    dampings = [f"g={m.damping:.2f}(f={m.frequency:.1f})" for m in modes[:3]]  # First 3 modes
+                    logger.warning(f"  V={v/100:.1f}m/s: {', '.join(dampings)}")
+
+        # CRITICAL: Convert velocity from cm/s (NASTRAN F06 units) to m/s for return
+        critical_velocity_ms = critical_velocity / 100.0 if critical_velocity is not None else None
 
         return {
             'success': not self.has_fatal_errors,
@@ -264,7 +317,7 @@ class F06Parser:
             'modal_frequencies': [m.frequency_hz for m in self.modal_results],
             'modal_results': self.modal_results,
             'flutter_results': self.flutter_results,
-            'critical_flutter_velocity': critical_velocity,
+            'critical_flutter_velocity': critical_velocity_ms,  # Now in m/s
             'critical_flutter_frequency': critical_frequency,
             'has_results': len(self.modal_results) > 0 or len(self.flutter_results) > 0
         }
