@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.1.1] - 2025-11-11 - CRITICAL HOTFIX: 10x Unit Conversion Error
+## [2.1.1] - 2025-11-11 - CRITICAL HOTFIX: Multiple Critical Bugs
 
-### 🔴 CRITICAL BUG FIX - 10x ERROR IN FLUTTER SPEED
+### 🔴 CRITICAL BUG FIXES - FLIGHT SAFETY ISSUES
 
-**Issue Resolved:** Flutter analysis reported 109.4 m/s instead of 1099 m/s (exactly 10x too low)
+**Issue #1:** Flutter analysis reported 109.4 m/s instead of 1099 m/s (exactly 10x too low)
+**Issue #2:** "Did not converge" error even when F06 file contained valid flutter results
 
 **Root Cause:** NASTRAN outputs velocities in **cm/s**, but code assumed **mm/s** and divided by 1000 instead of 100
 
@@ -48,6 +49,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added missing beta (√(M²-1)) divisor in lambda calculation
 - Corrected scale_factor formula in damping model
 - File: `flutter_analyzer.py:823, 841`
+
+#### CRITICAL FIX #2: F06 Parser Rejecting Valid Flutter Results
+- **File:** `python_bridge/f06_parser.py:195-323`
+- **Bug #1:** Frequency filter rejected f < 5 Hz (including zero-frequency divergence modes)
+- **Bug #2:** Damping filter rejected crossings where abs(damping) < 0.1 (real flutter onsets)
+- **Bug #3:** No unit conversion from cm/s to m/s on return (100x error)
+- **Impact:** Composite panels with zero-frequency flutter were falsely reported as "did not converge"
+- **Fix:**
+  - Removed frequency filter (accept all f ≥ 0)
+  - Removed damping magnitude filter (accept any zero-crossing)
+  - Added cm/s → m/s conversion
+  - Two-strategy detection (zero-crossing + already-unstable)
+  - Select lowest flutter point (most conservative)
+- **Verification:**
+  - Composite panel with f=0 Hz flutter: Now detected ✓
+  - Zero-crossing V1=1,979 m/s (g=-1.04), V2=2,469 m/s (g=+0.16)
+  - Critical velocity: 2,405 m/s (correctly interpolated and converted)
 
 ### User Impact
 
