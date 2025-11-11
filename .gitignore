@@ -4,10 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-.venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -24,113 +20,58 @@ wheels/
 .installed.cfg
 *.egg
 
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
-
-# NASTRAN Output Files
-*.f04
-*.f04.*
-*.f06
-*.f06.*
-*.log
-*.log.*
-*.op2
-*.op2.*
-*.pch
-*.pch.*
-*.plt
-*.plt.*
-*.aeso
-*.aeso.*
-*.asm
-*.asm.*
-*.becho
-*.becho.*
-*.rcf
-*.rcf.*
-*.T17472_40/
-*.t17472_40.bat
-
-# Analysis Output Directories
-analysis_output/
-nastran_analysis/
-analysis_temp/
-test_integration_output/
-logs/
-
-# Test Files
-test_*.py
-test_*.bdf
-validate_*.py
-validate_*.bdf
-check_*.py
-analyze_*.py
-comprehensive_*.py
-validation_*.py
-*_validation.bdf
-
-# Reference and Test BDF Files
-adjusted_*.bdf
-ref_*.bdf
-reference_*.bdf
-hypersonic_*.bdf
-subsonic_*.bdf
-supersonic_*.bdf
-transonic_*.bdf
-final_*.bdf
-
-# Development Documentation
-*_SUMMARY.md
-*_REPORT.md
-*_STATUS.md
-*_COMPARISON.md
-*_DIAGNOSIS.md
-*_COMPLETE.md
-*_RESULTS.md
-*_IMPLEMENTATION.md
-CHANGES_*.md
-FLUTTER_*.md
-GENERATOR_*.md
-GUI_*.md
-HONEYCOMB_*.md
-NASTRAN_*.md
-PANEL_*.md
-PROJECT_*.md
-QUICK_*.md
-README_*.md
-SANDWICH_*.md
-VALIDATION_*.md
-BDF_*.md
-CONVERGENCE_*.md
-F06_*.md
-BC_*.md
-
-# Temporary Files
-temp_*.txt
-nul
-*.tmp
-PANEL_STRUCT.DAT
-
-# Project Files
-projects/
-
-# References and Templates (development only)
-references/
-templates/
-
-# OS Files
 .DS_Store
+
+# NASTRAN Output
+*.bdf
+*.f06
+*.f04
+*.log
+*.pch
+*.op2
+*.op4
+*.DBALL
+*.MASTER
+*.DBTOC
+
+# Analysis Output
+analysis_output/
+certification_output/
+test_output*/
+
+# Temporary files
+*.tmp
+*.temp
+*_temp.*
+*_tmp.*
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# OS
 Thumbs.db
+.DS_Store
 
-# Screenshots and Images (development)
-*.png
-*.jpg
-*.jpeg
-
-# Cleanup Scripts (keep this commented if you want to keep the script in repo)
-# cleanup.ps1
-# cleanup_for_distribution.py
+# Local configuration
+.env
+.env.local
+config.local.json
