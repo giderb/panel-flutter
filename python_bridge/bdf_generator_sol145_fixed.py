@@ -101,6 +101,9 @@ class Sol145BDFGenerator:
         lines.append("PARAM   GRDPNT  0")
         # PARAM VREF for velocity conversion (if velocities in in/s, converts to ft/s for output)
         lines.append("PARAM   VREF    1.0")  # Will be adjusted based on unit system
+        # PARAM KDAMP specifies which TABDMP1 table to use for structural damping
+        lines.append("PARAM   KDAMP   1")
+        lines.append("$ KDAMP=1: Use TABDMP1 with ID=1 for structural damping")
         # PARAM OPPHIPA for higher-order piston theory (includes angle-of-attack effects)
         # Only add if using piston theory (checked later in code)
         if aerodynamic_theory == "PISTON_THEORY" or (aerodynamic_theory is None and aero.mach_number >= 1.5):
@@ -627,6 +630,15 @@ class Sol145BDFGenerator:
 
         # Flutter cards
         lines.append("$ Flutter Analysis")
+        # CRITICAL: Add structural damping table (TABDMP1) for realistic flutter analysis
+        # Without damping, NASTRAN reports zero damping at all speeds (unrealistic)
+        # Typical aerospace structures: 2-5% critical damping (g = 0.02 to 0.05)
+        lines.append("$ Structural Damping Table (frequency-dependent)")
+        # TABDMP1: TID  f1  g1  f2  g2  ...  (frequency in Hz, damping as fraction of critical)
+        # Using constant 3% damping (g=0.03) across all frequencies
+        lines.append("TABDMP1 1       0.0     0.03    1000.0  0.03    ENDT")
+        lines.append("$")
+
         # FLUTTER card: PK method with density (1), Mach (2), reduced freq/velocity (3)
         lines.append("FLUTTER 1       PK      1       2       3       L")
 
