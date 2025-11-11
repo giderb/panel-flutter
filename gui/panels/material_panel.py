@@ -550,8 +550,12 @@ class MaterialPanel(BasePanel):
 
         # CRITICAL FIX: Update display with any existing composite_layers data
         # This ensures loaded project data is displayed when tab is shown
+        print(f"[DEBUG] _show_composite_content: composite_layers has {len(self.composite_layers)} items")
         if self.composite_layers:
+            print(f"[DEBUG] Calling _update_layer_display() to show {len(self.composite_layers)} layers")
             self._update_layer_display()
+        else:
+            print(f"[DEBUG] No composite_layers to display")
 
     def _create_custom_prepreg_section(self, parent):
         """Create custom prepreg material management section."""
@@ -2401,16 +2405,13 @@ For 508×254 mm panel (estimated):
         next_btn.pack(side="right")
 
     def on_show(self):
-        """Called when panel is shown."""
+        """Called when panel is shown - load and display project material data."""
         self.main_window.update_status()
         # Update project warning visibility
         if hasattr(self, '_update_project_warning_visibility'):
             self._update_project_warning_visibility()
 
-    def refresh(self):
-        """Refresh the material panel with loaded project data."""
-        self.on_show()
-
+        # CRITICAL FIX: Load material data when user clicks Material tab
         # Load material data from project if available
         if not self.project_manager.current_project:
             return
@@ -2426,6 +2427,8 @@ For 508×254 mm panel (estimated):
             # CRITICAL: Load data FIRST, then switch tabs
             # This ensures _show_composite_content() sees the new data
 
+            print(f"[DEBUG] Loading CompositeLaminate with {len(material.laminas)} laminas")
+
             # Clear existing layers
             self.composite_layers = []
 
@@ -2439,14 +2442,19 @@ For 508×254 mm panel (estimated):
                 }
                 self.composite_layers.append(layer_data)
 
+            print(f"[DEBUG] Loaded {len(self.composite_layers)} layers into self.composite_layers")
+
             # Load custom prepreg materials into current_layer_materials cache
             if project.custom_prepreg_materials:
                 for prepreg in project.custom_prepreg_materials:
                     if prepreg.name not in self.current_layer_materials:
                         self.current_layer_materials[prepreg.name] = prepreg
+                print(f"[DEBUG] Loaded {len(project.custom_prepreg_materials)} custom prepreg materials")
 
             # NOW switch to composite tab - it will see the loaded data and display it
+            print(f"[DEBUG] Switching to composite tab with {len(self.composite_layers)} layers ready")
             self._select_tab("composite", self._show_composite_content)
+            print(f"[DEBUG] Tab switch completed")
 
         elif isinstance(material, IsotropicMaterial):
             # Switch to isotropic tab
@@ -2467,3 +2475,8 @@ For 508×254 mm panel (estimated):
             # Switch to sandwich tab
             self._select_tab("sandwich", self._show_sandwich_content)
             # Sandwich panel data will be loaded by _show_sandwich_content if needed
+
+    def refresh(self):
+        """Refresh the material panel with loaded project data."""
+        # Just call on_show() which will load and display the data
+        self.on_show()
