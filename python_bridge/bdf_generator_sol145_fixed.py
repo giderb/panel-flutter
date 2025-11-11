@@ -634,9 +634,12 @@ class Sol145BDFGenerator:
         # Without damping, NASTRAN reports zero damping at all speeds (unrealistic)
         # Typical aerospace structures: 2-5% critical damping (g = 0.02 to 0.05)
         lines.append("$ Structural Damping Table (frequency-dependent)")
-        # TABDMP1: TID  f1  g1  f2  g2  ...  (frequency in Hz, damping as fraction of critical)
-        # Using constant 3% damping (g=0.03) across all frequencies
-        lines.append("TABDMP1 1       0.0     0.03    1000.0  0.03    ENDT")
+        # TABDMP1 format: Line 1: TABDMP1 TID TYPE
+        #                 Line 2+: f1 g1 f2 g2 ... ENDT
+        # TYPE = CRIT for critical damping ratio (g), G for structural damping coefficient
+        lines.append("TABDMP1 1       CRIT")
+        # Frequency (Hz) and damping pairs: constant 3% critical damping (0.03) from 0-1000 Hz
+        lines.append("+       0.0     0.03    1000.0  0.03    ENDT")
         lines.append("$")
 
         # FLUTTER card: PK method with density (1), Mach (2), reduced freq/velocity (3)
