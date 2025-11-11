@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.4] - 2025-11-11 - BUG FIX: Target Flight Speed Calculation
+
+### Fixed
+
+#### Target Flutter Speed Using Wrong Source
+- **Issue:** Results panel "Target Flutter Speed" was incorrectly pulling from analysis tab's max velocity parameter instead of calculating true airspeed from Mach number and altitude
+- **User Report:** "target flutter speed in the results page are coming from the analysis tab max speed. it should be linked to the mach and altitude specified in the aerodynamics page"
+- **Root Cause:** Line 218 of results_panel.py used `velocity_max` from analysis config, not the actual flight speed from aerodynamics
+- **Impact:** Showed meaningless comparison (flutter speed vs arbitrary search range) instead of meaningful comparison (flutter speed vs actual flight speed)
+- **Files Modified:**
+  - `gui/panels/results_panel.py:212-224` - Changed to calculate from Mach/altitude
+  - `gui/panels/results_panel.py:847-889` - Added `_calculate_true_airspeed()` method
+  - `gui/panels/results_panel.py:234,239` - Updated display text for clarity
+- **Fix Details:**
+  - Added `_calculate_true_airspeed(mach, altitude)` using ISA standard atmosphere model
+  - Calculates temperature at altitude (troposphere/stratosphere model)
+  - Calculates speed of sound: a = sqrt(gamma * R * T)
+  - Calculates true airspeed: V = M * a
+  - Updated label from "Target Flutter Speed" to "Flight Speed (from Aero)"
+  - Display now shows: "X.XXx flight speed (XXX m/s at M=X.XX)"
+- **Example:**
+  - Mach 1.27 at sea level (0 m)
+  - Temperature: 288.15 K
+  - Speed of sound: 339.8 m/s
+  - True airspeed: 1.27 × 339.8 = 431.6 m/s ✓
+  - Now shows: "5.26x flight speed (432 m/s at M=1.27)" instead of "X.XXx target (2000 m/s)"
+
+#### Updated
+- Version: 2.1.3 → 2.1.4
+- All version references in setup.py
+
+---
+
 ## [2.1.3] - 2025-11-11 - BUG FIX: Project Loading
 
 ### Fixed

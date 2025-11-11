@@ -18,10 +18,10 @@ if requirements_file.exists():
 
 setup(
     name="panel-flutter-analysis",
-    version="2.1.3",
+    version="2.1.4",
     author="Aerospace Engineering Team",
     author_email="aerospace@example.com",
-    description="Certified panel flutter analysis tool for fighter aircraft - Production v2.1.3 (Project Load Fix)",
+    description="Certified panel flutter analysis tool for fighter aircraft - Production v2.1.4 (Flight Speed Fix)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourrepo/panel-flutter",

@@ -213,9 +213,15 @@ a numerically converged solution. Use with caution!
         actual_flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
         config = self.analysis_results.get('configuration', {})
 
-        # Extract target speed from config (if provided by user)
-        # This could come from velocity_max or a specific target_flutter_speed field
-        target_flutter_speed = config.get('target_flutter_speed') or config.get('velocity_max')
+        # Calculate target flutter speed from Mach number and altitude (aerodynamics config)
+        # This is the true airspeed at the specified flight condition
+        mach_number = config.get('mach_number', 0)
+        altitude = config.get('altitude', 0)
+
+        target_flutter_speed = None
+        if mach_number > 0 and altitude is not None:
+            # Calculate speed of sound at altitude using standard atmosphere
+            target_flutter_speed = self._calculate_true_airspeed(mach_number, altitude)
 
         critical_data = [
             ("Actual Flutter Speed", f"{actual_flutter_speed:.1f} m/s"),
@@ -225,12 +231,12 @@ a numerically converged solution. Use with caution!
         if target_flutter_speed and target_flutter_speed > 0:
             speed_ratio = actual_flutter_speed / target_flutter_speed
             if speed_ratio >= 1.0:
-                comparison = f"✅ {speed_ratio:.2f}x target ({target_flutter_speed:.0f} m/s)"
+                comparison = f"✅ {speed_ratio:.2f}x flight speed ({target_flutter_speed:.0f} m/s at M={mach_number:.2f})"
                 comparison_color = "green"
             else:
-                comparison = f"⚠️ {speed_ratio:.2f}x target ({target_flutter_speed:.0f} m/s)"
+                comparison = f"⚠️ {speed_ratio:.2f}x flight speed ({target_flutter_speed:.0f} m/s at M={mach_number:.2f})"
                 comparison_color = "orange"
-            critical_data.append(("Target Flutter Speed", comparison))
+            critical_data.append(("Flight Speed (from Aero)", comparison))
 
         critical_data.extend([
             ("Flutter Frequency", f"{self.analysis_results.get('critical_flutter_frequency', 0):.1f} Hz"),
@@ -242,7 +248,7 @@ a numerically converged solution. Use with caution!
         for label, value in critical_data:
             row = self._add_info_row(critical_card, label, value)
             # Color the target comparison
-            if label == "Target Flutter Speed" and target_flutter_speed:
+            if label == "Flight Speed (from Aero)" and target_flutter_speed:
                 value_label = row.winfo_children()[-1]
                 if hasattr(value_label, 'configure'):
                     value_label.configure(text_color=comparison_color if 'comparison_color' in locals() else None)
@@ -837,6 +843,50 @@ a numerically converged solution. Use with caution!
 
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html)
+
+    def _calculate_true_airspeed(self, mach_number: float, altitude: float) -> float:
+        """
+        Calculate true airspeed from Mach number and altitude using standard atmosphere.
+
+        Args:
+            mach_number: Mach number (dimensionless)
+            altitude: Altitude in meters
+
+        Returns:
+            True airspeed in m/s
+
+        Standard Atmosphere Model (ISA):
+        - Troposphere (h < 11,000 m): T = T0 - L*h
+        - Stratosphere (11,000 m < h < 20,000 m): T = constant
+        - Speed of sound: a = sqrt(gamma * R * T)
+        """
+        import math
+
+        # Constants
+        T0 = 288.15  # Sea level standard temperature (K)
+        L = 0.0065   # Temperature lapse rate (K/m) in troposphere
+        gamma = 1.4  # Ratio of specific heats for air
+        R = 287.05   # Specific gas constant for air (J/(kg·K))
+        T_strat = 216.65  # Stratosphere temperature (K)
+        h_trop = 11000.0  # Tropopause altitude (m)
+
+        # Calculate temperature at altitude
+        if altitude < h_trop:
+            # Troposphere: temperature decreases linearly with altitude
+            temperature = T0 - L * altitude
+        else:
+            # Stratosphere: temperature is constant
+            temperature = T_strat
+
+        # Calculate speed of sound at this temperature
+        # a = sqrt(gamma * R * T)
+        speed_of_sound = math.sqrt(gamma * R * temperature)
+
+        # Calculate true airspeed
+        # V = M * a
+        true_airspeed = mach_number * speed_of_sound
+
+        return true_airspeed
 
     def refresh(self):
         """Refresh the panel."""
