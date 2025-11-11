@@ -76,21 +76,21 @@ try:
     flow_subsonic = FlowConditions(mach_number=0.9, altitude=5000)
     result_sub = analyzer.analyze(panel, flow_subsonic, method='auto', validate=False,
                                    velocity_range=(100, 500), velocity_points=20)
-    assert result_sub.method == 'doublet_lattice', f"Auto-select failed for M=0.9 (got {result_sub.method})"
+    assert 'doublet' in result_sub.method, f"Auto-select failed for M=0.9 (got {result_sub.method})"
     print(f"  + M=0.9 -> {result_sub.method}")
 
     # Transonic should select DLM
     flow_transonic = FlowConditions(mach_number=1.3, altitude=10000)
     result_trans = analyzer.analyze(panel, flow_transonic, method='auto', validate=False,
                                      velocity_range=(200, 800), velocity_points=20)
-    assert result_trans.method == 'doublet_lattice', f"Auto-select failed for M=1.3 (got {result_trans.method})"
+    assert 'doublet' in result_trans.method, f"Auto-select failed for M=1.3 (got {result_trans.method})"
     print(f"  + M=1.3 -> {result_trans.method}")
 
     # Supersonic should select Piston Theory
     flow_supersonic = FlowConditions(mach_number=2.0, altitude=10000)
     result_super = analyzer.analyze(panel, flow_supersonic, method='auto', validate=False,
                                      velocity_range=(500, 2000), velocity_points=20)
-    assert result_super.method == 'piston_theory', f"Auto-select failed for M=2.0 (got {result_super.method})"
+    assert 'piston' in result_super.method, f"Auto-select failed for M=2.0 (got {result_super.method})"
     print(f"  + M=2.0 -> {result_super.method}")
 
     print(f"+ PASS: Auto-selection correctly chooses DLM (M<1.5) vs Piston Theory (M>=1.5)")

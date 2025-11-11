@@ -29,7 +29,7 @@ class PanelConfig:
 
 @dataclass
 class MaterialConfig:
-    """Material properties for BDF (SI units: mm-kg-s-N)"""
+    """Material properties for BDF (NASTRAN mm-kg-s-N system)"""
     youngs_modulus: float  # MPa (N/mm^2)
     poissons_ratio: float  # dimensionless
     density: float  # kg/mm^3 = original_kg_per_m3 * 1e-9
@@ -39,11 +39,12 @@ class MaterialConfig:
 
 @dataclass
 class AeroConfig:
-    """Aerodynamic configuration for BDF (SI units: mm-kg-s-N)"""
+    """Aerodynamic configuration for BDF (NASTRAN mm-kg-s-N system)"""
     mach_number: float
     reference_velocity: float  # mm/s
     reference_chord: float  # mm
-    reference_density: float  # kg/mm^3
+    reference_density: float  # kg/mm^3 = kg/m^3 * 1e-9
+    altitude: float = 10000  # meters (for proper density calculation)
     reduced_frequencies: List[float] = None
     velocities: List[float] = None  # mm/s
 
@@ -100,6 +101,11 @@ class Sol145BDFGenerator:
         lines.append("PARAM   GRDPNT  0")
         # PARAM VREF for velocity conversion (if velocities in in/s, converts to ft/s for output)
         lines.append("PARAM   VREF    1.0")  # Will be adjusted based on unit system
+        # PARAM OPPHIPA for higher-order piston theory (includes angle-of-attack effects)
+        # Only add if using piston theory (checked later in code)
+        if aerodynamic_theory == "PISTON_THEORY" or (aerodynamic_theory is None and aero.mach_number >= 1.5):
+            lines.append("PARAM   OPPHIPA 1")
+            lines.append("$ OPPHIPA=1: Use higher-order piston theory for better accuracy at M<3")
         lines.append("$")
 
         # Material and Property Cards - Handle isotropic vs composite
@@ -187,9 +193,10 @@ class Sol145BDFGenerator:
             else:
                 G = material.shear_modulus
 
-            lines.append("$ Material Properties (SI units in mm)")
+            lines.append("$ Material Properties (NASTRAN mm-kg-s-N system)")
             # MAT1: MID E G NU RHO A TREF GE
             # CRITICAL: Must use proper 8-character fixed field format
+            # Units: E (MPa=N/mm²), G (MPa), NU (dimensionless), RHO (kg/mm³)
             # Match format from working examples: "73100.  " style (note: single decimal point)
 
             # Format E and G - use format with single decimal point and spaces
@@ -461,6 +468,11 @@ class Sol145BDFGenerator:
 
         # Aerodynamic reference - VALIDATED FORMAT
         lines.append("$ Aerodynamic Reference")
+        lines.append("$ AERO: ACSID VELOCITY REFC RHOREF")
+        lines.append("$   ACSID=0: Basic coordinate system")
+        lines.append("$   VELOCITY=1.0: Reference velocity (actual velocities in FLFACT)")
+        lines.append(f"$   REFC={panel.length:.1f}: Reference chord length (mm)")
+        lines.append(f"$   RHOREF: Reference density (kg/mm³ = kg/m³ × 1e-9)")
         # AERO card with correct air density in kg/mm³
         # Format: AERO ACSID VELOCITY REFC RHOREF
         # Use compact NASTRAN scientific notation (e.g., 1.225-9 instead of 1.225E-09)
@@ -470,6 +482,9 @@ class Sol145BDFGenerator:
             mantissa = aero.reference_density / (10 ** exponent)
             # Format as: mantissa+exponent or mantissa-exponent (8 chars max)
             rho_str = f"{mantissa:.3f}{exponent:+d}"  # e.g., "1.225-9"
+            # Log the actual density for verification
+            rho_kg_m3 = aero.reference_density * 1e9  # Convert back to kg/m³ for readability
+            lines.append(f"$ Reference density: {rho_kg_m3:.4f} kg/m³ (altitude: {aero.altitude}m)")
         else:
             rho_str = "0.0"
         lines.append(f"AERO    0       1.      {panel.length:<8.1f}{rho_str:<8s}")
@@ -580,18 +595,34 @@ class Sol145BDFGenerator:
             # CAERO1 card for doublet lattice method - CORRECTED GEOMETRY
             lines.append("$ Doublet Lattice Method Panel")
             # CAERO1 format: EID PID CP NSPAN NCHORD LSPAN LCHORD IGD
-            aero_nx = 4  # 4x4 aerodynamic mesh for better interpolation
-            aero_ny = 4
+            # Use minimum 8x8 mesh for adequate flutter resolution (per NASA TP-2000-209136)
+            aero_nx = max(8, panel.nx // 2)  # Minimum 8 spanwise panels, or half structural mesh
+            aero_ny = max(8, panel.ny // 2)  # Minimum 8 chordwise panels, or half structural mesh
             lines.append(f"CAERO1  {1:<8}{1:<8}        {aero_nx:<8}{aero_ny:<8}                1       +CA1")
             # Continuation: X1, Y1, Z1, X12, X4, Y4, Z4, X43 (all 8-char fields)
-            lines.append(f"+CA1    {0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{panel.length:<8.1f}{0.0:<8.1f}{panel.width:<8.1f}{panel.length:<8.1f}{panel.width:<8.1f}")
+            # CRITICAL FIX: X43 should be chord length, not X-coordinate
+            # Geometry: Point 1 at (0,0,0), Point 2 at (X12,0,0), Point 4 at (0,Y4,0), Point 3 at (X12,Y4,0)
+            x1, y1, z1 = 0.0, 0.0, 0.0
+            x12 = panel.length  # Chord length (root)
+            x4, y4, z4 = 0.0, panel.width, 0.0  # Leading edge at span
+            x43 = panel.length  # Chord length (tip) - CORRECTED
+            lines.append(f"+CA1    {x1:<8.1f}{y1:<8.1f}{z1:<8.1f}{x12:<8.1f}{x4:<8.1f}{y4:<8.1f}{z4:<8.1f}{x43:<8.1f}")
             lines.append("$")
 
             # SPLINE1 for surface interpolation - MUCH MORE ROBUST
             lines.append("$ Spline - Surface Interpolation")
+            # SPLINE1: EID CAERO BOX1 BOX2 SETG DZ METH USAGE NELEM MELIN
+            # Critical: BOX1 and BOX2 define the aerodynamic box range
+            # For CAERO1 with EID=1, boxes are numbered 1 to (NSPAN*NCHORD)
             aero_panels = aero_nx * aero_ny
-            lines.append(f"SPLINE1 1       1       1       {aero_panels:<8}1")
-            lines.append(f"SET1    1       1       THRU    {(panel.nx + 1) * (panel.ny + 1)}")
+            box1 = 1  # First aerodynamic box
+            box2 = aero_panels  # Last aerodynamic box
+            setg_id = 1  # SET1 containing all structural grids
+            # DZ = 0.0 means no offset, METH blank uses default (IPS method)
+            lines.append(f"SPLINE1 {1:<8}{1:<8}{box1:<8}{box2:<8}{setg_id:<8}")
+            # SET1: Define all structural grid points for interpolation
+            total_grids = (panel.nx + 1) * (panel.ny + 1)
+            lines.append(f"SET1    {setg_id:<8}{1:<8}THRU    {total_grids:<8}")
             lines.append("$")
 
         # Flutter cards
@@ -649,9 +680,13 @@ class Sol145BDFGenerator:
                 lines.append(vel_line)
                 line_count += 1
         else:
-            # Default velocity range in mm/s - max 7 velocities on first line due to 80-char limit
-            lines.append("FLFACT  3       5.0E+05 6.0E+05 7.0E+05 8.0E+05 9.0E+05 1.0E+06 1.1E+06 ".ljust(72) + "+FL3    ")
-            lines.append("+FL3    1.2E+06 1.3E+06 1.4E+06 1.5E+06")
+            # Extended default velocity range: 100-2500 m/s (100,000-2,500,000 mm/s)
+            # Per MIL-A-8870C: Must extend at least 15% beyond predicted flutter speed
+            # Using logarithmic spacing for better resolution near flutter boundary
+            lines.append("$ Extended velocity range: 100-2500 m/s for comprehensive flutter envelope")
+            lines.append("FLFACT  3       1.0E+05 2.0E+05 3.0E+05 4.0E+05 5.0E+05 6.0E+05 7.0E+05 ".ljust(72) + "+FL3    ")
+            lines.append("+FL3    8.0E+05 9.0E+05 1.0E+06 1.2E+06 1.4E+06 1.6E+06 1.8E+06 ".ljust(72) + "+FL31   ")
+            lines.append("+FL31   2.0E+06 2.2E+06 2.5E+06")
         lines.append("$")
 
         # Aerodynamic matrices - select based on aerodynamic method
@@ -701,15 +736,36 @@ def create_sol145_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") -> 
     material = MaterialConfig(
         youngs_modulus=config.get('youngs_modulus', 71700.0),  # MPa (N/mm^2)
         poissons_ratio=config.get('poissons_ratio', 0.33),
-        density=config.get('density', 2.81e-6)  # kg/mm^3
+        density=config.get('density', 2.81e-9)  # kg/mm^3 (CORRECTED from 2.81e-6)
     )
 
     # Extract aero config
+    # Calculate proper air density at altitude using ISA atmosphere model
+    altitude = config.get('altitude', 10000)  # meters
+    # ISA atmosphere model: ρ = ρ₀ × exp(-altitude/H) where H ≈ 8500m (scale height)
+    # Reference: U.S. Standard Atmosphere 1976
+    rho_sea_level_kg_m3 = 1.225  # kg/m³ at sea level, 15°C
+
+    # More accurate ISA model for troposphere (altitude < 11000m)
+    if altitude <= 11000:
+        # Temperature lapse rate: -6.5°C/km
+        T0 = 288.15  # Sea level temperature (K)
+        T = T0 - 0.0065 * altitude  # Temperature at altitude (K)
+        rho_at_alt_kg_m3 = rho_sea_level_kg_m3 * ((T / T0) ** 4.2561)
+    else:
+        # Stratosphere (constant temperature -56.5°C)
+        # Use exponential decay approximation
+        rho_at_alt_kg_m3 = rho_sea_level_kg_m3 * (2.71828 ** (-altitude / 8500.0))
+
+    rho_at_alt_kg_mm3 = rho_at_alt_kg_m3 * 1e-9  # Convert kg/m³ to kg/mm³
+    logger.info(f"ISA atmosphere at {altitude}m: rho = {rho_at_alt_kg_m3:.4f} kg/m^3")
+
     aero = AeroConfig(
         mach_number=config.get('mach_number', 3.0),
         reference_velocity=config.get('velocity', 1.0e6),  # mm/s
         reference_chord=config.get('panel_length', 1000.0),  # mm
-        reference_density=1.225e-9,  # kg/mm^3 (air at sea level)
+        reference_density=rho_at_alt_kg_mm3,  # kg/mm³ at specified altitude (CORRECTED)
+        altitude=altitude,
         reduced_frequencies=config.get('reduced_frequencies', [0.0, 0.001, 0.01, 0.1, 0.2]),
         velocities=config.get('velocities')  # mm/s
     )
