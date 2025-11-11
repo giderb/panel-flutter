@@ -233,6 +233,12 @@ class F06Parser:
                         if freq_ratio < 0.2:  # Frequency within 20%
                             # Check for flutter onset (negative to positive damping)
                             if m1.damping < 0 and m2.damping > 0:
+                                # Filter out numerical noise (damping very close to zero)
+                                # These are often zero-frequency modes or numerical artifacts
+                                if abs(m1.damping) < 0.1 or abs(m2.damping) < 0.1:
+                                    logger.debug(f"Filtered numerical zero: V1={v1/1000:.1f}m/s g1={m1.damping:.6f}, V2={v2/1000:.1f}m/s g2={m2.damping:.6f}")
+                                    continue
+
                                 # Linear interpolation to zero damping
                                 d1 = m1.damping
                                 d2 = m2.damping
@@ -242,6 +248,9 @@ class F06Parser:
                                 t = -d1 / (d2 - d1)
                                 critical_velocity = v1 + t * (v2 - v1)
                                 critical_frequency = f1 + t * (f2 - f1)
+
+                                logger.info(f"Flutter detected: V={critical_velocity/1000:.1f} m/s, f={critical_frequency:.1f} Hz")
+                                logger.info(f"  Transition: V1={v1/1000:.1f}m/s (g={d1:.4f}), V2={v2/1000:.1f}m/s (g={d2:.4f})")
                                 break
 
                 if critical_velocity is not None:

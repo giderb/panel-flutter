@@ -286,22 +286,45 @@ class IntegratedFlutterExecutor:
             # Step 6: Generate comprehensive results
             execution_time = time.time() - start_time
 
-            # Use NASTRAN results if available, otherwise physics-based
-            if nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
-                # NASTRAN found flutter - use those results
+            # CRITICAL: Result priority depends on Mach number and aerodynamic theory validity
+            # For M < 1.0: ONLY use Python DLM (piston theory invalid in NASTRAN)
+            # For M > 1.2: Can use NASTRAN piston theory or cross-validate
+
+            if flow.mach_number < 1.0:
+                # SUBSONIC/TRANSONIC: Piston theory invalid, only trust Python DLM
+                converged = physics_result.converged
+                flutter_speed = physics_result.flutter_speed
+                flutter_frequency = physics_result.flutter_frequency
+                flutter_mode = physics_result.flutter_mode
+                self.logger.info(f"M={flow.mach_number:.2f} < 1.0: Using Python DLM results")
+                self.logger.info(f"  Flutter: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+
+                if nastran_result and nastran_result.get('critical_flutter_velocity'):
+                    nastran_v = nastran_result['critical_flutter_velocity'] / 1000.0
+                    self.logger.warning(f"  NASTRAN reported V={nastran_v:.1f} m/s but this is likely false positive (invalid theory)")
+
+            elif nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
+                # SUPERSONIC: NASTRAN piston theory valid, use it
                 # Convert from mm/s to m/s
                 converged = True
                 flutter_speed = nastran_result['critical_flutter_velocity'] / 1000.0  # mm/s to m/s
                 flutter_frequency = nastran_result['critical_flutter_frequency']
                 flutter_mode = 1  # From NASTRAN
-                self.logger.info(f"Using NASTRAN results: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+                self.logger.info(f"M={flow.mach_number:.2f} > 1.0: Using NASTRAN piston theory results")
+                self.logger.info(f"  Flutter: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+
+                # Cross-validate with physics if available
+                if physics_result.converged and physics_result.flutter_speed < 9000:
+                    delta = abs(flutter_speed - physics_result.flutter_speed) / flutter_speed * 100
+                    if delta > 20:
+                        self.logger.warning(f"  Python DLM disagrees: V={physics_result.flutter_speed:.1f} m/s ({delta:.1f}% difference)")
             else:
-                # Use physics-based results
+                # FALLBACK: Use physics-based results
                 converged = physics_result.converged
                 flutter_speed = physics_result.flutter_speed
                 flutter_frequency = physics_result.flutter_frequency
                 flutter_mode = physics_result.flutter_mode
-                self.logger.info(f"Using physics-based results: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+                self.logger.info(f"Using Python DLM fallback: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
 
             results = {
                 'success': True,
