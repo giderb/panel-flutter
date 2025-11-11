@@ -1,0 +1,13 @@
+{
+  "total_tests": 10,
+  "passed": 6,
+  "failed": 4,
+  "pass_rate": 60.0,
+  "critical_passed": 2,
+  "critical_total": 4,
+  "recommendation": "NOT READY FOR CERTIFICATION",
+  "safety_level": "UNSAFE - Critical issues must be resolved",
+  "detailed_results": [
+    {
+      "test": "Dowell M=2.0",
+      "passed": 
