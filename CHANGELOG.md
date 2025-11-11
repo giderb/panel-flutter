@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.3] - 2025-11-11 - BUG FIX: Project Loading
+
+### Fixed
+
+#### Composite Material Properties Not Loading from Saved Projects
+- **Issue:** When loading a saved project with composite materials, the material panel would not restore the laminate configuration
+- **Root Cause:** The `refresh()` method in material_panel.py only updated the status bar, did not load material data from project
+- **Impact:** Users lost all composite lamina configurations when reopening projects
+- **Files Modified:**
+  - `gui/panels/material_panel.py:2405-2464` - Complete rewrite of `refresh()` method
+  - Added `SandwichPanel` import (line 11)
+- **Fix Details:**
+  - `refresh()` now checks `project.material` type (CompositeLaminate, IsotropicMaterial, SandwichPanel)
+  - Automatically switches to correct material tab based on loaded material type
+  - Populates `self.composite_layers` with laminas from saved project
+  - Restores material properties to GUI input fields
+  - Refreshes layer list display to show loaded laminas
+- **Verification:**
+  - Composite projects now reload with all 32 laminas (in test case)
+  - Custom prepreg materials preserved in project
+  - Material properties correctly displayed in GUI fields
+
+#### Updated
+- Version: 2.1.2 → 2.1.3
+- All version references in setup.py
+
+---
+
 ## [2.1.2] - 2025-11-11 - CRITICAL HOTFIX: Double Unit Conversion
 
 ### 🔴 CRITICAL BUG FIX - FLIGHT SAFETY ISSUE

@@ -8,7 +8,7 @@ import tkinter as tk
 from .base_panel import BasePanel
 from models.material import (
     IsotropicMaterial, OrthotropicMaterial, CompositeLaminate,
-    CompositeLamina, PredefinedMaterials, MaterialType
+    CompositeLamina, PredefinedMaterials, MaterialType, SandwichPanel
 )
 
 class MaterialPanel(BasePanel):
@@ -2403,5 +2403,62 @@ For 508×254 mm panel (estimated):
             self._update_project_warning_visibility()
 
     def refresh(self):
-        """Refresh the material panel."""
+        """Refresh the material panel with loaded project data."""
         self.on_show()
+
+        # Load material data from project if available
+        if not self.project_manager.current_project:
+            return
+
+        project = self.project_manager.current_project
+        if not project.material:
+            return
+
+        material = project.material
+
+        # Determine material type and load data
+        if isinstance(material, CompositeLaminate):
+            # Switch to composite tab
+            self._select_tab("composite", self._show_composite_content)
+
+            # Clear existing layers
+            self.composite_layers = []
+
+            # Load laminas from project
+            for lamina in material.laminas:
+                layer_data = {
+                    'material_name': lamina.material.name,
+                    'thickness': lamina.thickness,
+                    'orientation': lamina.orientation,
+                    'material_props': lamina.material
+                }
+                self.composite_layers.append(layer_data)
+
+            # Load custom prepreg materials if available
+            if project.custom_prepreg_materials:
+                # Custom prepregs are already loaded as part of project
+                pass
+
+            # Refresh the layer list display
+            if hasattr(self, '_update_layer_list'):
+                self._update_layer_list()
+
+        elif isinstance(material, IsotropicMaterial):
+            # Switch to isotropic tab
+            self._select_tab("isotropic", self._show_isotropic_content)
+
+            # Populate isotropic fields if they exist
+            if hasattr(self, 'iso_entries'):
+                self.iso_entries['name'].delete(0, 'end')
+                self.iso_entries['name'].insert(0, material.name)
+                self.iso_entries['youngs'].delete(0, 'end')
+                self.iso_entries['youngs'].insert(0, str(material.youngs_modulus / 1e9))  # Convert to GPa
+                self.iso_entries['poisson'].delete(0, 'end')
+                self.iso_entries['poisson'].insert(0, str(material.poissons_ratio))
+                self.iso_entries['density'].delete(0, 'end')
+                self.iso_entries['density'].insert(0, str(material.density))
+
+        elif hasattr(material, 'face_material'):  # SandwichPanel check
+            # Switch to sandwich tab
+            self._select_tab("sandwich", self._show_sandwich_content)
+            # Sandwich panel data will be loaded by _show_sandwich_content if needed

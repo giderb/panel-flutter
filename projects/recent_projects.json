@@ -3,7 +3,7 @@
     "id": "20251111_174830_bberkuk",
     "name": "bberkuk",
     "created_at": "2025-11-11T17:48:30.131754",
-    "modified_at": "2025-11-11T21:13:01.813474",
+    "modified_at": "2025-11-11T21:30:23.573397",
     "description": null,
     "geometry": {
       "length": 0.45,
@@ -205,7 +205,7 @@
             "g2z": null,
             "description": "Custom prepreg material"
           },
-          "thickness": 0.125,
+          "thickness": 0.184,
           "orientation": 0
         },
         {
@@ -225,7 +225,7 @@
             "g2z": null,
             "description": "Custom prepreg material"
           },
-          "thickness": 0.125,
+          "thickness": 0.184,
           "orientation": 0
         },
         {
@@ -525,7 +525,7 @@
             "g2z": null,
             "description": "Custom prepreg material"
           },
-          "thickness": 0.125,
+          "thickness": 0.184,
           "orientation": 0
         },
         {
@@ -545,7 +545,7 @@
             "g2z": null,
             "description": "Custom prepreg material"
           },
-          "thickness": 0.125,
+          "thickness": 0.184,
           "orientation": 0
         },
         {
@@ -689,10 +689,10 @@
           "orientation": 0
         }
       ],
-      "total_thickness": 5.652000000000003,
+      "total_thickness": 5.888000000000003,
       "description": null
     },
-    "structural_model": "<models.structural.StructuralModel object at 0x000001EA25347C50>",
+    "structural_model": "<models.structural.StructuralModel object at 0x0000027A4E727090>",
     "custom_prepreg_materials": [
       {
         "type": "orthotropic",
