@@ -408,6 +408,45 @@ class IntegratedFlutterExecutor:
             # Fallback for single material attribute
             material = model.material
 
+        # CRITICAL: Check for composite/orthotropic materials
+        # Physics-based analysis only supports isotropic materials accurately
+        if material:
+            try:
+                from models.material import IsotropicMaterial
+
+                # Check if material is NOT isotropic
+                if not isinstance(material, IsotropicMaterial):
+                    material_name = getattr(material, 'name', str(type(material).__name__))
+
+                    # Log critical warning
+                    self.logger.error(
+                        f"⚠️ CRITICAL LIMITATION: Material '{material_name}' is COMPOSITE/ORTHOTROPIC.\n"
+                        f"   Physics-based flutter analysis treats it as ISOTROPIC (20-50% ERROR).\n"
+                        f"   For accurate composite analysis, NASTRAN SOL 145 is REQUIRED."
+                    )
+
+                    # If NASTRAN path exists, this is acceptable (NASTRAN will handle composites correctly)
+                    # If no NASTRAN, this is a critical error for certification
+                    if not self.nastran_path:
+                        raise ValueError(
+                            f"CRITICAL ERROR: Material '{material_name}' requires NASTRAN for accurate analysis.\n\n"
+                            f"REASON: Physics-based flutter analysis only supports ISOTROPIC materials.\n"
+                            f"        Composite/orthotropic materials will have 20-50% prediction error.\n\n"
+                            f"OPTIONS:\n"
+                            f"  1. Install NASTRAN and provide path to executable\n"
+                            f"  2. Switch to isotropic material (aluminum, titanium, steel)\n"
+                            f"  3. Accept large error margin (NOT RECOMMENDED for flight certification)\n\n"
+                            f"See COMPOSITE_MATERIALS_CRITICAL_FINDING.md for details."
+                        )
+
+                    # NASTRAN exists - warn user but allow to continue
+                    self.logger.warning(
+                        f"Continuing with NASTRAN analysis. Physics-based results will be approximate."
+                    )
+            except ImportError:
+                # models.material not available - skip check
+                self.logger.debug("Material type checking skipped (models.material not imported)")
+
         if material:
             E = getattr(material, 'youngs_modulus', 71.7e9)
             nu = getattr(material, 'poissons_ratio', 0.33)
