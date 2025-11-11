@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.5] - 2025-11-11 - BUG FIX: Composite Layers Not Displaying
+
+### Fixed
+
+#### Composite Laminate Plies Still Not Showing After v2.1.3 Fix
+- **Issue:** User still reported "I still cannot see laminate plies in saved project" after v2.1.3
+- **Root Cause #1:** Wrong method name - called `_update_layer_list()` instead of `_update_layer_display()`
+- **Root Cause #2:** Wrong dict key - used `'material_props'` instead of `'material'` in layer data structure
+- **Files Modified:**
+  - `gui/panels/material_panel.py:2443` - Fixed method name from `_update_layer_list()` to `_update_layer_display()`
+  - `gui/panels/material_panel.py:2430` - Fixed dict key from `'material_props'` to `'material'`
+  - `gui/panels/material_panel.py:2437-2444` - Added custom prepreg loading and display update
+- **Fix Details:**
+  - Layer data structure must match format used when adding layers manually:
+    ```python
+    {
+        'material': OrthotropicMaterial object,  # NOT 'material_props'
+        'material_name': "Material Name",
+        'thickness': 0.125,
+        'orientation': 0
+    }
+    ```
+  - Custom prepreg materials now loaded into `self.current_layer_materials` cache
+  - Call `_update_custom_prepreg_list()` to refresh custom materials display
+  - Call `_update_layer_display()` (not `_update_layer_list()`) to refresh layers
+- **Testing:**
+  - Open bberkuk project with 32 laminas
+  - Composite tab should now show all 32 plies with IM7 material
+  - Custom prepreg materials should appear in dropdown
+
+#### Updated
+- Version: 2.1.4 → 2.1.5
+- All version references in setup.py
+
+---
+
 ## [2.1.4] - 2025-11-11 - BUG FIX: Target Flight Speed Calculation
 
 ### Fixed

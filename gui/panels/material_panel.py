@@ -2427,21 +2427,25 @@ For 508×254 mm panel (estimated):
             # Load laminas from project
             for lamina in material.laminas:
                 layer_data = {
+                    'material': lamina.material,  # OrthotropicMaterial object
                     'material_name': lamina.material.name,
                     'thickness': lamina.thickness,
-                    'orientation': lamina.orientation,
-                    'material_props': lamina.material
+                    'orientation': lamina.orientation
                 }
                 self.composite_layers.append(layer_data)
 
-            # Load custom prepreg materials if available
+            # Load custom prepreg materials into current_layer_materials cache
             if project.custom_prepreg_materials:
-                # Custom prepregs are already loaded as part of project
-                pass
+                for prepreg in project.custom_prepreg_materials:
+                    if prepreg.name not in self.current_layer_materials:
+                        self.current_layer_materials[prepreg.name] = prepreg
+                # Update the custom prepreg list display
+                if hasattr(self, '_update_custom_prepreg_list'):
+                    self._update_custom_prepreg_list()
 
             # Refresh the layer list display
-            if hasattr(self, '_update_layer_list'):
-                self._update_layer_list()
+            if hasattr(self, '_update_layer_display'):
+                self._update_layer_display()
 
         elif isinstance(material, IsotropicMaterial):
             # Switch to isotropic tab
