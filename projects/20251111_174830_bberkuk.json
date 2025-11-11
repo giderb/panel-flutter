@@ -2,33 +2,711 @@
   "id": "20251111_174830_bberkuk",
   "name": "bberkuk",
   "created_at": "2025-11-11T17:48:30.131754",
-  "modified_at": "2025-11-11T20:15:31.793515",
+  "modified_at": "2025-11-11T21:13:01.813474",
   "description": null,
   "geometry": {
-    "length": 0.5,
+    "length": 0.45,
     "width": 0.4,
-    "thickness": 0.005,
+    "thickness": 0.00565,
     "n_chord": 20,
     "n_span": 10,
     "element_type": "CQUAD4"
   },
   "boundary_conditions": "SSSS",
-  "aerodynamic_config": null,
-  "analysis_params": null,
+  "aerodynamic_config": {
+    "flow_conditions": {
+      "mach_number": 1.27,
+      "altitude": 0.0,
+      "temperature": 288.15,
+      "pressure": 101325,
+      "density": 1.225
+    },
+    "theory": "DOUBLET_LATTICE",
+    "mesh": {
+      "nx_aero": 20,
+      "ny_aero": 20,
+      "z_offset": 0.0
+    }
+  },
+  "analysis_params": {
+    "n_modes": "15",
+    "mesh_nx": "10",
+    "mesh_ny": "10",
+    "velocity_min": "100",
+    "velocity_max": "2500",
+    "velocity_points": "50",
+    "method": "nastran",
+    "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
+  },
   "results": null,
   "project_directory": "projects\\20251111_174830_bberkuk",
   "bdf_file_path": null,
   "f06_file_path": null,
   "material": {
-    "type": "isotropic",
+    "type": "composite",
     "id": 1,
-    "name": "Aluminum 6061-T6",
-    "youngs_modulus": 71700000000.0,
-    "poissons_ratio": 0.33,
-    "shear_modulus": 26900000000.0,
-    "density": 2810,
-    "thermal_expansion": 2.1e-05,
-    "description": "Common aerospace aluminum alloy"
+    "name": "[0/\u00b145/90]s",
+    "laminas": [
+      {
+        "id": 1,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 0
+      },
+      {
+        "id": 2,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 3,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 4,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 5,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 6,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 7,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 8,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      },
+      {
+        "id": 9,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      },
+      {
+        "id": 10,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 11,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 12,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 13,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 14,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 15,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 16,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 0
+      },
+      {
+        "id": 17,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 0
+      },
+      {
+        "id": 18,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 19,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 20,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 21,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 22,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 23,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 24,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      },
+      {
+        "id": 25,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.125,
+        "orientation": 0
+      },
+      {
+        "id": 26,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 27,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 28,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 29,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 90
+      },
+      {
+        "id": 30,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": -45
+      },
+      {
+        "id": 31,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 45
+      },
+      {
+        "id": 32,
+        "material": {
+          "type": "orthotropic",
+          "id": 100,
+          "name": "IM7",
+          "e1": 162000000000.0,
+          "e2": 9500000000.0,
+          "nu12": 0.3,
+          "g12": 4800000000.0,
+          "density": 1.6,
+          "alpha1": null,
+          "alpha2": null,
+          "g1z": null,
+          "g2z": null,
+          "description": "Custom prepreg material"
+        },
+        "thickness": 0.184,
+        "orientation": 0
+      }
+    ],
+    "total_thickness": 5.652000000000003,
+    "description": null
   },
-  "structural_model": "<models.structural.StructuralModel object at 0x00000280CD79BD50>"
+  "structural_model": "<models.structural.StructuralModel object at 0x000001EA25347C50>",
+  "custom_prepreg_materials": [
+    {
+      "type": "orthotropic",
+      "id": 100,
+      "name": "IM7",
+      "e1": 162000000000.0,
+      "e2": 9500000000.0,
+      "nu12": 0.3,
+      "g12": 4800000000.0,
+      "density": 1.6,
+      "alpha1": null,
+      "alpha2": null,
+      "g1z": null,
+      "g2z": null,
+      "description": "Custom prepreg material"
+    }
+  ]
 }

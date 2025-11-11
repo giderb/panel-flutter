@@ -301,14 +301,14 @@ class IntegratedFlutterExecutor:
                 self.logger.info(f"  Flutter: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
 
                 if nastran_result and nastran_result.get('critical_flutter_velocity'):
-                    nastran_v = nastran_result['critical_flutter_velocity'] / 100.0  # NASTRAN outputs cm/s
+                    nastran_v = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
                     self.logger.warning(f"  NASTRAN reported V={nastran_v:.1f} m/s but this is likely false positive (invalid theory)")
 
             elif nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
                 # SUPERSONIC: NASTRAN piston theory valid, use it
-                # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
+                # CRITICAL FIX v2.1.2: F06 parser already converts cm/s to m/s, don't divide again
                 converged = True
-                flutter_speed = nastran_result['critical_flutter_velocity'] / 100.0  # cm/s to m/s
+                flutter_speed = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
                 flutter_frequency = nastran_result['critical_flutter_frequency']
                 flutter_mode = 1  # From NASTRAN
                 self.logger.info(f"M={flow.mach_number:.2f} > 1.0: Using NASTRAN piston theory results")
@@ -683,13 +683,11 @@ class IntegratedFlutterExecutor:
                        nastran_result: Dict[str, Any]) -> Dict[str, Any]:
         """Cross-validate physics and NASTRAN results"""
 
-        # Get NASTRAN flutter speed (convert from cm/s to m/s if needed)
-        # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
+        # Get NASTRAN flutter speed (F06 parser already returns m/s)
+        # CRITICAL FIX v2.1.2: F06 parser already converts cm/s to m/s, don't convert again
         nastran_speed = nastran_result.get('critical_flutter_velocity')
-        self.logger.info(f"NASTRAN velocity from F06: {nastran_speed} cm/s")
-        if nastran_speed and nastran_speed > 100:  # Likely in cm/s
-            nastran_speed = nastran_speed / 100.0  # Convert cm/s to m/s
-            self.logger.info(f"Converted to: {nastran_speed} m/s")
+        if nastran_speed:
+            self.logger.info(f"NASTRAN velocity from F06 parser: {nastran_speed:.1f} m/s")
 
         comparison = {
             'physics_flutter_speed': physics_result.flutter_speed,
@@ -778,13 +776,9 @@ class IntegratedFlutterExecutor:
                         frequencies.append(critical_pt.frequency)
 
                 if velocities:
-                    # Get critical values
+                    # Get critical values (F06 parser already returns m/s)
                     critical_v = nastran_result.get('critical_flutter_velocity')
                     critical_f = nastran_result.get('critical_flutter_frequency')
-
-                    # Convert critical velocity from mm/s to m/s if needed
-                    if critical_v and critical_v > 1000:
-                        critical_v = critical_v / 1000.0
 
                     return {
                         'velocities': velocities,

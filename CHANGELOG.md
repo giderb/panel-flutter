@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.2] - 2025-11-11 - CRITICAL HOTFIX: Double Unit Conversion
+
+### 🔴 CRITICAL BUG FIX - FLIGHT SAFETY ISSUE
+
+**Issue:** Flutter velocities displayed at **100x too low** due to double unit conversion
+
+**Example:** Composite panel with actual flutter at 2,273 m/s displayed as 22.7 m/s in GUI
+
+**Root Cause:** Velocity was being converted from cm/s to m/s **TWICE**:
+1. F06 parser converted cm/s → m/s (correct, added in v2.1.1)
+2. Executor ALSO divided by 100 (wrong, should have been removed in v2.1.1)
+
+**Impact:** ALL NASTRAN-based supersonic flutter analyses in v2.1.1 were 100x too low
+
+**User Report:** "For 5.6 mm composite panel under 1.27 Mach, critical velocity is 22.7 m/s! This cannot be real."
+
+### Fixed
+
+#### CRITICAL: Removed Double Unit Conversion
+- **Files Modified:**
+  - `python_bridge/integrated_analysis_executor.py` (4 locations: lines 304, 311, 686-690, 783-785)
+- **Bug:** Executor divided by 100 even though parser already returned m/s
+- **Fix:** Removed all redundant conversions - parser converts once, executor uses value directly
+- **Impact:** Fixes ALL v2.1.1 supersonic NASTRAN results (were 100x too low)
+- **Verification:**
+  - F06 parser test: Returns 2,273.1 m/s ✓
+  - Composite panel (560×400×5.6mm, M=1.27): Should show ~2,273 m/s (was 22.7 m/s)
+  - Physical validation: Result is now in expected range for composites at M=1.27
+
+#### Updated
+- Version: 2.1.1 → 2.1.2
+- Updated all version references and documentation
+
+### Documentation
+- Created `DOUBLE_CONVERSION_BUG_FIX.md` with detailed analysis
+- Updated comments in code to clarify units at each stage
+
+### Action Required
+⚠️ **ALL analyses from v2.1.0 and v2.1.1 MUST be re-run!**
+- v2.1.0 results: multiply by 10 to get correct values
+- v2.1.1 results: multiply by 100 to get correct values
+- v2.1.2 results: correct as displayed
+
+---
+
 ## [2.1.1] - 2025-11-11 - CRITICAL HOTFIX: Multiple Critical Bugs
 
 ### 🔴 CRITICAL BUG FIXES - FLIGHT SAFETY ISSUES
