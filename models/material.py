@@ -417,80 +417,106 @@ class SandwichPanel:
         }
 
 class PredefinedMaterials:
-    """Predefined aerospace materials library."""
+    """Predefined aerospace materials library from TF-X Stress Toolbox."""
+
+    # ========== METALLIC MATERIALS ==========
 
     @staticmethod
-    def aluminum_6061() -> IsotropicMaterial:
-        """Aluminum 6061-T6."""
+    def aluminum_7050_t7451() -> IsotropicMaterial:
+        """Aluminum 7050-T7451 (1.5-2.0 in.)."""
         return IsotropicMaterial(
             id=1,
-            name="Aluminum 6061-T6",
-            youngs_modulus=71.7e9,  # 71.7 GPa
-            poissons_ratio=0.33,
-            shear_modulus=26.9e9,  # 26.9 GPa
-            density=2810,  # kg/m³
-            thermal_expansion=21e-6,  # 1/K
-            description="Common aerospace aluminum alloy"
+            name="7050-T7451",
+            youngs_modulus=71.008e9,  # 71.008 GPa (from TF-X)
+            poissons_ratio=0.33,  # from TF-X
+            shear_modulus=26.696e9,  # 26.696 GPa (from TF-X)
+            density=2830,  # kg/m³ (standard for 7050)
+            thermal_expansion=23.4e-6,  # 1/K (standard for 7xxx series)
+            description="High-strength aluminum alloy, TF-X Stress Toolbox"
         )
 
     @staticmethod
-    def steel_4130() -> IsotropicMaterial:
-        """Steel 4130."""
+    def aluminum_2050_t84() -> IsotropicMaterial:
+        """Aluminum 2050-T84 (0.5-1.5 in.)."""
         return IsotropicMaterial(
             id=2,
-            name="Steel 4130",
-            youngs_modulus=207e9,  # 207 GPa
-            poissons_ratio=0.30,
-            shear_modulus=80e9,  # 80 GPa
-            density=7850,  # kg/m³
-            thermal_expansion=12.3e-6,  # 1/K
-            description="High-strength low-alloy steel"
+            name="2050-T84",
+            youngs_modulus=75.145e9,  # 75.145 GPa (from TF-X)
+            poissons_ratio=0.33,  # from TF-X
+            shear_modulus=28.251e9,  # 28.251 GPa (from TF-X)
+            density=2700,  # kg/m³ (standard for 2xxx series)
+            thermal_expansion=22.5e-6,  # 1/K (standard for 2xxx series)
+            description="High damage-tolerance aluminum-lithium alloy, TF-X Stress Toolbox"
         )
 
     @staticmethod
     def titanium_6al4v() -> IsotropicMaterial:
-        """Titanium Ti-6Al-4V."""
+        """Titanium Ti-6Al-4V Annealed (0.18-2.0 in.)."""
         return IsotropicMaterial(
             id=3,
-            name="Titanium Ti-6Al-4V",
-            youngs_modulus=113.8e9,  # 113.8 GPa
-            poissons_ratio=0.32,
-            shear_modulus=44e9,  # 44 GPa
-            density=4430,  # kg/m³
-            thermal_expansion=8.6e-6,  # 1/K
-            description="Common aerospace titanium alloy"
+            name="Ti-6Al-4V",
+            youngs_modulus=119.266e9,  # 119.266 GPa (from TF-X)
+            poissons_ratio=0.31,  # from TF-X
+            shear_modulus=45.522e9,  # 45.522 GPa (from TF-X)
+            density=4430,  # kg/m³ (standard for Ti-6Al-4V)
+            thermal_expansion=8.6e-6,  # 1/K (standard)
+            description="Common aerospace titanium alloy, TF-X Stress Toolbox"
         )
 
+    # ========== COMPOSITE MATERIALS ==========
+
     @staticmethod
-    def carbon_fiber_epoxy() -> OrthotropicMaterial:
-        """Carbon Fiber/Epoxy (IM7/8552)."""
+    def im7_m91() -> OrthotropicMaterial:
+        """IM7/M91 194 g/m² unidirectional carbon fiber."""
         return OrthotropicMaterial(
             id=4,
-            name="Carbon Fiber/Epoxy (IM7/8552)",
-            e1=171e9,  # 171 GPa
-            e2=9.08e9,  # 9.08 GPa
-            nu12=0.32,
-            g12=5.29e9,  # 5.29 GPa
-            density=1570,  # kg/m³
-            alpha1=-0.5e-6,  # 1/K
-            alpha2=28.1e-6,  # 1/K
-            description="Unidirectional carbon fiber composite"
+            name="IM7/M91",
+            e1=162.0e9,  # 162 GPa (from TF-X)
+            e2=8.5e9,  # 8.5 GPa (from TF-X)
+            nu12=0.34,  # from TF-X
+            g12=4.9e9,  # 4.9 GPa (from TF-X)
+            density=1560,  # kg/m³ (typical for IM7/epoxy composites)
+            alpha1=-0.5e-6,  # 1/K (typical for carbon fiber)
+            alpha2=28e-6,  # 1/K (typical for epoxy matrix)
+            g1z=4.9e9,  # Same as G12
+            g2z=3.0e9,  # Typical for epoxy matrix
+            description="High-modulus carbon fiber/epoxy, TF-X Stress Toolbox"
         )
 
     @staticmethod
-    def glass_epoxy() -> OrthotropicMaterial:
-        """E-Glass/Epoxy."""
+    def as4c_m21() -> OrthotropicMaterial:
+        """AS4c/M21 T2 285 g/m² fabric (balanced weave)."""
         return OrthotropicMaterial(
             id=5,
-            name="E-Glass/Epoxy",
-            e1=39.0e9,  # 39.0 GPa
-            e2=8.6e9,  # 8.6 GPa
-            nu12=0.28,
-            g12=3.8e9,  # 3.8 GPa
-            density=1970,  # kg/m³
-            alpha1=7.0e-6,  # 1/K
-            alpha2=21.0e-6,  # 1/K
-            description="Unidirectional glass fiber composite"
+            name="AS4c/M21",
+            e1=62.8e9,  # 62.8 GPa (from TF-X, balanced fabric)
+            e2=62.8e9,  # 62.8 GPa (from TF-X, balanced fabric)
+            nu12=0.05,  # from TF-X
+            g12=4.2e9,  # 4.2 GPa (from TF-X)
+            density=1580,  # kg/m³ (typical for AS4/epoxy composites)
+            alpha1=1.0e-6,  # 1/K (balanced for fabric)
+            alpha2=1.0e-6,  # 1/K (balanced for fabric)
+            g1z=4.2e9,  # Same as G12
+            g2z=3.0e9,  # Typical for epoxy matrix
+            description="Carbon fiber fabric/toughened epoxy, TF-X Stress Toolbox"
+        )
+
+    @staticmethod
+    def quartz_8552() -> OrthotropicMaterial:
+        """Quartz/8552 8HS 285 g/m² fabric (8-harness satin)."""
+        return OrthotropicMaterial(
+            id=6,
+            name="Quartz/8552",
+            e1=22.0e9,  # 22 GPa (from TF-X, balanced fabric)
+            e2=22.0e9,  # 22 GPa (from TF-X, balanced fabric)
+            nu12=0.10,  # from TF-X
+            g12=4.5e9,  # 4.5 GPa (from TF-X)
+            density=2000,  # kg/m³ (quartz is denser than carbon)
+            alpha1=5.5e-6,  # 1/K (quartz fiber)
+            alpha2=5.5e-6,  # 1/K (balanced for fabric)
+            g1z=4.5e9,  # Same as G12
+            g2z=3.0e9,  # Typical for epoxy matrix
+            description="Quartz fabric/epoxy for radomes and RF transparency, TF-X Stress Toolbox"
         )
 
     @staticmethod
@@ -540,26 +566,25 @@ class PredefinedMaterials:
         """Create typical aluminum sandwich panel for aerospace."""
         return SandwichPanel(
             id=1,
-            name="Aluminum Sandwich Panel",
-            face_material=PredefinedMaterials.aluminum_6061(),
+            name="7050-T7451 Sandwich Panel",
+            face_material=PredefinedMaterials.aluminum_7050_t7451(),
             face_thickness=0.5,  # mm (0.020")
             core_material=PredefinedMaterials.aluminum_honeycomb_5052(),
             core_thickness=12.7,  # mm (0.5")
-            description="Typical aerospace sandwich: 0.020\" Al faces + 0.5\" honeycomb core"
+            description="High-strength aluminum sandwich: 0.020\" 7050 faces + 0.5\" honeycomb core"
         )
 
     @staticmethod
     def create_composite_sandwich() -> SandwichPanel:
         """Create composite face/honeycomb core sandwich panel."""
-        # Use aluminum for face (composite would require OrthotropicMaterial support)
         return SandwichPanel(
             id=2,
-            name="Composite Sandwich Panel",
-            face_material=PredefinedMaterials.aluminum_6061(),
+            name="2050-T84 Sandwich Panel",
+            face_material=PredefinedMaterials.aluminum_2050_t84(),
             face_thickness=0.76,  # mm (0.030")
             core_material=PredefinedMaterials.nomex_honeycomb(),
             core_thickness=19.1,  # mm (0.75")
-            description="Thick core sandwich for high stiffness-to-weight"
+            description="Damage-tolerant aluminum-lithium sandwich for thick core"
         )
 
     @classmethod
@@ -573,25 +598,26 @@ class PredefinedMaterials:
 
     @classmethod
     def get_all_isotropic(cls) -> List[IsotropicMaterial]:
-        """Get all predefined isotropic materials."""
+        """Get all predefined isotropic materials from TF-X."""
         return [
-            cls.aluminum_6061(),
-            cls.steel_4130(),
+            cls.aluminum_7050_t7451(),
+            cls.aluminum_2050_t84(),
             cls.titanium_6al4v()
         ]
 
     @classmethod
     def get_all_orthotropic(cls) -> List[OrthotropicMaterial]:
-        """Get all predefined orthotropic materials."""
+        """Get all predefined orthotropic materials from TF-X."""
         return [
-            cls.carbon_fiber_epoxy(),
-            cls.glass_epoxy()
+            cls.im7_m91(),
+            cls.as4c_m21(),
+            cls.quartz_8552()
         ]
 
-    @classmethod
+    @staticmethod
     def create_example_composite() -> CompositeLaminate:
-        """Create an example composite laminate."""
-        carbon_fiber = PredefinedMaterials.carbon_fiber_epoxy()
+        """Create an example composite laminate using IM7/M91."""
+        carbon_fiber = PredefinedMaterials.im7_m91()
 
         laminas = [
             CompositeLamina(1, carbon_fiber, 0.125, 0),      # 0° ply

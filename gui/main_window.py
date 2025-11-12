@@ -49,6 +49,18 @@ class MainWindow:
         y = (screen_height - 900) // 2
         self.root.geometry(f"1400x900+{x}+{y}")
 
+        # Set window icon
+        try:
+            from pathlib import Path
+            icon_path = Path(__file__).parent / "assets" / "app_icon.ico"
+            if icon_path.exists():
+                self.root.iconbitmap(str(icon_path))
+                self.logger.info(f"Window icon set successfully: {icon_path}")
+            else:
+                self.logger.warning(f"Icon file not found: {icon_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not set window icon: {e}")
+
         # Apply theme
         appearance = self.config.get_appearance_settings()
         self.theme_manager.set_theme(appearance["theme"], appearance["color_theme"])

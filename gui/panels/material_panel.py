@@ -2255,14 +2255,14 @@ class MaterialPanel(BasePanel):
 
             # Get face material
             face_name = self.face_material_var.get()
-            if "6061" in face_name:
-                face_mat = PredefinedMaterials.aluminum_6061()
-            elif "4130" in face_name:
-                face_mat = PredefinedMaterials.steel_4130()
+            if "7050" in face_name:
+                face_mat = PredefinedMaterials.aluminum_7050_t7451()
+            elif "2050" in face_name:
+                face_mat = PredefinedMaterials.aluminum_2050_t84()
             elif "Ti-6Al-4V" in face_name:
                 face_mat = PredefinedMaterials.titanium_6al4v()
             else:
-                face_mat = PredefinedMaterials.aluminum_6061()
+                face_mat = PredefinedMaterials.aluminum_7050_t7451()
 
             # Get core material
             core_name = self.core_material_var.get()
@@ -2325,14 +2325,14 @@ For 508×254 mm panel (estimated):
 
             # Get face material
             face_name = self.face_material_var.get()
-            if "6061" in face_name:
-                face_mat = PredefinedMaterials.aluminum_6061()
-            elif "4130" in face_name:
-                face_mat = PredefinedMaterials.steel_4130()
+            if "7050" in face_name:
+                face_mat = PredefinedMaterials.aluminum_7050_t7451()
+            elif "2050" in face_name:
+                face_mat = PredefinedMaterials.aluminum_2050_t84()
             elif "Ti-6Al-4V" in face_name:
                 face_mat = PredefinedMaterials.titanium_6al4v()
             else:
-                face_mat = PredefinedMaterials.aluminum_6061()
+                face_mat = PredefinedMaterials.aluminum_7050_t7451()
 
             # Get core material
             core_name = self.core_material_var.get()

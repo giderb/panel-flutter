@@ -13,8 +13,8 @@ class ExampleConfigurations:
         """Standard aluminum panel configuration."""
         return {
             "name": "Metallic Panel",
-            "description": "Standard aluminum aircraft skin panel",
-            "material": PredefinedMaterials.aluminum_6061(),
+            "description": "High-strength 7050-T7451 aluminum aircraft skin panel",
+            "material": PredefinedMaterials.aluminum_7050_t7451(),
             "geometry": {
                 "length": 0.5,  # meters
                 "width": 0.4,
@@ -42,18 +42,8 @@ class ExampleConfigurations:
     def get_composite_panel():
         """Carbon fiber composite laminate panel configuration."""
 
-        # Create carbon fiber material
-        carbon_fiber = OrthotropicMaterial(
-            id=1,
-            name="T300/5208 Carbon/Epoxy",
-            e1=181e9,  # 181 GPa
-            e2=10.3e9,  # 10.3 GPa
-            nu12=0.28,
-            g12=7.17e9,  # 7.17 GPa
-            density=1600,  # kg/m³
-            alpha1=-0.5e-6,  # thermal expansion
-            alpha2=28.1e-6
-        )
+        # Create carbon fiber material - using TF-X IM7/M91
+        carbon_fiber = PredefinedMaterials.im7_m91()
 
         # Create quasi-isotropic laminate [0/45/-45/90]s
         laminas = []
@@ -71,14 +61,14 @@ class ExampleConfigurations:
 
         composite_material = CompositeLaminate(
             id=1,
-            name="Quasi-isotropic Carbon/Epoxy [0/45/-45/90]s",
+            name="Quasi-isotropic IM7/M91 [0/45/-45/90]s",
             laminas=laminas,
-            description="8-ply quasi-isotropic carbon fiber laminate"
+            description="8-ply quasi-isotropic IM7/M91 carbon fiber laminate (TF-X)"
         )
 
         return {
             "name": "Composite Panel",
-            "description": "Carbon fiber composite panel for advanced aircraft",
+            "description": "IM7/M91 carbon fiber composite panel for advanced aircraft (TF-X)",
             "material": composite_material,
             "geometry": {
                 "length": 0.6,  # meters
