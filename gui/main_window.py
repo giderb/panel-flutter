@@ -14,7 +14,6 @@ from .panels.structural_panel import StructuralPanel
 from .panels.aerodynamics_panel import AerodynamicsPanel
 from .panels.analysis_panel import AnalysisPanel
 from .panels.results_panel import ResultsPanel
-from .panels.validation_panel import ValidationPanel
 from utils.config import Config
 
 class MainWindow:
@@ -188,8 +187,7 @@ class MainWindow:
             ("Structure", "structure", "🔲"),
             ("Aerodynamics", "aerodynamics", "💨"),
             ("Analysis", "analysis", "⚙️"),
-            ("Results", "results", "📊"),
-            ("Validation", "validation", "🔬")
+            ("Results", "results", "📊")
         ]
 
         self.nav_buttons = {}
@@ -255,8 +253,7 @@ class MainWindow:
             "structure": StructuralPanel(self.content_frame, self),
             "aerodynamics": AerodynamicsPanel(self.content_frame, self),
             "analysis": AnalysisPanel(self.content_frame, self),
-            "results": ResultsPanel(self.content_frame, self),
-            "validation": ValidationPanel(self.content_frame, self)
+            "results": ResultsPanel(self.content_frame, self)
         }
 
     def _show_panel(self, panel_id: str):
