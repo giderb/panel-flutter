@@ -953,13 +953,21 @@ class FlutterAnalyzer:
         """
 
         # CRITICAL FIX: Correct aerodynamic method selection based on Mach regime
-        # DLM valid for M < 1.0 (subsonic/transonic)
+        # DLM valid for M < 1.0 (subsonic/transonic) - BUT SIMPLIFIED IMPLEMENTATION HAS LARGE ERRORS
         # Piston Theory valid for M > 1.2 (supersonic)
         if method == 'auto':
             if flow.mach_number < 1.0:
-                # Use Doublet-Lattice Method for subsonic/transonic
-                method = 'doublet'
-                self.logger.info(f"Auto-selected Doublet-Lattice Method for M={flow.mach_number:.2f} (M < 1.0)")
+                # CRITICAL: Simplified DLM has >1200% error for M<1.0
+                # BLOCK subsonic analysis - require NASTRAN
+                self.logger.error(f"SUBSONIC REGIME M={flow.mach_number:.2f} NOT SUPPORTED")
+                self.logger.error("Simplified Doublet-Lattice Method has >1200% error for M<1.0")
+                self.logger.error("REQUIREMENT: Use NASTRAN SOL 145 for subsonic flutter analysis")
+                raise ValueError(
+                    f"Subsonic flutter analysis (M={flow.mach_number:.2f}) not supported. "
+                    f"Simplified DLM implementation has >1200% prediction error. "
+                    f"Use NASTRAN SOL 145 or higher-fidelity CFD for M<1.0. "
+                    f"This tool is validated ONLY for supersonic regime (M>=1.2)."
+                )
             elif flow.mach_number >= 1.2:
                 # Use Piston Theory for supersonic
                 method = 'piston'

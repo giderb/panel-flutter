@@ -431,13 +431,13 @@ class ValidationTestSuite:
 
     def test_transonic_correction_M095(self):
         """
-        Test Case 6: Transonic Dip Correction (M=0.95)
+        Test Case 6: Subsonic Blocking (M=0.95)
 
-        Tests Tijdeman transonic correction at peak transonic effect
-        Reference: F-16 access panel flutter incidents at M=0.92-0.98
+        Tests that tool correctly blocks subsonic analysis and provides clear error message
+        Reference: DLM has >1200% error for M<1.0
         """
         logger.info("\n" + "="*80)
-        logger.info("TEST 6: Transonic Dip Correction (M=0.95)")
+        logger.info("TEST 6: Subsonic Analysis Blocking (M=0.95)")
         logger.info("="*80)
 
         panel = PanelProperties(
@@ -452,54 +452,49 @@ class ValidationTestSuite:
         )
 
         flow = FlowConditions(
-            mach_number=0.95,  # Peak transonic effect
+            mach_number=0.95,  # Subsonic - should be blocked
             altitude=6000
         )
 
-        # Run with and without corrections
-        result_uncorrected = self.analyzer.analyze(
-            panel, flow, method='auto', validate=False,
-            velocity_range=(200, 800), velocity_points=30,
-            apply_corrections=False
-        )
+        # Test that subsonic analysis is properly blocked
+        try:
+            result = self.analyzer.analyze(
+                panel, flow, method='auto', validate=False,
+                velocity_range=(200, 800), velocity_points=30,
+                apply_corrections=False
+            )
+            # If we get here, blocking failed
+            passed = False
+            logger.error("✗ FAIL - Subsonic analysis should have been blocked")
+        except ValueError as e:
+            # Check that error message is informative
+            error_msg = str(e)
+            has_mach = "0.95" in error_msg or "M=" in error_msg
+            has_nastran = "NASTRAN" in error_msg
+            has_validation = "M>=1.2" in error_msg or "supersonic" in error_msg
 
-        result_corrected = self.analyzer.analyze(
-            panel, flow, method='auto', validate=False,
-            velocity_range=(200, 800), velocity_points=30,
-            apply_corrections=True
-        )
+            if has_mach and has_nastran and has_validation:
+                passed = True
+                logger.info("✓ PASS - Subsonic analysis correctly blocked with informative error")
+                logger.info(f"  Error message: {error_msg[:150]}...")
+            else:
+                passed = False
+                logger.error("✗ FAIL - Error message missing key information")
+                logger.error(f"  Has Mach: {has_mach}, Has NASTRAN: {has_nastran}, Has validation: {has_validation}")
 
-        V_uncorrected = result_uncorrected.flutter_speed
-        V_corrected = result_corrected.flutter_speed
-        correction_factor = result_corrected.transonic_correction_factor
-        reduction_pct = (1.0 - correction_factor) * 100
-
-        logger.info(f"Flutter speed (uncorrected): {V_uncorrected:.1f} m/s")
-        logger.info(f"Flutter speed (corrected):   {V_corrected:.1f} m/s")
-        logger.info(f"Correction factor:           {correction_factor:.3f}")
-        logger.info(f"Reduction:                   {reduction_pct:.1f}%")
-
-        # At M=0.95, expect ~25% reduction (Tijdeman)
-        expected_reduction = 25.0
-        error = abs(reduction_pct - expected_reduction)
-
-        passed = error < 5.0  # Within 5% of expected reduction
         self.results.append({
-            'test': 'Transonic Correction M=0.95',
+            'test': 'Subsonic Blocking M=0.95',
             'passed': passed,
-            'expected': expected_reduction,
-            'actual': reduction_pct,
-            'error_pct': error,
+            'expected': 'ValueError',
+            'actual': 'ValueError' if passed else 'No error',
+            'error_pct': 0.0 if passed else 100.0,
             'critical': True
         })
 
         if passed:
             self.passed += 1
-            logger.info("✓ PASS - Transonic correction working correctly")
         else:
             self.failed += 1
-            logger.error("✗ FAIL - Transonic correction incorrect")
-            logger.error(f"Expected ~{expected_reduction}% reduction, got {reduction_pct:.1f}%")
 
     def test_composite_panel_warning(self):
         """
