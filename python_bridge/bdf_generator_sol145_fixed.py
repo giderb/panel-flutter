@@ -444,6 +444,181 @@ class Sol145BDFGenerator:
             if spc_line.strip():
                 lines.append(spc_line)
 
+        elif bc_str.upper() == "SFSF":
+            # Simply supported on two opposite edges (left/right), free on top/bottom
+            lines.append("$ SFSF: Simply Supported at x=0 and x=L, Free at y=0 and y=W")
+            edge_nodes = []
+
+            # Left edge (i=0, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx, all j)
+            for j in range(panel.ny + 1):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Constrain DOF 3 (out-of-plane displacement) only
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "FSFS":
+            # Free on two opposite edges (left/right), simply supported on top/bottom
+            lines.append("$ FSFS: Free at x=0 and x=L, Simply Supported at y=0 and y=W")
+            edge_nodes = []
+
+            # Bottom edge (j=0, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Top edge (j=ny, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Constrain DOF 3 only
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "CSCS":
+            # Clamped-Simply supported-Clamped-Simply supported
+            lines.append("$ CSCS: Clamped at x=0 and x=L, Simply Supported at y=0 and y=W")
+
+            # Left and right edges: Clamped (all DOFs)
+            c_edge_nodes = []
+            for j in range(panel.ny + 1):
+                c_edge_nodes.append(j * (panel.nx + 1) + 1)  # Left edge
+                c_edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)  # Right edge
+            c_edge_nodes = sorted(set(c_edge_nodes))
+
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(c_edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+            # Bottom and top edges: Simply supported (DOF 3 only)
+            ss_edge_nodes = []
+            for i in range(1, panel.nx):  # Skip corners to avoid double constraint
+                ss_edge_nodes.append(i + 1)  # Bottom edge
+                ss_edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)  # Top edge
+
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(ss_edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "FFFF":
+            # Free-free on all edges (space structures, no attachment)
+            lines.append("$ FFFF: Free on all four edges (space structure)")
+            lines.append("$ No edge constraints - rigid body modes will be present")
+            # No edge constraints needed
+            # NASTRAN will handle rigid body modes in modal analysis
+
+        elif bc_str.upper() == "CCCF":
+            # Three edges clamped, top edge free
+            lines.append("$ CCCF: Clamped at x=0, x=L, y=0; Free at y=W (top)")
+            edge_nodes = []
+
+            # Bottom edge (j=0, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Left edge (i=0, all j except top corner)
+            for j in range(panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx, all j except top corner)
+            for j in range(panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Clamp all these edges (all DOFs)
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "SSSF":
+            # Three edges simply supported, top edge free
+            lines.append("$ SSSF: Simply Supported at x=0, x=L, y=0; Free at y=W (top)")
+            edge_nodes = []
+
+            # Bottom edge (j=0, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Left edge (i=0, all j except top corner)
+            for j in range(panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + 1)
+
+            # Right edge (i=nx, all j except top corner)
+            for j in range(panel.ny):
+                edge_nodes.append(j * (panel.nx + 1) + panel.nx + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Simply support (DOF 3 only)
+            spc_line = "SPC1    1       3       "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
+        elif bc_str.upper() == "FCFC":
+            # Free at left/right edges, clamped at top/bottom
+            lines.append("$ FCFC: Free at x=0 and x=L, Clamped at y=0 and y=W")
+            edge_nodes = []
+
+            # Bottom edge (j=0, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append(i + 1)
+
+            # Top edge (j=ny, all i)
+            for i in range(panel.nx + 1):
+                edge_nodes.append((panel.ny) * (panel.nx + 1) + i + 1)
+
+            edge_nodes = sorted(set(edge_nodes))
+
+            # Clamp (all DOFs)
+            spc_line = "SPC1    1       123456  "
+            for i, node in enumerate(edge_nodes):
+                if i > 0 and i % 6 == 0:
+                    lines.append(spc_line)
+                    spc_line = "+       "
+                spc_line += f"{node:<8}"
+            if spc_line.strip():
+                lines.append(spc_line)
+
         else:
             # Unknown boundary condition - default to SSSS with warning
             lines.append(f"$ WARNING: Unknown boundary condition '{bc_str}' - defaulting to SSSS")
