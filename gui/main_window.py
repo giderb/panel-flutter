@@ -154,10 +154,10 @@ class MainWindow:
         title_frame = self.theme_manager.create_styled_frame(self.sidebar, corner_radius=0)
         title_frame.pack(fill="x", padx=10, pady=(20, 30))
 
-        # Icon with gradient-style design
+        # Icon with modern professional design
         icon_label = ctk.CTkLabel(
             title_frame,
-            text="✈️",
+            text="🔷",
             font=self.theme_manager.get_display_font(),
             text_color=("#0066CC", "#00A8FF")  # Blue gradient effect
         )
@@ -175,7 +175,7 @@ class MainWindow:
         # Subtitle
         subtitle_label = ctk.CTkLabel(
             title_frame,
-            text="NASTRAN Analysis",
+            text="Advanced Analysis Tool",
             font=self.theme_manager.get_caption_font(),
             text_color=("#666666", "#999999")
         )
