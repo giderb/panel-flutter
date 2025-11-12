@@ -65,7 +65,7 @@ class MaterialPanel(BasePanel):
         icon_label = self.theme_manager.create_styled_label(
             title_container,
             text="🔬",
-            font=ctk.CTkFont(size=32)
+            font=self.theme_manager.get_display_font()
         )
         icon_label.pack(side="left", padx=(0, 15))
 
@@ -75,14 +75,14 @@ class MaterialPanel(BasePanel):
         title_label = self.theme_manager.create_styled_label(
             title_frame,
             text="Material Properties",
-            font=ctk.CTkFont(size=22, weight="bold")
+            font=self.theme_manager.get_title_font()
         )
         title_label.pack(anchor="w")
 
         subtitle_label = self.theme_manager.create_styled_label(
             title_frame,
             text="Define material properties for flutter analysis",
-            font=ctk.CTkFont(size=12),
+            font=self.theme_manager.get_body_font(),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         subtitle_label.pack(anchor="w", pady=(2, 0))
@@ -104,7 +104,7 @@ class MaterialPanel(BasePanel):
         icon_label = self.theme_manager.create_styled_label(
             warning_content,
             text="⚠️",
-            font=ctk.CTkFont(size=24),
+            font=self.theme_manager.get_title_large_font(),
             text_color="white"
         )
         icon_label.pack(side="left", padx=(0, 15))
@@ -115,7 +115,7 @@ class MaterialPanel(BasePanel):
         title_label = self.theme_manager.create_styled_label(
             text_frame,
             text="No Project Created",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=self.theme_manager.get_subheading_font(),
             text_color="white"
         )
         title_label.pack(anchor="w")
@@ -123,7 +123,7 @@ class MaterialPanel(BasePanel):
         msg_label = self.theme_manager.create_styled_label(
             text_frame,
             text="You must create a project before adding custom materials. Predefined materials can still be selected.",
-            font=ctk.CTkFont(size=11),
+            font=self.theme_manager.get_caption_font(),
             text_color="#ffe0e0"
         )
         msg_label.pack(anchor="w", pady=(2, 0))
@@ -139,7 +139,7 @@ class MaterialPanel(BasePanel):
             height=35,
             width=140,
             corner_radius=6,
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         create_btn.pack(side="right", padx=(15, 0))
 
@@ -203,7 +203,7 @@ class MaterialPanel(BasePanel):
             tab_label = self.theme_manager.create_styled_label(
                 inner_frame,
                 text=label,
-                font=ctk.CTkFont(size=14, weight="bold"),
+                font=self.theme_manager.get_subheading_font(),
                 text_color="white" if i == 0 else self.theme_manager.get_color("text")
             )
             tab_label.pack(anchor="w")
@@ -212,7 +212,7 @@ class MaterialPanel(BasePanel):
             desc_label = self.theme_manager.create_styled_label(
                 inner_frame,
                 text=description,
-                font=ctk.CTkFont(size=10),
+                font=self.theme_manager.get_caption_font(),
                 text_color="#e0e0e0" if i == 0 else self.theme_manager.get_color("text_secondary")
             )
             desc_label.pack(anchor="w")
@@ -277,7 +277,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             frame,
             text="📚 Predefined Materials",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(anchor="w", padx=20, pady=(20, 15))
 
@@ -312,7 +312,7 @@ class MaterialPanel(BasePanel):
         icon_label = self.theme_manager.create_styled_label(
             card,
             text=icon,
-            font=ctk.CTkFont(size=24)
+            font=self.theme_manager.get_title_large_font()
         )
         icon_label.pack(side="left", padx=(15, 10), pady=15)
 
@@ -323,7 +323,7 @@ class MaterialPanel(BasePanel):
         name_label = self.theme_manager.create_styled_label(
             info_frame,
             text=material.name,
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         name_label.pack(anchor="w")
 
@@ -335,7 +335,7 @@ class MaterialPanel(BasePanel):
         props_label = self.theme_manager.create_styled_label(
             info_frame,
             text=props_text,
-            font=ctk.CTkFont(size=10),
+            font=self.theme_manager.get_caption_font(),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         props_label.pack(anchor="w", pady=(2, 0))
@@ -359,7 +359,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             frame,
             text="✏️ Custom Material",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(anchor="w", padx=20, pady=(20, 15))
 
@@ -395,7 +395,7 @@ class MaterialPanel(BasePanel):
             command=self._save_isotropic_material,
             height=40,
             corner_radius=8,
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=self.theme_manager.get_subheading_font()
         )
         save_btn.pack(pady=(20, 0))
 
@@ -428,7 +428,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             frame,
             text="📚 Predefined Orthotropic Materials",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(anchor="w", padx=20, pady=(20, 15))
 
@@ -449,7 +449,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             frame,
             text="✏️ Custom Orthotropic Material",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(anchor="w", padx=20, pady=(20, 15))
 
@@ -464,7 +464,7 @@ class MaterialPanel(BasePanel):
         dir1_label = self.theme_manager.create_styled_label(
             form_scroll,
             text="Direction 1 Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         dir1_label.pack(anchor="w", pady=(15, 5))
 
@@ -475,7 +475,7 @@ class MaterialPanel(BasePanel):
         dir2_label = self.theme_manager.create_styled_label(
             form_scroll,
             text="Direction 2 Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         dir2_label.pack(anchor="w", pady=(15, 5))
 
@@ -486,7 +486,7 @@ class MaterialPanel(BasePanel):
         shear_label = self.theme_manager.create_styled_label(
             form_scroll,
             text="Shear Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         shear_label.pack(anchor="w", pady=(15, 5))
 
@@ -499,7 +499,7 @@ class MaterialPanel(BasePanel):
         general_label = self.theme_manager.create_styled_label(
             form_scroll,
             text="General Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         general_label.pack(anchor="w", pady=(15, 5))
 
@@ -512,7 +512,7 @@ class MaterialPanel(BasePanel):
             command=self._save_orthotropic_material,
             height=40,
             corner_radius=8,
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=self.theme_manager.get_subheading_font()
         )
         save_btn.pack(pady=(20, 10))
 
@@ -569,7 +569,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             header_frame,
             text="🎨 Custom Prepreg Materials",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(side="left")
 
@@ -600,7 +600,7 @@ class MaterialPanel(BasePanel):
         form_header = self.theme_manager.create_styled_label(
             form_frame,
             text="Add New Prepreg Material",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=self.theme_manager.get_subheading_font()
         )
         form_header.pack(anchor="w", padx=15, pady=(15, 10))
 
@@ -625,7 +625,7 @@ class MaterialPanel(BasePanel):
         elastic_label = self.theme_manager.create_styled_label(
             left_col,
             text="Elastic Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         elastic_label.pack(anchor="w", pady=(5, 5))
 
@@ -638,7 +638,7 @@ class MaterialPanel(BasePanel):
         additional_label = self.theme_manager.create_styled_label(
             right_col,
             text="Additional Properties",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         additional_label.pack(anchor="w", pady=(5, 5))
 
@@ -653,7 +653,7 @@ class MaterialPanel(BasePanel):
             command=self._add_custom_prepreg,
             height=35,
             corner_radius=6,
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         add_prepreg_btn.pack(pady=(0, 15))
 
@@ -666,7 +666,7 @@ class MaterialPanel(BasePanel):
         list_header = self.theme_manager.create_styled_label(
             list_frame,
             text="Your Custom Prepreg Materials",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=self.theme_manager.get_subheading_font()
         )
         list_header.pack(anchor="w", padx=15, pady=(15, 10))
 
@@ -790,7 +790,7 @@ class MaterialPanel(BasePanel):
             empty_label = self.theme_manager.create_styled_label(
                 self.custom_prepreg_list_frame,
                 text="No custom prepreg materials yet. Add one above!",
-                font=ctk.CTkFont(size=11, slant="italic"),
+                font=self.theme_manager.get_caption_font(slant="italic"),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             empty_label.pack(pady=20)
@@ -812,7 +812,7 @@ class MaterialPanel(BasePanel):
             name_label = self.theme_manager.create_styled_label(
                 info_frame,
                 text=material.name,
-                font=ctk.CTkFont(size=12, weight="bold")
+                font=self.theme_manager.get_body_font(weight="bold")
             )
             name_label.pack(anchor="w")
 
@@ -820,7 +820,7 @@ class MaterialPanel(BasePanel):
             props_label = self.theme_manager.create_styled_label(
                 info_frame,
                 text=props_text,
-                font=ctk.CTkFont(size=10),
+                font=self.theme_manager.get_caption_font(),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             props_label.pack(anchor="w", pady=(2, 0))
@@ -892,7 +892,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             frame,
             text="🔨 Laminate Builder - Professional Edition",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(anchor="w", padx=20, pady=(20, 10))
 
@@ -909,7 +909,7 @@ class MaterialPanel(BasePanel):
         temp_header = self.theme_manager.create_styled_label(
             templates_frame,
             text="⚡ Quick Templates",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         temp_header.pack(anchor="w", padx=15, pady=(12, 8))
 
@@ -944,7 +944,7 @@ class MaterialPanel(BasePanel):
         add_header = self.theme_manager.create_styled_label(
             single_add_frame,
             text="➕ Add Single Ply",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         add_header.pack(anchor="w", padx=15, pady=(12, 8))
 
@@ -1023,14 +1023,14 @@ class MaterialPanel(BasePanel):
         list_header = self.theme_manager.create_styled_label(
             header_frame,
             text="📋 Ply Stack Editor",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         list_header.pack(side="left")
 
         self.total_thickness_label = self.theme_manager.create_styled_label(
             header_frame,
             text="Total: 0.0 mm | 0 plies",
-            font=ctk.CTkFont(size=12),
+            font=self.theme_manager.get_body_font(),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         self.total_thickness_label.pack(side="right")
@@ -1042,7 +1042,7 @@ class MaterialPanel(BasePanel):
         toolbar_label = self.theme_manager.create_styled_label(
             toolbar_frame,
             text="Ply Operations:",
-            font=ctk.CTkFont(size=11, weight="bold")
+            font=self.theme_manager.get_caption_font()
         )
         toolbar_label.pack(side="left", padx=(12, 10), pady=10)
 
@@ -1169,7 +1169,7 @@ class MaterialPanel(BasePanel):
         label = self.theme_manager.create_styled_label(
             frame,
             text=label_text,
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         label.pack(anchor="w", pady=(0, 5))
 
@@ -1522,7 +1522,7 @@ class MaterialPanel(BasePanel):
             empty_label = self.theme_manager.create_styled_label(
                 self.layers_scroll,
                 text="No plies yet. Add plies using the controls above or choose a template.",
-                font=ctk.CTkFont(size=11, slant="italic"),
+                font=self.theme_manager.get_caption_font(slant="italic"),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             empty_label.pack(pady=40)
@@ -1549,7 +1549,7 @@ class MaterialPanel(BasePanel):
                 layer_frame,
                 text=f"#{i+1}",
                 command=lambda idx=i: self._select_ply(idx),
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=self.theme_manager.get_caption_font(),
                 width=40,
                 height=35,
                 fg_color="transparent" if not is_selected else self.theme_manager.get_color("primary_dark"),
@@ -1588,7 +1588,7 @@ class MaterialPanel(BasePanel):
             mm_label = self.theme_manager.create_styled_label(
                 layer_frame,
                 text="mm",
-                font=ctk.CTkFont(size=10)
+                font=self.theme_manager.get_caption_font()
             )
             mm_label.pack(side="left", padx=(0, 8), pady=8)
 
@@ -1606,7 +1606,7 @@ class MaterialPanel(BasePanel):
             deg_label = self.theme_manager.create_styled_label(
                 layer_frame,
                 text="°",
-                font=ctk.CTkFont(size=10)
+                font=self.theme_manager.get_caption_font()
             )
             deg_label.pack(side="left", padx=(0, 8), pady=8)
 
@@ -1877,7 +1877,7 @@ class MaterialPanel(BasePanel):
         header = self.theme_manager.create_styled_label(
             dialog,
             text="Batch Add Multiple Plies",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         header.pack(pady=(20, 15))
 
@@ -1888,7 +1888,7 @@ class MaterialPanel(BasePanel):
         mat_label = self.theme_manager.create_styled_label(
             mat_frame,
             text="Material:",
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         mat_label.pack(anchor="w", pady=(0, 5))
 
@@ -1913,7 +1913,7 @@ class MaterialPanel(BasePanel):
         thick_label = self.theme_manager.create_styled_label(
             thick_frame,
             text="Thickness (mm):",
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         thick_label.pack(anchor="w", pady=(0, 5))
 
@@ -1928,7 +1928,7 @@ class MaterialPanel(BasePanel):
         orient_label = self.theme_manager.create_styled_label(
             orient_frame,
             text="Orientations (comma-separated, e.g., 0, 45, -45, 90):",
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         orient_label.pack(anchor="w", pady=(0, 5))
 
@@ -1940,7 +1940,7 @@ class MaterialPanel(BasePanel):
         hint_label = self.theme_manager.create_styled_label(
             dialog,
             text="Tip: Enter orientations in stacking order. Each orientation creates one ply.",
-            font=ctk.CTkFont(size=10, slant="italic"),
+            font=self.theme_manager.get_caption_font(slant="italic"),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         hint_label.pack(pady=(10, 20))
@@ -2079,7 +2079,7 @@ class MaterialPanel(BasePanel):
         pred_label = self.theme_manager.create_styled_label(
             predefined_frame,
             text="Predefined Sandwich Panels:",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         pred_label.pack(anchor="w", padx=15, pady=(15, 5))
 
@@ -2109,7 +2109,7 @@ class MaterialPanel(BasePanel):
         custom_label = self.theme_manager.create_styled_label(
             custom_frame,
             text="Custom Sandwich Panel:",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         custom_label.pack(anchor="w", padx=15, pady=(15, 10))
 
@@ -2185,14 +2185,14 @@ class MaterialPanel(BasePanel):
         props_title = self.theme_manager.create_styled_label(
             props_frame,
             text="Calculated Properties:",
-            font=ctk.CTkFont(size=11, weight="bold")
+            font=self.theme_manager.get_caption_font()
         )
         props_title.pack(anchor="w", padx=15, pady=(10, 5))
 
         self.sandwich_props_text = ctk.CTkTextbox(
             props_frame,
             height=120,
-            font=ctk.CTkFont(family="Consolas", size=10)
+            font=self.theme_manager.get_monospace_font()
         )
         self.sandwich_props_text.pack(fill="x", padx=15, pady=(5, 15))
         self.sandwich_props_text.insert("1.0", "Configure panel and click 'Calculate Properties' to see equivalent properties...")

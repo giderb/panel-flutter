@@ -64,7 +64,7 @@ class BasePanel(ABC):
             parent,
             text=text,
             style="subheading",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
 
     def create_form_field(self, parent, label_text: str, entry_kwargs=None) -> tuple:
@@ -77,7 +77,7 @@ class BasePanel(ABC):
         label = self.theme_manager.create_styled_label(
             field_frame,
             text=label_text,
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         label.pack(anchor="w", pady=(0, 5))
 
@@ -94,7 +94,7 @@ class BasePanel(ABC):
         title_label = self.theme_manager.create_styled_label(
             card,
             text=title,
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=self.theme_manager.get_body_large_font(weight="bold")
         )
         title_label.pack(anchor="w", padx=15, pady=(15, 5))
 
@@ -103,7 +103,7 @@ class BasePanel(ABC):
             content_label = self.theme_manager.create_styled_label(
                 card,
                 text=content,
-                font=ctk.CTkFont(size=12),
+                font=self.theme_manager.get_body_font(),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             content_label.pack(anchor="w", padx=15, pady=(0, 15))

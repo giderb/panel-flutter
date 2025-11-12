@@ -189,7 +189,7 @@ a numerically converged solution. Use with caution!
                 text=warning_text,
                 justify="left",
                 text_color="orange",
-                font=("Courier", 11)
+                font=self.theme_manager.get_monospace_font()
             )
             warning_label.pack(padx=10, pady=5, anchor="w")
 
@@ -201,7 +201,7 @@ a numerically converged solution. Use with caution!
                     text=f"Validation Status:\n{validation_status}",
                     justify="left",
                     text_color="red",
-                    font=("Courier", 10, "bold")
+                    font=self.theme_manager.get_monospace_font(weight="bold")
                 )
                 val_label.pack(padx=10, pady=5, anchor="w")
 
@@ -308,12 +308,12 @@ a numerically converged solution. Use with caution!
                         if hasattr(value_label, 'configure'):
                             # Use cyan for reliable, orange for unreliable
                             color = "#00D9FF" if is_reliable else "#FFA500"
-                            value_label.configure(text_color=color, font=("Arial", 12, "bold"))
+                            value_label.configure(text_color=color, font=self.theme_manager.get_body_font(weight="bold"))
                     elif label == "Estimate Reliability":
                         value_label = row.winfo_children()[-1]
                         if hasattr(value_label, 'configure'):
                             color = "green" if is_reliable else "red"
-                            value_label.configure(text_color=color, font=("Arial", 11, "bold"))
+                            value_label.configure(text_color=color, font=self.theme_manager.get_caption_font())
 
                 # Add explanatory note with scaling warning if unreliable
                 note_frame = ctk.CTkFrame(design_card, fg_color="transparent")
@@ -324,7 +324,7 @@ a numerically converged solution. Use with caution!
                     note_label = ctk.CTkLabel(
                         note_frame,
                         text=scaling_warning,
-                        font=("Arial", 10),
+                        font=self.theme_manager.get_caption_font(),
                         text_color=("#CC0000", "#FF6666"),
                         justify="left",
                         wraplength=550
@@ -336,7 +336,7 @@ a numerically converged solution. Use with caution!
                     note_frame,
                     text="ℹ️  Flutter speed ∝ thickness (linear approximation). "
                          "Safety margin included. Re-run analysis to verify.",
-                    font=("Arial", 10),
+                    font=self.theme_manager.get_caption_font(),
                     text_color=("#666666", "#AAAAAA"),
                     justify="left",
                     wraplength=550
@@ -561,7 +561,7 @@ a numerically converged solution. Use with caution!
         """Show detailed JSON results."""
         text_widget = ctk.CTkTextbox(
             self.content_container,
-            font=("Courier", 10)
+            font=self.theme_manager.get_monospace_font()
         )
         text_widget.pack(fill="both", expand=True, padx=10, pady=10)
 

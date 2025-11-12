@@ -55,14 +55,14 @@ class HomePanel(BasePanel):
         title_label = self.theme_manager.create_styled_label(
             title_frame,
             text="NASTRAN Panel Flutter Analysis",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=self.theme_manager.get_title_large_font()
         )
         title_label.pack(anchor="w")
 
         subtitle_label = self.theme_manager.create_styled_label(
             title_frame,
             text="Modern GUI for supersonic panel flutter analysis using NASTRAN",
-            font=ctk.CTkFont(size=14),
+            font=self.theme_manager.get_subheading_font(),
             text_color=self.theme_manager.get_color("text_secondary")
         )
         subtitle_label.pack(anchor="w", pady=(5, 0))
@@ -163,7 +163,7 @@ class HomePanel(BasePanel):
         quick_label = self.theme_manager.create_styled_label(
             example_buttons_frame,
             text="Quick Examples:",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         quick_label.pack(anchor="w", pady=(0, 5))
 
@@ -209,14 +209,14 @@ class HomePanel(BasePanel):
             step_label = self.theme_manager.create_styled_label(
                 step_frame,
                 text=step_title,
-                font=ctk.CTkFont(size=12, weight="bold")
+                font=self.theme_manager.get_body_font(weight="bold")
             )
             step_label.pack(anchor="w")
 
             desc_label = self.theme_manager.create_styled_label(
                 step_frame,
                 text=step_desc,
-                font=ctk.CTkFont(size=11),
+                font=self.theme_manager.get_caption_font(),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             desc_label.pack(anchor="w", padx=(20, 0), pady=(0, 5))
@@ -359,7 +359,7 @@ The project is ready for analysis. Navigate through the panels to review and mod
         name_label = self.theme_manager.create_styled_label(
             info_frame,
             text=project.name,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         name_label.pack(anchor="w")
 
@@ -379,7 +379,7 @@ The project is ready for analysis. Navigate through the panels to review and mod
         status_label = self.theme_manager.create_styled_label(
             status_frame,
             text=f"Completion: {completion:.0f}%",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=self.theme_manager.get_body_font(weight="bold")
         )
         status_label.pack(anchor="w")
 
@@ -408,7 +408,7 @@ The project is ready for analysis. Navigate through the panels to review and mod
             comp_label = self.theme_manager.create_styled_label(
                 row_frame,
                 text=f"{status_icon} {name}",
-                font=ctk.CTkFont(size=11)
+                font=self.theme_manager.get_caption_font()
             )
             comp_label.pack(side="left", padx=(0, 20))
 
@@ -444,14 +444,14 @@ The project is ready for analysis. Navigate through the panels to review and mod
             name_label = self.theme_manager.create_styled_label(
                 info_frame,
                 text=project.name,
-                font=ctk.CTkFont(size=12, weight="bold")
+                font=self.theme_manager.get_body_font(weight="bold")
             )
             name_label.pack(anchor="w")
 
             date_label = self.theme_manager.create_styled_label(
                 info_frame,
                 text=f"Modified: {project.modified_at.strftime('%Y-%m-%d %H:%M')}",
-                font=ctk.CTkFont(size=10),
+                font=self.theme_manager.get_caption_font(),
                 text_color=self.theme_manager.get_color("text_secondary")
             )
             date_label.pack(anchor="w")
@@ -515,7 +515,7 @@ class NewProjectDialog:
         title_label = ctk.CTkLabel(
             main_frame,
             text="Create New Project",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         title_label.pack(pady=(0, 20))
 
@@ -608,7 +608,7 @@ class ExampleSelectionDialog:
         title_label = ctk.CTkLabel(
             main_frame,
             text="Select Example Project",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=self.theme_manager.get_heading_font()
         )
         title_label.pack(pady=(0, 20))
 
@@ -623,14 +623,14 @@ class ExampleSelectionDialog:
             name_label = ctk.CTkLabel(
                 info_frame,
                 text=name,
-                font=ctk.CTkFont(size=14, weight="bold")
+                font=self.theme_manager.get_subheading_font()
             )
             name_label.pack(anchor="w")
 
             desc_label = ctk.CTkLabel(
                 info_frame,
                 text=description,
-                font=ctk.CTkFont(size=11)
+                font=self.theme_manager.get_caption_font()
             )
             desc_label.pack(anchor="w")
 

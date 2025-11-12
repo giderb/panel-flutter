@@ -256,7 +256,7 @@ class StructuralPanel(BasePanel):
         self.material_display_label = self.theme_manager.create_styled_label(
             material_status_frame,
             textvariable=self.material_display_var,
-            font=ctk.CTkFont(size=12)
+            font=self.theme_manager.get_body_font()
         )
         self.material_display_label.pack(side="left", fill="x", expand=True)
 
@@ -340,7 +340,7 @@ class StructuralPanel(BasePanel):
         self.preview_text = ctk.CTkTextbox(
             self.preview_tab,
             wrap="none",
-            font=("Courier", 13)
+            font=self.theme_manager.get_monospace_font()
         )
         self.preview_text.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
 

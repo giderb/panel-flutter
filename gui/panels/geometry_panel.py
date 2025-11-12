@@ -8,6 +8,6 @@ class GeometryPanel(BasePanel):
         placeholder = self.theme_manager.create_styled_label(
             self.frame,
             text="Geometry Panel\n(Implementation pending)",
-            font=ctk.CTkFont(size=16)
+            font=self.theme_manager.get_heading_font()
         )
         placeholder.place(relx=0.5, rely=0.5, anchor="center")

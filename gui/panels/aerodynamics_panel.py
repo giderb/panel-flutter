@@ -385,7 +385,7 @@ class AerodynamicsPanel(BasePanel):
         self.preview_text = ctk.CTkTextbox(
             self.preview_tab,
             wrap="none",
-            font=("Courier", 11)
+            font=self.theme_manager.get_monospace_font()
         )
         self.preview_text.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
 

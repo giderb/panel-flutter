@@ -350,7 +350,7 @@ class AnalysisPanel(BasePanel):
             text="🚀 Run Flutter Analysis",
             command=self._run_analysis,
             height=40,
-            font=("Arial", 14, "bold")
+            font=self.theme_manager.get_subheading_font()
         )
         self.run_button.pack(side="left", padx=5)
 

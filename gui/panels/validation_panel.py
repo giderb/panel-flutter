@@ -122,7 +122,7 @@ class ValidationPanel(BasePanel):
             test_label = self.theme_manager.create_styled_label(
                 card_frame,
                 text=name,
-                font=("Segoe UI", 12, "bold")
+                font=self.theme_manager.get_body_font(weight="bold")
             )
             test_label.pack(padx=10, pady=(10, 5))
 
@@ -152,7 +152,7 @@ class ValidationPanel(BasePanel):
         self.modules_text = ctk.CTkTextbox(
             self.modules_tab,
             wrap="word",
-            font=("Courier", 11)
+            font=self.theme_manager.get_monospace_font()
         )
         self.modules_text.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
 
@@ -176,7 +176,7 @@ class ValidationPanel(BasePanel):
         self.solvers_text = ctk.CTkTextbox(
             self.solvers_tab,
             wrap="word",
-            font=("Courier", 11)
+            font=self.theme_manager.get_monospace_font()
         )
         self.solvers_text.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
 
@@ -197,7 +197,7 @@ class ValidationPanel(BasePanel):
         self.results_text = ctk.CTkTextbox(
             self.results_tab,
             wrap="word",
-            font=("Courier", 10)
+            font=self.theme_manager.get_monospace_font()
         )
         self.results_text.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
 

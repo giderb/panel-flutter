@@ -158,7 +158,7 @@ class MainWindow:
         icon_label = ctk.CTkLabel(
             title_frame,
             text="✈️",
-            font=ctk.CTkFont(size=32),
+            font=self.theme_manager.get_display_font(),
             text_color=("#0066CC", "#00A8FF")  # Blue gradient effect
         )
         icon_label.pack(pady=(0, 5))
@@ -167,7 +167,7 @@ class MainWindow:
         title_label = ctk.CTkLabel(
             title_frame,
             text="Panel Flutter",
-            font=ctk.CTkFont(size=20, weight="bold"),
+            font=self.theme_manager.get_title_font(),
             text_color=("#1a1a1a", "#ffffff")
         )
         title_label.pack(pady=(0, 2))
@@ -176,7 +176,7 @@ class MainWindow:
         subtitle_label = ctk.CTkLabel(
             title_frame,
             text="NASTRAN Analysis",
-            font=ctk.CTkFont(size=10),
+            font=self.theme_manager.get_caption_font(),
             text_color=("#666666", "#999999")
         )
         subtitle_label.pack(pady=(0, 10))
@@ -212,7 +212,7 @@ class MainWindow:
             command=nav_command,
             anchor="w",
             height=40,
-            font=ctk.CTkFont(size=14),
+            font=self.theme_manager.get_body_large_font(),
             fg_color="transparent",
             text_color=self.theme_manager.get_color("text"),
             hover_color=self.theme_manager.get_color("primary")
@@ -234,7 +234,7 @@ class MainWindow:
             status_frame,
             text="No project loaded",
             style="caption",
-            font=ctk.CTkFont(size=11)
+            font=self.theme_manager.get_caption_font()
         )
         self.status_label.pack(pady=(10, 5))
 
