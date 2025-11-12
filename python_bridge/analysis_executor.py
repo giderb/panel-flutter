@@ -330,17 +330,35 @@ class AnalysisExecutor:
     
     def _convert_structural_model(self, model: Any) -> 'PanelProperties':
         """Convert GUI structural model to analysis format"""
-        
+
         # Extract material properties
         material = getattr(model, 'material', None)
+        composite_thickness = None
+
         if material:
-            E = getattr(material, 'youngs_modulus', 71.7e9)
-            nu = getattr(material, 'poissons_ratio', 0.33)
-            rho = getattr(material, 'density', 2810)
+            # CRITICAL FIX v2.2.0: Handle composite laminates
+            material_type = type(material).__name__
+            print(f"[v2.2.0 COMPOSITE FIX] Material type: {material_type}")
+
+            # Detect composite
+            is_composite = ('Composite' in material_type or 'Laminate' in material_type) and hasattr(material, 'laminas')
+
+            if is_composite:
+                # Calculate equivalent properties
+                composite_thickness = sum(lamina.thickness for lamina in material.laminas)
+                rho = sum(lamina.material.density * lamina.thickness for lamina in material.laminas) / composite_thickness
+                E = sum(lamina.material.e1 * lamina.thickness for lamina in material.laminas) / composite_thickness
+                nu = material.laminas[0].material.nu12
+                print(f"[COMPOSITE] {len(material.laminas)} plies, E={E/1e9:.1f}GPa, ρ={rho:.0f}kg/m³, t={composite_thickness*1000:.2f}mm")
+            else:
+                E = getattr(material, 'youngs_modulus', 71.7e9)
+                nu = getattr(material, 'poissons_ratio', 0.33)
+                rho = getattr(material, 'density', 2810)
+                print(f"[ISOTROPIC] E={E/1e9:.1f}GPa, ρ={rho:.0f}kg/m³")
         else:
-            # Default aluminum
             E, nu, rho = 71.7e9, 0.33, 2810
-        
+            print(f"[DEFAULT ALUMINUM]")
+
         # Extract geometry
         panel = getattr(model, 'panel', None)
         if panel:
@@ -349,12 +367,17 @@ class AnalysisExecutor:
             thickness = getattr(panel, 'thickness', 0.0015)
         else:
             length, width, thickness = 0.3, 0.3, 0.0015
-        
+
+        # Use composite total thickness
+        if composite_thickness is not None:
+            thickness = composite_thickness
+            print(f"[THICKNESS] Using composite {thickness*1000:.2f}mm")
+
         # Extract boundary conditions
         bc = getattr(model, 'boundary_condition', 'SSSS')
         if hasattr(bc, 'value'):
             bc = bc.value
-        
+
         return PanelProperties(
             length=float(length),
             width=float(width),

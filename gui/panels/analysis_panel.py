@@ -512,6 +512,17 @@ class AnalysisPanel(BasePanel):
         aero_data = project.aerodynamic_config if hasattr(project, 'aerodynamic_config') and project.aerodynamic_config \
                     else project.aerodynamic_model
 
+        # CRITICAL DEBUG v2.5.0: Check what's in aero_data
+        print("\n" + "="*80)
+        print(">>> v2.5.0 MACH NUMBER DEBUG - analysis_panel._run_analysis() <<<")
+        print(f"aero_data type: {type(aero_data)}")
+        print(f"aero_data value: {aero_data}")
+        if isinstance(aero_data, dict) and 'flow_conditions' in aero_data:
+            print(f"flow_conditions: {aero_data['flow_conditions']}")
+            if 'mach_number' in aero_data['flow_conditions']:
+                print(f"Mach number in aero_data: {aero_data['flow_conditions']['mach_number']}")
+        print("="*80 + "\n")
+
         thread = threading.Thread(
             target=self._run_analysis_thread,
             args=(project.structural_model, aero_data, config)

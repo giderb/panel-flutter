@@ -124,9 +124,10 @@ class F06Parser:
                         gen_mass = float(parts[5]) if len(parts) > 5 else 1.0
                         gen_stiff = float(parts[6]) if len(parts) > 6 else eigenvalue
 
-                        # Filter out spurious near-zero frequency modes
-                        # These are typically aerodynamic modes with frequency < 0.1 Hz
-                        if frequency_hz > 0.1:  # Only keep modes above 0.1 Hz
+                        # CRITICAL FIX v2.1.9: Filter out rigid body/aerodynamic modes
+                        # Lowered threshold from 0.1 Hz to 0.01 Hz to allow large panel low-frequency modes
+                        # (10-second period modes are still physical for very large panels)
+                        if frequency_hz > 0.01:  # Only keep modes above 0.01 Hz (down from 0.1 Hz)
                             self.modal_results.append(ModalResult(
                                 mode_number=physical_mode_num,  # Renumber modes
                                 frequency_hz=frequency_hz,
@@ -136,7 +137,7 @@ class F06Parser:
                             ))
                             physical_mode_num += 1
                         else:
-                            logger.debug(f"Filtered out spurious mode {mode} with frequency {frequency_hz:.6f} Hz")
+                            logger.debug(f"Filtered rigid body/aero mode {mode} with f={frequency_hz:.6f} Hz (<0.01 Hz)")
                     except (ValueError, IndexError) as e:
                         logger.debug(f"Error parsing eigenvalue line: {line} - {e}")
                         continue
@@ -176,10 +177,26 @@ class F06Parser:
                     # Parse the rest of the fields
                     inv_kfreq = float(parts[1])
                     velocity = float(parts[2])
-                    damping = float(parts[3])
+
+                    # CRITICAL FIX v2.14.1: Ensure proper parsing of negative damping
+                    # F06 format sometimes has damping like "-1.2345E-01" or " -1.2345E-01"
+                    damping_str = parts[3].strip()
+                    damping = float(damping_str)
+
                     frequency = float(parts[4])
                     real_eigen = float(parts[5])
                     imag_eigen = float(parts[6]) if len(parts) > 6 else 0.0
+
+                    # CRITICAL FIX v2.14.1: Enhanced debug for 139.4 m/s issue
+                    if abs(velocity - 139394.0) < 1.0:  # 139394 mm/s = 139.4 m/s
+                        logger.warning(f"DEBUG F06 PARSER at V=139394 (139.4 m/s):")
+                        logger.warning(f"  Line: {line}")
+                        logger.warning(f"  Parts: {parts}")
+                        logger.warning(f"  Damping (parts[3]): '{parts[3]}' -> {damping}")
+                        logger.warning(f"  Frequency: {frequency} Hz")
+                        logger.warning(f"  Is damping positive? {damping > 0}")
+                        if damping > 0:
+                            logger.warning(f"  *** POSITIVE DAMPING DETECTED AT 139.4 m/s ***")
 
                     self.flutter_results.append(FlutterPoint(
                         velocity=velocity,
@@ -210,7 +227,20 @@ class F06Parser:
 
             # Sort velocities
             sorted_velocities = sorted(velocity_groups.keys())
-            logger.info(f"F06 Parser: Velocity range: {sorted_velocities[0]/100:.1f} to {sorted_velocities[-1]/100:.1f} m/s")
+            logger.info(f"F06 Parser: Velocity range: {sorted_velocities[0]/1000:.1f} to {sorted_velocities[-1]/1000:.1f} m/s")
+
+            # CRITICAL DEBUG v2.14.3: Show damping values at key velocities
+            logger.warning("="*70)
+            logger.warning("CRITICAL DEBUG: Damping values at key velocities")
+            # Check velocities around flutter point
+            test_velocities = [882222, 973000]  # Actual velocities from this run
+            for v in sorted_velocities:
+                if v >= 850000 and v <= 1000000:  # Around flutter region
+                    modes = velocity_groups[v]
+                    logger.warning(f"V={v/1000:.1f} m/s:")
+                    for m in modes[:3]:  # First 3 modes
+                        logger.warning(f"  f={m.frequency:.1f} Hz, g={m.damping:.6f}")
+            logger.warning("="*70)
 
             # STRATEGY 1: Look for damping sign change (negative to positive) at ANY frequency
             # This captures low-frequency/rigid-body flutter modes that have frequency=0
@@ -223,14 +253,15 @@ class F06Parser:
 
                 # Try to match modes by frequency (same mode will have similar frequency)
                 for m1 in modes_v1:
-                    # CRITICAL FIX: Accept ALL frequencies including 0 Hz (rigid-body modes)
-                    # Only filter out obviously bad data (negative frequencies)
-                    if m1.frequency < 0:
+                    # CRITICAL FIX v2.2.0: Reject KFREQ=0 modes (divergence, not flutter)
+                    # Flutter requires oscillating modes (frequency > 0)
+                    # KFREQ=0 means zero reduced frequency = divergence or numerical artifact
+                    if m1.frequency <= 0.01:  # Small threshold to handle numerical noise
                         continue
 
                     # Find matching mode at next velocity
                     for m2 in modes_v2:
-                        if m2.frequency < 0:
+                        if m2.frequency <= 0.01:
                             continue
 
                         # Check if this is likely the same mode
@@ -246,9 +277,23 @@ class F06Parser:
                             if freq_ratio < 0.3:  # Relaxed from 20% to 30%
                                 is_same_mode = True
 
+                        # CRITICAL DEBUG v2.14.3: Log mode matching attempts
+                        if v1 == 882222 and v2 == 973000 and m1.frequency > 100 and m1.frequency < 120:
+                            logger.warning(f"DEBUG MODE MATCH: V1={v1/1000:.1f}, V2={v2/1000:.1f}")
+                            logger.warning(f"  m1: f={m1.frequency:.2f} Hz, g={m1.damping:.6f}")
+                            logger.warning(f"  m2: f={m2.frequency:.2f} Hz, g={m2.damping:.6f}")
+                            logger.warning(f"  freq_ratio={(abs(m2.frequency - m1.frequency) / m1.frequency):.3f}")
+                            logger.warning(f"  is_same_mode={is_same_mode}")
+
                         if is_same_mode:
                             # Check for flutter onset (negative to positive damping)
-                            if m1.damping < 0 and m2.damping > 0:
+                            # CRITICAL FIX v2.14.2: Filter numerical noise - damping must be clearly positive
+                            # Values like 1E-14 are numerical noise, not real positive damping
+                            if m1.damping < 0 and m2.damping > 0.0001:  # Changed from > 0 to > 0.0001
+                                # CRITICAL FIX v2.14.1: Log detected crossings
+                                logger.info(f"DETECTED DAMPING CROSSING:")
+                                logger.info(f"  V1={v1/1000:.1f} m/s: g={m1.damping:.6f}, f={m1.frequency:.1f} Hz")
+                                logger.info(f"  V2={v2/1000:.1f} m/s: g={m2.damping:.6f}, f={m2.frequency:.1f} Hz")
                                 # CRITICAL FIX: REMOVED overly aggressive damping filter
                                 # Accept ANY damping crossing, including small values
                                 # The crossing itself is the flutter point, regardless of magnitude
@@ -259,13 +304,39 @@ class F06Parser:
                                 f1 = m1.frequency
                                 f2 = m2.frequency
 
+                                # CRITICAL FIX v2.1.9: Validate interpolation to prevent numerical issues
+                                # Check for near-zero damping gradient (division by zero)
+                                if abs(d2 - d1) < 1e-10:
+                                    logger.debug(f"Skipping near-zero damping gradient at V={v1/1000:.1f}m/s (Δg={d2-d1:.2e})")
+                                    continue
+
                                 t = -d1 / (d2 - d1)
+
+                                # Validate interpolation parameter (should be in [0,1] for true interpolation)
+                                # Allow 10% extrapolation for robustness, but warn if excessive
+                                if not (-0.1 <= t <= 1.1):
+                                    logger.warning(f"Interpolation out of bounds: t={t:.3f} at V={v1/1000:.1f}m/s, skipping")
+                                    continue
+
                                 candidate_velocity = v1 + t * (v2 - v1)
                                 candidate_frequency = f1 + t * (f2 - f1)
 
-                                # CRITICAL FIX v2.1.1: NASTRAN outputs in cm/s, not mm/s
-                                logger.info(f"Flutter detected: V={candidate_velocity/100:.1f} m/s, f={candidate_frequency:.1f} Hz")
-                                logger.info(f"  Transition: V1={v1/100:.1f}m/s (g={d1:.4f}, f={f1:.1f}Hz), V2={v2/100:.1f}m/s (g={d2:.4f}, f={f2:.1f}Hz)")
+                                # Validate physical results (positive velocity and frequency)
+                                if candidate_velocity <= 0 or candidate_frequency <= 0:
+                                    logger.warning(f"Non-physical flutter point: V={candidate_velocity/1000:.1f}m/s, f={candidate_frequency:.1f}Hz, skipping")
+                                    continue
+
+                                # CRITICAL FIX v2.1.9: NASTRAN F06 velocities in mm/s (not cm/s)
+                                logger.info(f"Flutter detected: V={candidate_velocity/1000:.1f} m/s, f={candidate_frequency:.1f} Hz")
+                                logger.info(f"  Transition: V1={v1/1000:.1f}m/s (g={d1:.4f}, f={f1:.1f}Hz), V2={v2/1000:.1f}m/s (g={d2:.4f}, f={f2:.1f}Hz)")
+
+                                # CRITICAL FIX v2.14.2: Additional validation - verify positive damping exists
+                                # Check that at least one of the velocities has actual positive damping
+                                # (not just interpolation between two negative values or numerical noise)
+                                if d2 <= 0.0001:  # Changed from <= 0 to filter numerical noise
+                                    logger.warning(f"FALSE CROSSING: d2={d2:.6e} is not clearly positive (noise)")
+                                    logger.warning(f"  d1={d1:.6f}, d2={d2:.6e} - This is NOT flutter - skipping")
+                                    continue
 
                                 # CRITICAL: Keep the LOWEST velocity flutter point (most conservative)
                                 # Multiple modes may go unstable at different velocities
@@ -276,39 +347,90 @@ class F06Parser:
 
             # After checking all velocities, we have the lowest flutter point
             if critical_velocity is not None:
-                logger.info(f"FINAL: Lowest flutter point at V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
+                logger.info(f"FINAL: Lowest flutter point at V={critical_velocity/1000:.1f} m/s, f={critical_frequency:.1f} Hz")
 
             # STRATEGY 2: If no zero-crossing found, check for modes with positive damping
             # This handles cases where flutter is already established at lowest velocity
             if critical_velocity is None:
                 logger.info("F06 Parser: No damping zero-crossing found, checking for already-unstable modes")
+
+                # Find the first velocity with any unstable modes
                 for v in sorted_velocities:
                     modes = velocity_groups[v]
+                    unstable_modes = []
+
                     for mode in modes:
-                        # Look for modes with positive damping (unstable) and realistic frequency
-                        if mode.damping > 0:
-                            logger.info(f"  Unstable mode at V={v/100:.1f}m/s: g={mode.damping:.4f}, f={mode.frequency:.1f}Hz")
-                            # Report the lowest velocity with positive damping
-                            if critical_velocity is None or v < critical_velocity:
-                                critical_velocity = v
-                                critical_frequency = mode.frequency
-                                logger.info(f"  Using this as critical flutter point")
+                        # CRITICAL FIX v2.2.0: Skip KFREQ=0 modes (divergence, not flutter)
+                        if mode.frequency <= 0.01:
+                            continue
+
+                        # CRITICAL FIX v2.14.2: Properly filter numerical noise
+                        # Look for modes with clearly positive damping (unstable) and realistic frequency
+                        # Filter out very low frequency modes (<5 Hz) which may be rigid body or spurious
+                        # CRITICAL: Damping must be > 0.0001 to avoid numerical noise (e.g., 1E-14)
+                        # Real flutter has damping typically > 0.0001
+                        if mode.damping > 0.0001 and mode.frequency >= 5.0:
+                            unstable_modes.append(mode)
+                            logger.info(f"  Unstable mode at V={v/1000:.1f}m/s: g={mode.damping:.4f}, f={mode.frequency:.1f}Hz")
+
+                    # If we found unstable modes at this velocity, select the MOST unstable one
+                    if unstable_modes:
+                        # Select mode with highest positive damping (most unstable)
+                        most_unstable = max(unstable_modes, key=lambda m: m.damping)
+                        critical_velocity = v
+                        critical_frequency = most_unstable.frequency
+                        logger.info(f"  *** Selected MOST UNSTABLE mode: g={most_unstable.damping:.4f}, f={most_unstable.frequency:.1f}Hz")
+                        logger.info(f"  Using this as critical flutter point")
+                        break  # Stop at first velocity with unstable modes
 
                 if critical_velocity is not None:
-                    logger.info(f"Flutter onset (already unstable): V={critical_velocity/100:.1f} m/s, f={critical_frequency:.1f} Hz")
+                    logger.info(f"Flutter onset (already unstable): V={critical_velocity/1000:.1f} m/s, f={critical_frequency:.1f} Hz")
 
             # Log if no flutter found
             if critical_velocity is None:
                 logger.warning("F06 Parser: No flutter detected in velocity range")
-                logger.warning(f"  Checked {len(sorted_velocities)} velocities from {sorted_velocities[0]/100:.1f} to {sorted_velocities[-1]/100:.1f} m/s")
+                logger.warning(f"  Checked {len(sorted_velocities)} velocities from {sorted_velocities[0]/1000:.1f} to {sorted_velocities[-1]/1000:.1f} m/s")
                 # Log sample of damping values for diagnosis
                 for i, v in enumerate(sorted_velocities[:5]):  # First 5 velocities
                     modes = velocity_groups[v]
                     dampings = [f"g={m.damping:.2f}(f={m.frequency:.1f})" for m in modes[:3]]  # First 3 modes
-                    logger.warning(f"  V={v/100:.1f}m/s: {', '.join(dampings)}")
+                    logger.warning(f"  V={v/1000:.1f}m/s: {', '.join(dampings)}")
 
-        # CRITICAL: Convert velocity from cm/s (NASTRAN F06 units) to m/s for return
-        critical_velocity_ms = critical_velocity / 100.0 if critical_velocity is not None else None
+        # CRITICAL FIX v2.1.9: Convert velocity from mm/s (NASTRAN F06 units) to m/s for return
+        # NASTRAN uses mm-kg-s-N unit system, so FLFACT velocities and F06 output are in mm/s
+        critical_velocity_ms = critical_velocity / 1000.0 if critical_velocity is not None else None
+
+        # CRITICAL FIX v2.2.0: Only report flutter if actually found (not false crossing from negative dampings)
+        flutter_found = critical_velocity is not None
+
+        # Additional check: If we found a velocity, verify it's from actual positive damping
+        # (not just interpolation between two negative values)
+        if critical_velocity is not None:
+            # Check if any mode at any velocity has positive damping
+            has_positive_damping = False
+            for v in sorted_velocities:
+                for mode in velocity_groups[v]:
+                    if mode.damping > 0.0001:  # Small threshold to avoid numerical noise (1E-4)
+                        has_positive_damping = True
+                        break
+                if has_positive_damping:
+                    break
+
+            if not has_positive_damping:
+                logger.warning("=" * 70)
+                logger.warning("⚠️  FALSE FLUTTER DETECTION")
+                logger.warning("=" * 70)
+                logger.warning(f"Found interpolated crossing at {critical_velocity_ms:.1f} m/s")
+                logger.warning("BUT all dampings are NEGATIVE (no actual flutter)")
+                logger.warning("This means panel is STABLE across entire velocity range")
+                logger.warning(f"Tested range: {sorted_velocities[0]/1000:.1f} to {sorted_velocities[-1]/1000:.1f} m/s")
+                logger.warning("RECOMMENDATION: Flutter speed is ABOVE maximum tested velocity")
+                logger.warning("=" * 70)
+
+                # Clear the false positive
+                critical_velocity_ms = None
+                critical_frequency = None
+                flutter_found = False
 
         return {
             'success': not self.has_fatal_errors,
@@ -317,8 +439,9 @@ class F06Parser:
             'modal_frequencies': [m.frequency_hz for m in self.modal_results],
             'modal_results': self.modal_results,
             'flutter_results': self.flutter_results,
-            'critical_flutter_velocity': critical_velocity_ms,  # Now in m/s
+            'critical_flutter_velocity': critical_velocity_ms,  # Now in m/s (or None if false positive)
             'critical_flutter_frequency': critical_frequency,
+            'flutter_found': flutter_found,  # NEW: Explicit flag
             'has_results': len(self.modal_results) > 0 or len(self.flutter_results) > 0
         }
 
@@ -333,6 +456,7 @@ class F06Parser:
             'flutter_results': [],
             'critical_flutter_velocity': None,
             'critical_flutter_frequency': None,
+            'flutter_found': False,
             'has_results': False
         }
 

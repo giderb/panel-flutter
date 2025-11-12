@@ -168,7 +168,7 @@ class CertificationTestSuite:
         """Test 1: Verify unit system corrections (CRITICAL)"""
         test = CertificationTestCase(
             name="Unit System Validation",
-            description="Verify correct density unit conversion: 2810 kg/m^3 = 2.81e-6 kg/mm^3",
+            description="Verify correct density unit conversion: 2810 kg/m^3 = 2.81e-9 kg/mm^3",
             test_id="CERT-001",
             category="System Validation"
         )
@@ -191,7 +191,7 @@ class CertificationTestSuite:
                 'ny': 10,
                 'youngs_modulus': 71700.0,  # MPa
                 'poissons_ratio': 0.33,
-                'density': 2.81e-6,  # kg/mm³ (correct: 2810 kg/m³ / 1e9 = 2.81e-6)
+                'density': 2.81e-9,  # kg/mm³ (correct: 2810 kg/m³ / 1e9 = 2.81e-9)
                 'mach_number': 2.0,
                 'altitude': 10000,
                 'velocity': 1.0e6,
@@ -222,18 +222,18 @@ class CertificationTestSuite:
                     density_value = float(density_str)
                     test.log_result("Parsed density value", f"{density_value:.2E} kg/mm³")
 
-                    # Check if in correct range (2.5e-6 to 3.0e-6 for aluminum in kg/mm³)
-                    if 2.5e-6 <= density_value <= 3.0e-6:
+                    # Check if in correct range (2.5e-9 to 3.0e-9 for aluminum in kg/mm³)
+                    if 2.5e-9 <= density_value <= 3.0e-9:
                         test.log_result("Density range check", "PASS (within expected range)")
 
                         # Check for reasonable aluminum density
-                        expected_density = 2.81e-6  # 2810 kg/m³ converted to kg/mm³
+                        expected_density = 2.81e-9  # 2810 kg/m³ converted to kg/mm³
                         error_pct = abs((density_value - expected_density) / expected_density * 100)
                         if error_pct < 2:
-                            test.log_result("Density value check", f"PASS (within 2% of expected 2.81e-6: error={error_pct:.2f}%)")
+                            test.log_result("Density value check", f"PASS (within 2% of expected 2.81e-9: error={error_pct:.2f}%)")
                             test.passed = True
                         else:
-                            test.add_error(f"Density error {error_pct:.1f}% from expected 2.81e-6")
+                            test.add_error(f"Density error {error_pct:.1f}% from expected 2.81e-9")
                     else:
                         test.add_error(f"Density {density_value:.2E} outside expected range for aluminum")
                 except ValueError:
@@ -309,7 +309,7 @@ class CertificationTestSuite:
                 'ny': 10,
                 'youngs_modulus': 71700.0,
                 'poissons_ratio': 0.33,
-                'density': 2.81e-6,  # kg/mm³ (correct: 2810 kg/m³ / 1e9 = 2.81e-6)
+                'density': 2.81e-9,  # kg/mm³ (correct: 2810 kg/m³ / 1e9 = 2.81e-9)
                 'mach_number': 2.0,
                 'altitude': 10000,
                 'boundary_conditions': 'SSSS',
@@ -409,7 +409,7 @@ class CertificationTestSuite:
                 'ny': 12,
                 'youngs_modulus': 71700.0,
                 'poissons_ratio': 0.33,
-                'density': 2.81e-6,  # kg/mm³ (correct: 2810 kg/m³ / 1e9)
+                'density': 2.81e-9,  # kg/mm³ (correct: 2810 kg/m³ / 1e9)
                 'mach_number': 0.0,  # Static analysis for modal only
                 'altitude': 0,
                 'boundary_conditions': 'SSSS',

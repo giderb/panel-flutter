@@ -142,14 +142,59 @@ class IntegratedFlutterExecutor:
                 velocity_points = config.get('velocity_points', 8)
                 self.logger.info(f"Physics analysis using GUI velocity range: {velocity_range[0]:.0f}-{velocity_range[1]:.0f} m/s")
 
-            physics_result = self.flutter_analyzer.analyze(
-                panel, flow,
-                method='auto',  # Automatic method selection
-                validate=True,
-                velocity_range=velocity_range,
-                velocity_points=velocity_points,
-                apply_corrections=True  # Apply transonic and temperature corrections
-            )
+            # CRITICAL FIX v2.2.0: Physics analyzer may fail for subsonic (M<1.0) or other edge cases
+            # In those cases, skip physics and rely on NASTRAN instead
+            physics_result = None
+            physics_failed = False
+            try:
+                physics_result = self.flutter_analyzer.analyze(
+                    panel, flow,
+                    method='auto',  # Automatic method selection
+                    validate=True,
+                    velocity_range=velocity_range,
+                    velocity_points=velocity_points,
+                    apply_corrections=True  # Apply transonic and temperature corrections
+                )
+            except ValueError as e:
+                # Expected failure for unsupported regimes (e.g., M < 1.0)
+                physics_failed = True
+                self.logger.warning(f"Physics-based analysis skipped: {e}")
+                self.logger.info("Will rely on NASTRAN analysis instead")
+
+                # Create minimal physics result for compatibility
+                from dataclasses import dataclass
+                @dataclass
+                class MinimalPhysicsResult:
+                    converged: bool = False
+                    flutter_speed: float = 999999.0
+                    flutter_frequency: float = 0.0
+                    flutter_mode: int = 0
+                    damping_ratio: float = 0.0
+                    dynamic_pressure: float = 0.0
+                    method: str = "Physics N/A"
+                    validation_status: str = "Physics not applicable for this regime"
+
+                physics_result = MinimalPhysicsResult()
+            except Exception as e:
+                # Unexpected failure
+                physics_failed = True
+                self.logger.error(f"Physics-based analysis failed unexpectedly: {e}")
+                self.logger.info("Will rely on NASTRAN analysis instead")
+
+                # Create minimal physics result
+                from dataclasses import dataclass
+                @dataclass
+                class MinimalPhysicsResult:
+                    converged: bool = False
+                    flutter_speed: float = 999999.0
+                    flutter_frequency: float = 0.0
+                    flutter_mode: int = 0
+                    damping_ratio: float = 0.0
+                    dynamic_pressure: float = 0.0
+                    method: str = "Physics Failed"
+                    validation_status: str = "Physics analysis error - using NASTRAN only"
+
+                physics_result = MinimalPhysicsResult()
             
             # Step 3: Generate NASTRAN BDF if available
             nastran_result = None
@@ -208,25 +253,64 @@ class IntegratedFlutterExecutor:
                     ]
 
                 # Extract aerodynamic theory from model if available
+                # CRITICAL v2.1.9: Enhanced logging to debug user selection
                 aero_theory = None
+                self.logger.info(f"=== AERODYNAMIC THEORY SELECTION ===")
+                self.logger.info(f"aerodynamic_model type: {type(aerodynamic_model)}")
+
                 if hasattr(aerodynamic_model, 'theory'):
                     # It's an AerodynamicModel object with theory attribute
                     theory_enum = aerodynamic_model.theory
                     aero_theory = theory_enum.value if hasattr(theory_enum, 'value') else str(theory_enum)
+                    self.logger.info(f"Extracted theory from model object: {aero_theory}")
                 elif isinstance(aerodynamic_model, dict) and 'theory' in aerodynamic_model:
                     # It's a dictionary with theory key
                     aero_theory = aerodynamic_model['theory']
+                    self.logger.info(f"Extracted theory from dict: {aero_theory}")
 
-                # Auto-select theory based on Mach number if not specified
+                # CRITICAL FIX v2.12.0: Validate and override incompatible theory choices
+                # Auto-select theory based on Mach number if not specified OR if incompatible
+                user_specified_theory = aero_theory if aero_theory else None
+
                 if not aero_theory:
+                    # No theory specified - auto-select
                     if flow.mach_number > 1.2:
                         aero_theory = 'PISTON_THEORY'
-                        self.logger.info(f"Auto-selected PISTON_THEORY for M={flow.mach_number:.2f} (supersonic)")
+                        self.logger.info(f"AUTO-SELECTED PISTON_THEORY for M={flow.mach_number:.2f} (supersonic)")
                     else:
                         aero_theory = 'DOUBLET_LATTICE'
-                        self.logger.info(f"Auto-selected DOUBLET_LATTICE for M={flow.mach_number:.2f} (subsonic/transonic)")
+                        self.logger.info(f"AUTO-SELECTED DOUBLET_LATTICE for M={flow.mach_number:.2f} (subsonic/transonic)")
                 else:
-                    self.logger.info(f"Using specified aerodynamic theory: {aero_theory}")
+                    # Theory was specified - validate against Mach number
+                    if flow.mach_number > 1.2 and aero_theory == 'DOUBLET_LATTICE':
+                        self.logger.warning(f"⚠️  OVERRIDING INVALID THEORY CHOICE!")
+                        self.logger.warning(f"   User selected: {aero_theory}")
+                        self.logger.warning(f"   But M={flow.mach_number:.2f} > 1.2 (supersonic)")
+                        self.logger.warning(f"   DLM is ONLY valid for subsonic flow (M < 1.0)")
+                        self.logger.warning(f"   Forcing PISTON_THEORY for correct physics")
+                        aero_theory = 'PISTON_THEORY'
+                    elif flow.mach_number < 1.0 and aero_theory == 'PISTON_THEORY':
+                        self.logger.warning(f"⚠️  OVERRIDING INVALID THEORY CHOICE!")
+                        self.logger.warning(f"   User selected: {aero_theory}")
+                        self.logger.warning(f"   But M={flow.mach_number:.2f} < 1.0 (subsonic)")
+                        self.logger.warning(f"   Piston Theory requires supersonic flow (M > 1.2)")
+                        self.logger.warning(f"   Forcing DOUBLET_LATTICE for correct physics")
+                        aero_theory = 'DOUBLET_LATTICE'
+                    else:
+                        self.logger.info(f"✓ USING USER-SPECIFIED THEORY: {aero_theory} (valid for M={flow.mach_number:.2f})")
+
+                # CRITICAL v2.12.0: Show override warning prominently
+                if user_specified_theory and user_specified_theory != aero_theory:
+                    print("\n" + "="*80)
+                    print(">>> CRITICAL: AERODYNAMIC THEORY OVERRIDE <<<")
+                    print(f"User requested: {user_specified_theory}")
+                    print(f"Mach number: {flow.mach_number}")
+                    print(f"OVERRIDDEN TO: {aero_theory}")
+                    print(f"Reason: {user_specified_theory} is invalid for M={flow.mach_number:.2f}")
+                    print("="*80 + "\n")
+
+                self.logger.info(f"Final aerodynamic_theory parameter: {aero_theory}")
+                self.logger.info(f"=====================================")
 
                 # Get material object from structural model if available (for composites/sandwich panels)
                 material_object = None
@@ -241,6 +325,16 @@ class IntegratedFlutterExecutor:
                     self.logger.info(f"Material object type: {type(material_object).__name__}")
 
                 # Generate BDF using validated SimpleBDFGenerator
+                print("\n" + "="*80)
+                print(">>> v2.2.0 - PANEL PROPERTIES PASSED TO BDF GENERATOR <<<")
+                print(f"Length = {panel.length:.3f} m")
+                print(f"Width = {panel.width:.3f} m")
+                print(f"Thickness = {panel.thickness:.6f} m ({panel.thickness*1000:.3f} mm)")
+                print(f"Young's Modulus = {panel.youngs_modulus/1e9:.2f} GPa")
+                print(f"Density = {panel.density:.1f} kg/m³")
+                print(f"Poisson's Ratio = {panel.poissons_ratio:.3f}")
+                print("="*80 + "\n")
+
                 bdf_file_path = self.bdf_generator.generate_flutter_bdf(
                     length=panel.length,
                     width=panel.width,
@@ -270,6 +364,17 @@ class IntegratedFlutterExecutor:
 
                         f06_parser = F06Parser(Path(nastran_result['f06_file']))
                         f06_results = f06_parser.parse()
+
+                        # DEBUG: Log what F06 parser found
+                        print("\n" + "="*80)
+                        print(">>> F06 PARSER RESULTS <<<")
+                        print(f"Success: {f06_results.get('success')}")
+                        print(f"Critical flutter velocity: {f06_results.get('critical_flutter_velocity')} m/s")
+                        print(f"Critical flutter frequency: {f06_results.get('critical_flutter_frequency')} Hz")
+                        print(f"Flutter found: {f06_results.get('flutter_found', False)}")
+                        print(f"Message: {f06_results.get('message', 'N/A')}")
+                        print("="*80 + "\n")
+
                         nastran_result.update(f06_results)
             
             # Step 5: Cross-validation if NASTRAN results available
@@ -288,11 +393,11 @@ class IntegratedFlutterExecutor:
             execution_time = time.time() - start_time
 
             # CRITICAL: Result priority depends on Mach number and aerodynamic theory validity
-            # For M < 1.0: ONLY use Python DLM (piston theory invalid in NASTRAN)
-            # For M > 1.2: Can use NASTRAN piston theory or cross-validate
+            # For M < 1.0: Use NASTRAN DLM if physics failed, otherwise use Python DLM
+            # For M >= 1.2: Use NASTRAN piston theory or cross-validate
 
-            if flow.mach_number < 1.0:
-                # SUBSONIC/TRANSONIC: Piston theory invalid, only trust Python DLM
+            if flow.mach_number < 1.0 and not physics_failed:
+                # SUBSONIC/TRANSONIC: Physics DLM succeeded, use it
                 converged = physics_result.converged
                 flutter_speed = physics_result.flutter_speed
                 flutter_frequency = physics_result.flutter_frequency
@@ -302,16 +407,28 @@ class IntegratedFlutterExecutor:
 
                 if nastran_result and nastran_result.get('critical_flutter_velocity'):
                     nastran_v = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
-                    self.logger.warning(f"  NASTRAN reported V={nastran_v:.1f} m/s but this is likely false positive (invalid theory)")
+                    self.logger.info(f"  NASTRAN also reported V={nastran_v:.1f} m/s")
 
-            elif nastran_result and nastran_result.get('success') and nastran_result.get('critical_flutter_velocity'):
-                # SUPERSONIC: NASTRAN piston theory valid, use it
-                # CRITICAL FIX v2.1.2: F06 parser already converts cm/s to m/s, don't divide again
+            elif nastran_result and nastran_result.get('success') and nastran_result.get('flutter_found') and nastran_result.get('critical_flutter_velocity'):
+                # NASTRAN results available (DLM for subsonic, Piston for supersonic)
+                # CRITICAL FIX v2.2.0: Check flutter_found flag to avoid false positives
                 converged = True
                 flutter_speed = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
                 flutter_frequency = nastran_result['critical_flutter_frequency']
                 flutter_mode = 1  # From NASTRAN
-                self.logger.info(f"M={flow.mach_number:.2f} > 1.0: Using NASTRAN piston theory results")
+
+                aero_method = "DLM" if flow.mach_number < 1.0 else "Piston Theory"
+                reason = "Physics failed" if physics_failed else "Validated analysis"
+
+                print("\n" + "="*80)
+                print(">>> USING NASTRAN RESULTS <<<")
+                print(f"Mach: {flow.mach_number:.2f} ({aero_method})")
+                print(f"Reason: {reason}")
+                print(f"Flutter Speed: {flutter_speed:.1f} m/s")
+                print(f"Flutter Frequency: {flutter_frequency:.1f} Hz")
+                print("="*80 + "\n")
+
+                self.logger.info(f"M={flow.mach_number:.2f}: Using NASTRAN {aero_method} results")
                 self.logger.info(f"  Flutter: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
 
                 # Cross-validate with physics if available
@@ -320,12 +437,46 @@ class IntegratedFlutterExecutor:
                     if delta > 20:
                         self.logger.warning(f"  Python DLM disagrees: V={physics_result.flutter_speed:.1f} m/s ({delta:.1f}% difference)")
             else:
-                # FALLBACK: Use physics-based results
-                converged = physics_result.converged
-                flutter_speed = physics_result.flutter_speed
-                flutter_frequency = physics_result.flutter_frequency
-                flutter_mode = physics_result.flutter_mode
-                self.logger.info(f"Using Python DLM fallback: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
+                # FALLBACK: No valid NASTRAN results, use physics if available
+                # Check if NASTRAN found no flutter (stable panel)
+                if nastran_result and nastran_result.get('success') and not nastran_result.get('flutter_found'):
+                    # NASTRAN ran but found no flutter - panel is stable
+                    converged = False
+                    flutter_speed = 999999.0  # Sentinel for "no flutter found"
+                    flutter_frequency = 0.0
+                    flutter_mode = 0
+
+                    print("\n" + "="*80)
+                    print(">>> NO FLUTTER DETECTED <<<")
+                    print(f"NASTRAN analysis completed successfully")
+                    print(f"Panel is STABLE across tested velocity range")
+                    if 'velocity_max' in config:
+                        print(f"Tested up to {config['velocity_max']:.0f} m/s")
+                    print(f"Flutter speed is ABOVE tested range")
+                    print("="*80 + "\n")
+
+                    self.logger.info(f"No flutter detected - panel stable up to {config.get('velocity_max', 2500):.0f} m/s")
+                else:
+                    # Use physics results (may be fallback with high values if physics also failed)
+                    converged = physics_result.converged
+                    flutter_speed = physics_result.flutter_speed
+                    flutter_frequency = physics_result.flutter_frequency
+                    flutter_mode = physics_result.flutter_mode
+
+                    print("\n" + "="*80)
+                    print(">>> USING PHYSICS FALLBACK RESULTS <<<")
+                    print(f"NASTRAN result exists: {nastran_result is not None}")
+                    if nastran_result:
+                        print(f"NASTRAN success: {nastran_result.get('success')}")
+                        print(f"NASTRAN flutter found: {nastran_result.get('flutter_found')}")
+                    if flutter_speed > 900000:  # Very high sentinel value
+                        print(f"Flutter Speed: NOT FOUND (>999000 m/s)")
+                    else:
+                        print(f"Flutter Speed: {flutter_speed:.1f} m/s")
+                    print(f"Flutter Frequency: {flutter_frequency:.1f} Hz")
+                    print("="*80 + "\n")
+
+                    self.logger.info(f"Using fallback results: V={flutter_speed:.1f} m/s, f={flutter_frequency:.1f} Hz")
 
             # v2.1.1 FIX: Add warning if not converged
             if not converged:
@@ -457,19 +608,74 @@ class IntegratedFlutterExecutor:
                     self.logger.warning(
                         f"Continuing with NASTRAN analysis. Physics-based results will be approximate."
                     )
+                    self.logger.info(f">>> v2.2.0 CODE RUNNING - Composite fix is active <<<")
             except ImportError:
                 # models.material not available - skip check
                 self.logger.debug("Material type checking skipped (models.material not imported)")
 
         if material:
-            E = getattr(material, 'youngs_modulus', 71.7e9)
-            nu = getattr(material, 'poissons_ratio', 0.33)
-            rho = getattr(material, 'density', 2810)
+            # CRITICAL FIX v2.2.0: Handle composite laminates with equivalent properties
+            material_type = type(material).__name__
+            composite_thickness = None  # Track composite total thickness separately
+
+            # LOUD DEBUG OUTPUT - PRINT TO CONSOLE
+            print("\n" + "="*80)
+            print(">>> v2.2.0 COMPOSITE FIX - MATERIAL PROPERTY EXTRACTION <<<")
+            print(f"Material type: {material_type}")
+            print(f"Has laminas attribute: {hasattr(material, 'laminas')}")
+            if hasattr(material, 'laminas'):
+                print(f"Number of laminas: {len(material.laminas)}")
+            print("="*80 + "\n")
+
+            # Detect composite by either type name OR presence of laminas attribute
+            is_composite = (material_type == 'CompositeLaminate' or
+                          'Composite' in material_type or
+                          'Laminate' in material_type) and hasattr(material, 'laminas')
+
+            if is_composite:
+                # Calculate equivalent properties from laminate
+                # CRITICAL FIX: lamina.thickness is in MILLIMETERS, convert to METERS
+                composite_thickness_mm = sum(lamina.thickness for lamina in material.laminas)
+                composite_thickness = composite_thickness_mm / 1000.0  # Convert mm to m
+
+                # Weighted average density (thickness ratios cancel units)
+                rho = sum(lamina.material.density * lamina.thickness for lamina in material.laminas) / composite_thickness_mm
+
+                # For flutter analysis, use equivalent in-plane stiffness
+                # E_equiv = (sum of E_i * t_i) / t_total (for 0° plies)
+                # This is simplified - proper analysis uses ABD matrix
+                E = sum(lamina.material.e1 * lamina.thickness for lamina in material.laminas) / composite_thickness_mm
+                nu = material.laminas[0].material.nu12  # Use first ply's Poisson ratio (approximation)
+
+                print("\n" + "="*80)
+                print(">>> COMPOSITE LAMINATE DETECTED <<<")
+                print(f"Number of plies: {len(material.laminas)}")
+                print(f"Equivalent E = {E/1e9:.2f} GPa")
+                print(f"Equivalent rho = {rho:.1f} kg/m^3")
+                print(f"Equivalent nu = {nu:.3f}")
+                print(f"Total thickness = {composite_thickness_mm:.3f} mm ({composite_thickness:.6f} m)")
+                print("="*80 + "\n")
+
+                self.logger.info(f"✓ COMPOSITE DETECTED: {len(material.laminas)} plies, total thickness: {composite_thickness*1000:.2f}mm")
+                self.logger.info(f"Equivalent properties: E={E/1e9:.1f}GPa, ρ={rho:.0f}kg/m³, t={composite_thickness*1000:.2f}mm")
+            else:
+                # Isotropic material
+                E = getattr(material, 'youngs_modulus', 71.7e9)
+                nu = getattr(material, 'poissons_ratio', 0.33)
+                rho = getattr(material, 'density', 2810)
+
+                print("\n" + "="*80)
+                print(">>> ISOTROPIC MATERIAL <<<")
+                print(f"E = {E/1e9:.2f} GPa")
+                print(f"ρ = {rho:.1f} kg/m³")
+                print(f"ν = {nu:.3f}")
+                print("="*80 + "\n")
         else:
             # Default aluminum properties
             E = 71.7e9
             nu = 0.33
             rho = 2810
+            composite_thickness = None
             self.logger.warning("No material found in structural model, using aluminum defaults")
 
         # Extract geometry - try multiple paths
@@ -491,6 +697,11 @@ class IntegratedFlutterExecutor:
             thickness = 0.0015
             self.logger.warning("No geometry found in structural model, using defaults")
 
+        # CRITICAL FIX v2.1.9: Use composite total thickness if available
+        if composite_thickness is not None:
+            thickness = composite_thickness
+            self.logger.info(f"Using composite laminate total thickness: {thickness*1000:.2f}mm")
+
         # Extract boundary conditions
         bc = getattr(model, 'boundary_condition', 'SSSS')
         if hasattr(bc, 'value'):
@@ -509,6 +720,13 @@ class IntegratedFlutterExecutor:
     def _convert_aerodynamic_model(self, model: Any) -> FlowConditions:
         """Convert GUI aerodynamic model to analysis format"""
 
+        # CRITICAL DEBUG v2.5.0: Trace Mach number extraction
+        print("\n" + "="*80)
+        print(">>> v2.5.0 MACH NUMBER DEBUG - _convert_aerodynamic_model() <<<")
+        print(f"Model type: {type(model)}")
+        print(f"Model value: {model}")
+        print("="*80 + "\n")
+
         # Model can be:
         # 1. An object with flow_conditions attribute
         # 2. A dictionary from project.aerodynamic_config (from JSON)
@@ -521,9 +739,11 @@ class IntegratedFlutterExecutor:
             # It's a dictionary (from JSON)
             flow_data = model.get('flow_conditions', model)
             self.logger.info(f"Aerodynamic model is dict: {model}")
+            print(f">>> Extracted flow_data from dict: {flow_data}")
         elif hasattr(model, 'flow_conditions'):
             # It's an object with flow_conditions attribute
             flow_data = model.flow_conditions
+            print(f">>> Extracted flow_data from object.flow_conditions: {flow_data}")
 
         if flow_data:
             # Extract values from either dict or object
@@ -542,6 +762,16 @@ class IntegratedFlutterExecutor:
                 dens = getattr(flow_data, 'density', None)
 
             self.logger.info(f"Extracted aero: M={mach}, alt={alt}m")
+
+            print("\n" + "="*80)
+            print(f">>> FINAL EXTRACTED VALUES <<<")
+            print(f"Mach number: {mach}")
+            print(f"Altitude: {alt} m")
+            print(f"Temperature: {temp}")
+            print(f"Pressure: {press}")
+            print(f"Density: {dens}")
+            print("="*80 + "\n")
+
             return FlowConditions(
                 mach_number=mach,
                 altitude=alt,

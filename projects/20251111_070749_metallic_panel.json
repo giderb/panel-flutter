@@ -2,7 +2,7 @@
   "id": "20251111_070749_metallic_panel",
   "name": "Metallic Panel",
   "created_at": "2025-11-11T07:07:49.561185",
-  "modified_at": "2025-11-11T16:26:06.072013",
+  "modified_at": "2025-11-12T17:47:39.692870",
   "description": "Standard aluminum aircraft skin panel",
   "geometry": {
     "length": 0.5,
@@ -15,25 +15,29 @@
   "boundary_conditions": "SSSS",
   "aerodynamic_config": {
     "flow_conditions": {
-      "mach_number": 0.8,
-      "velocity_min": 100,
-      "velocity_max": 1000,
-      "velocity_points": 20,
-      "altitude": 10000,
-      "temperature": 223.15
+      "mach_number": 1.27,
+      "altitude": 0.0,
+      "temperature": 288.15,
+      "pressure": 101325,
+      "density": 1.225
     },
-    "theory": "doublet_lattice",
+    "theory": "DOUBLET_LATTICE",
+    "mesh": {
+      "nx_aero": 20,
+      "ny_aero": 10,
+      "z_offset": 0.0
+    },
     "velocities": [
-      155.7,
-      233.6,
-      311.5,
-      350.4,
-      389.4,
-      428.3,
-      467.2,
-      636.0,
-      804.7,
-      973.4
+      61.8,
+      92.7,
+      123.6,
+      139.1,
+      154.5,
+      169.9,
+      185.4,
+      252.4,
+      319.3,
+      386.2
     ]
   },
   "analysis_params": {
@@ -61,5 +65,5 @@
     "thermal_expansion": 2.1e-05,
     "description": "Common aerospace aluminum alloy"
   },
-  "structural_model": "<models.structural.StructuralModel object at 0x0000019B24672710>"
+  "structural_model": "<models.structural.StructuralModel object at 0x000002D6375E8490>"
 }

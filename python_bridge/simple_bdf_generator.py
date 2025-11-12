@@ -127,6 +127,22 @@ class SimpleBDFGenerator:
                 youngs_modulus = 100e9  # Dummy value
                 poissons_ratio = 0.3     # Dummy value
 
+        # CRITICAL DEBUG v2.11.0: Check density value before conversion
+        print("\n" + "="*80)
+        print(">>> v2.11.0 DENSITY DEBUG - SimpleBDFGenerator.generate_flutter_bdf() <<<")
+        print(f"Input density (kg/m³): {density}")
+        print(f"Expected for aluminum: 2810 kg/m³")
+        print(f"After conversion (tonne/mm³): {density * 1e-12:.2E}")
+        print(f"Expected after conversion: 2.81E-09 tonne/mm³ (NASTRAN uses mm-tonne-s-N!)")
+        print("="*80 + "\n")
+
+        # CRITICAL DEBUG v2.5.0: Check Mach number
+        print("\n" + "="*80)
+        print(">>> v2.5.0 MACH NUMBER DEBUG - SimpleBDFGenerator.generate_flutter_bdf() <<<")
+        print(f"Input Mach number: {mach_number}")
+        print(f"Aerodynamic theory: {aerodynamic_theory if aerodynamic_theory else 'AUTO'}")
+        print("="*80 + "\n")
+
         logger.info(f"Generating BDF: {length}m x {width}m x {thickness}m, {nx}x{ny} mesh")
         logger.info(f"Material: E={youngs_modulus/1e9:.1f}GPa, rho={density:.0f}kg/m³")
         logger.info(f"Flow: M={mach_number:.2f}, velocities={len(velocities)} points")
@@ -147,7 +163,7 @@ class SimpleBDFGenerator:
         material = MaterialConfig(
             youngs_modulus=youngs_modulus / 1e6,  # Pa → MPa (N/mm²)
             poissons_ratio=poissons_ratio,
-            density=density * 1e-9,  # kg/m³ → kg/mm³
+            density=density * 1e-12,  # kg/m³ → tonne/mm³ (NASTRAN uses mm-tonne-s-N, not mm-kg-s-N!)
             material_id=1
         )
 
@@ -156,7 +172,7 @@ class SimpleBDFGenerator:
         reference_chord = length * 1000  # m → mm
 
         # Standard atmosphere at sea level
-        reference_density = 1.225 * 1e-9  # kg/m³ → kg/mm³
+        reference_density = 1.225 * 1e-12  # kg/m³ → tonne/mm³ (NASTRAN mm-tonne-s-N system)
 
         # Default reduced frequencies for flutter analysis
         reduced_frequencies = [0.001, 0.01, 0.1, 0.2]
