@@ -13,6 +13,14 @@ import logging
 from pathlib import Path
 import json
 
+# CERTIFICATION UPGRADE: Import physics corrections module
+try:
+    from .physics_corrections import CertificationPhysicsCorrections
+    PHYSICS_CORRECTIONS_AVAILABLE = True
+except ImportError:
+    PHYSICS_CORRECTIONS_AVAILABLE = False
+    logging.warning("Physics corrections module not available - using baseline calibration")
+
 # Physical constants
 GAMMA_AIR = 1.4  # Specific heat ratio for air
 R_GAS = 287.0    # Gas constant for air (J/kg·K)
@@ -38,6 +46,11 @@ class FlutterResult:
     temperature_degradation_factor: float = 1.0   # Material property temperature degradation (0.8-1.0)
     wall_temperature: float = 288.15              # Adiabatic wall temperature (K)
     uncorrected_flutter_speed: float = 0.0        # Flutter speed before corrections (m/s)
+
+    # CERTIFICATION UPGRADE: Uncertainty quantification
+    uncertainty_upper: float = 0.0                # Upper uncertainty bound (%)
+    uncertainty_lower: float = 0.0                # Lower uncertainty bound (%)
+    uncertainty_notes: str = ""                   # Uncertainty notes and regime classification
 
     # CRITICAL FIX: Add compatibility properties for analysis_executor
     @property
@@ -67,6 +80,14 @@ class FlutterAnalyzer:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.validation_database = self._load_validation_cases()
+
+        # CERTIFICATION UPGRADE: Initialize physics corrections engine
+        if PHYSICS_CORRECTIONS_AVAILABLE:
+            self.physics_corrections = CertificationPhysicsCorrections()
+            self.logger.info("Certification-grade physics corrections ENABLED")
+        else:
+            self.physics_corrections = None
+            self.logger.warning("Physics corrections NOT available - using baseline calibration")
     
     def _load_validation_cases(self) -> Dict:
         """Load validated benchmark cases for comparison"""
@@ -197,6 +218,49 @@ class FlutterAnalyzer:
                                   f"from F-16 flight test data. Review assumptions.")
 
         return corrected_flutter_speed, correction_factor
+
+    def _detect_material_type(self, panel: 'PanelProperties') -> str:
+        """
+        Detect material type from panel properties for material-specific corrections
+
+        Args:
+            panel: Panel properties object
+
+        Returns:
+            Material type string ('aluminum', 'titanium', 'steel', 'composite', or 'default')
+        """
+        # Try to get material type from panel material object if available
+        if hasattr(panel, 'material') and panel.material is not None:
+            if hasattr(panel.material, 'name'):
+                mat_name = panel.material.name.lower()
+                if 'ti' in mat_name or '6al-4v' in mat_name:
+                    return 'titanium'
+                elif 'steel' in mat_name:
+                    return 'steel'
+                elif 'composite' in mat_name or 'carbon' in mat_name:
+                    return 'composite'
+                elif 'al' in mat_name or '2024' in mat_name or '7075' in mat_name or '6061' in mat_name:
+                    return 'aluminum'
+
+        # Fallback: Detect from density and Young's modulus
+        E = panel.youngs_modulus / 1e9  # Convert to GPa
+        rho = panel.density  # kg/m³
+
+        # Titanium: E~110 GPa, rho~4500 kg/m³
+        if 100 < E < 130 and 4200 < rho < 4800:
+            return 'titanium'
+        # Steel: E~200 GPa, rho~7800 kg/m³
+        elif 180 < E < 220 and 7600 < rho < 8000:
+            return 'steel'
+        # Aluminum: E~70 GPa, rho~2700 kg/m³
+        elif 60 < E < 80 and 2500 < rho < 2900:
+            return 'aluminum'
+        # Composite: E~50-150 GPa, rho~1500-1800 kg/m³
+        elif 1400 < rho < 2000:
+            return 'composite'
+
+        # Default to aluminum (most common)
+        return 'aluminum'
 
     def calculate_adiabatic_temperature(self, mach: float, altitude: float) -> float:
         """
@@ -546,7 +610,8 @@ class FlutterAnalyzer:
             self.logger.info(f"Flutter analysis complete: V_flutter = {v_flutter:.2f} m/s, "
                            f"f_flutter = {f_flutter:.2f} Hz, Mode = {mode}")
 
-            return FlutterResult(
+            # Create initial result
+            result = FlutterResult(
                 flutter_speed=v_flutter,
                 flutter_frequency=f_flutter,
                 flutter_mode=mode,
@@ -559,6 +624,57 @@ class FlutterAnalyzer:
                 converged=converged,
                 validation_status=validation_status
             )
+
+            # CERTIFICATION UPGRADE: Apply physics corrections if available
+            if PHYSICS_CORRECTIONS_AVAILABLE and self.physics_corrections:
+                self.logger.info("=" * 70)
+                self.logger.info("APPLYING CERTIFICATION-GRADE PHYSICS CORRECTIONS")
+                self.logger.info("=" * 70)
+
+                # Get panel configuration
+                material_type = self._detect_material_type(panel)
+                frequencies, _ = self._modal_analysis(panel)
+
+                panel_config = {
+                    'boundary_condition': getattr(panel, 'boundary_condition', 'SSSS'),
+                    'aspect_ratio': panel.width / panel.length if panel.length > 0 else 1.0,
+                    'thickness_ratio': panel.thickness / panel.length if panel.length > 0 else 0.001,
+                    'material_type': material_type,
+                    'mach_number': mach_flutter,
+                    'natural_frequency': frequencies[0] if len(frequencies) > 0 else f_flutter,
+                    'panel_length': panel.length,
+                    'panel_width': panel.width,
+                    'panel_thickness': panel.thickness,
+                    'poissons_ratio': panel.poissons_ratio
+                }
+
+                # Apply all corrections
+                try:
+                    result_corrected = self.physics_corrections.apply_all_corrections(
+                        result, panel_config
+                    )
+
+                    # Log correction summary
+                    speed_change = ((result_corrected.flutter_speed - result.flutter_speed) / result.flutter_speed * 100)
+                    freq_change = ((result_corrected.flutter_frequency - result.flutter_frequency) / result.flutter_frequency * 100)
+
+                    self.logger.info(f"Baseline flutter speed:   {result.flutter_speed:.2f} m/s")
+                    self.logger.info(f"Corrected flutter speed:  {result_corrected.flutter_speed:.2f} m/s ({speed_change:+.1f}%)")
+                    self.logger.info(f"Baseline frequency:       {result.flutter_frequency:.2f} Hz")
+                    self.logger.info(f"Corrected frequency:      {result_corrected.flutter_frequency:.2f} Hz ({freq_change:+.1f}%)")
+                    self.logger.info(f"Material type detected:   {material_type}")
+                    self.logger.info(f"Boundary condition:       {panel_config['boundary_condition']}")
+                    self.logger.info(f"Uncertainty bounds:       +{result_corrected.uncertainty_upper:.1f}% / {result_corrected.uncertainty_lower:.1f}%")
+                    self.logger.info("=" * 70)
+
+                    return result_corrected
+
+                except Exception as e:
+                    self.logger.warning(f"Physics corrections failed: {e}. Returning baseline result.")
+                    return result
+            else:
+                self.logger.info("Physics corrections not available - returning baseline result")
+                return result
 
         except Exception as e:
             self.logger.error(f"Adaptive flutter search failed: {str(e)}", exc_info=True)
@@ -828,7 +944,13 @@ class FlutterAnalyzer:
             # Calibrated value: 30.0 (238% mean error - 80% improvement!)
             # Calibration date: 2025-11-13
             # See calibration_results_quick.json for full analysis
-            lambda_crit = 30.0  # For fundamental mode (RECALIBRATED)
+
+            # CERTIFICATION UPGRADE: Material-specific calibration disabled for now
+            # Insufficient validation data for titanium, steel, composites
+            # Using universal lambda_crit=30.0 calibrated from aluminum cases
+            lambda_crit = 30.0  # For fundamental mode (RECALIBRATED, universal)
+            if PHYSICS_CORRECTIONS_AVAILABLE and self.physics_corrections:
+                self.logger.debug(f"Using universal lambda_crit={lambda_crit:.1f} (material-specific disabled)")
 
             # Damping ratio formulation based on λ/λ_crit
             # When λ < λ_crit: stable (positive damping)
@@ -859,7 +981,7 @@ class FlutterAnalyzer:
             # Log warning if damping calculation appears unreliable
             if abs(zeta_total) > 0.5:
                 self.logger.warning(
-                    f"Modal damping |ζ|={abs(zeta_total):.3f} unusually high. "
+                    f"Modal damping |zeta|={abs(zeta_total):.3f} unusually high. "
                     f"Physics-based damping has limited validation. "
                     f"Recommend NASTRAN cross-validation for critical applications."
                 )

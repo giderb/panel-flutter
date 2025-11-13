@@ -509,7 +509,7 @@ class IntegratedFlutterExecutor:
                 # Configuration
                 'configuration': {
                     'panel_dimensions': f"{panel.length*1000:.1f}x{panel.width*1000:.1f}x{panel.thickness*1000:.1f}mm",
-                    'material': f"E={panel.youngs_modulus/1e9:.1f}GPa, ν={panel.poissons_ratio:.2f}, ρ={panel.density:.0f}kg/m³",
+                    'material': f"E={panel.youngs_modulus/1e9:.1f}GPa, nu={panel.poissons_ratio:.2f}, rho={panel.density:.0f}kg/m3",
                     'boundary_conditions': panel.boundary_conditions,
                     'mach_number': flow.mach_number,
                     'altitude': flow.altitude,
@@ -656,8 +656,8 @@ class IntegratedFlutterExecutor:
                 print(f"Total thickness = {composite_thickness_mm:.3f} mm ({composite_thickness:.6f} m)")
                 print("="*80 + "\n")
 
-                self.logger.info(f"✓ COMPOSITE DETECTED: {len(material.laminas)} plies, total thickness: {composite_thickness*1000:.2f}mm")
-                self.logger.info(f"Equivalent properties: E={E/1e9:.1f}GPa, ρ={rho:.0f}kg/m³, t={composite_thickness*1000:.2f}mm")
+                self.logger.info(f"COMPOSITE DETECTED: {len(material.laminas)} plies, total thickness: {composite_thickness*1000:.2f}mm")
+                self.logger.info(f"Equivalent properties: E={E/1e9:.1f}GPa, rho={rho:.0f}kg/m3, t={composite_thickness*1000:.2f}mm")
             else:
                 # Isotropic material
                 E = getattr(material, 'youngs_modulus', 71.7e9)
@@ -667,8 +667,8 @@ class IntegratedFlutterExecutor:
                 print("\n" + "="*80)
                 print(">>> ISOTROPIC MATERIAL <<<")
                 print(f"E = {E/1e9:.2f} GPa")
-                print(f"ρ = {rho:.1f} kg/m³")
-                print(f"ν = {nu:.3f}")
+                print(f"rho = {rho:.1f} kg/m3")
+                print(f"nu = {nu:.3f}")
                 print("="*80 + "\n")
         else:
             # Default aluminum properties
