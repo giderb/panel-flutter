@@ -2,7 +2,7 @@
   "id": "20251111_174830_bberkuk",
   "name": "bberkuk",
   "created_at": "2025-11-11T17:48:30.131754",
-  "modified_at": "2025-11-12T20:13:12.542877",
+  "modified_at": "2025-11-13T07:11:59.108984",
   "description": null,
   "geometry": {
     "length": 0.45,
@@ -691,7 +691,7 @@
     "total_thickness": 5.888000000000003,
     "description": null
   },
-  "structural_model": "<models.structural.StructuralModel object at 0x0000022161586A90>",
+  "structural_model": "<models.structural.StructuralModel object at 0x0000021BA72E6A10>",
   "custom_prepreg_materials": [
     {
       "type": "orthotropic",

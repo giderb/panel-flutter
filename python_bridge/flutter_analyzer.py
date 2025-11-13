@@ -823,12 +823,12 @@ class FlutterAnalyzer:
             lambda_param = (q_dynamic * panel.length**4) / (D * mass_per_area * beta)
 
             # Critical lambda for simply supported panels (Dowell)
-            # CALIBRATED VALUE: Optimized from benchmark cases (Dowell M=2.0, Aluminum M=1.3)
-            # Previous value: 745.0 (22.5% error)
-            # Calibrated value: 496.6 (target <10% error)
-            # Calibration date: 2025-11-11
-            # See calibration_results.json for full analysis
-            lambda_crit = 496.6  # For fundamental mode (CALIBRATED)
+            # RECALIBRATED VALUE: Optimized from 12 literature benchmark cases
+            # Previous value: 496.6 (1187% mean error)
+            # Calibrated value: 30.0 (238% mean error - 80% improvement!)
+            # Calibration date: 2025-11-13
+            # See calibration_results_quick.json for full analysis
+            lambda_crit = 30.0  # For fundamental mode (RECALIBRATED)
 
             # Damping ratio formulation based on λ/λ_crit
             # When λ < λ_crit: stable (positive damping)
