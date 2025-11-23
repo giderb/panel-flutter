@@ -1,7 +1,7 @@
 """Material property models for panel flutter analysis."""
 
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 import numpy as np
 
@@ -288,11 +288,14 @@ class SandwichPanel:
     - Total thickness = 2*t_face + t_core
     - Bending stiffness D = E_face * t_face * d² / (1-ν²) + E_face * t_face³ / [12(1-ν²)]
       where d = distance from neutral axis to face centroid
+
+    UPGRADE v2.2.1: Face sheets can now be isotropic (metals) or orthotropic (composites)
+    UPGRADE v2.2.2: Face sheets can now be composite laminates (multi-ply layups)
     """
     id: int
     name: str
-    face_material: IsotropicMaterial  # Face sheet material
-    face_thickness: float  # Face sheet thickness (mm)
+    face_material: Union[IsotropicMaterial, OrthotropicMaterial, 'CompositeLaminate']  # Face sheet material
+    face_thickness: float  # Face sheet thickness (mm) - for laminates, should match total_thickness
     core_material: HoneycombCore  # Honeycomb core
     core_thickness: float  # Core thickness (mm)
     description: Optional[str] = None
@@ -301,6 +304,30 @@ class SandwichPanel:
     def total_thickness(self) -> float:
         """Total panel thickness (mm)."""
         return 2 * self.face_thickness + self.core_thickness
+
+    def _get_face_density(self) -> float:
+        """
+        Get face material density (handles all facesheet types).
+
+        Returns:
+            Density in kg/m³
+        """
+        if isinstance(self.face_material, (IsotropicMaterial, OrthotropicMaterial)):
+            return self.face_material.density
+        elif isinstance(self.face_material, CompositeLaminate):
+            # Calculate smeared density as weighted average
+            total_thickness = sum(lamina.thickness for lamina in self.face_material.laminas)
+            if total_thickness == 0:
+                raise ValueError("Composite laminate has zero total thickness")
+
+            density_sum = 0.0
+            for lamina in self.face_material.laminas:
+                weight = lamina.thickness / total_thickness
+                density_sum += lamina.material.density * weight
+
+            return density_sum
+        else:
+            raise ValueError(f"Unsupported face material type: {type(self.face_material)}")
 
     @property
     def total_density(self) -> float:
@@ -313,7 +340,9 @@ class SandwichPanel:
         core_volume = self.core_thickness  # mm per unit area
         total_volume = self.total_thickness  # mm per unit area
 
-        total_mass = (face_volume * self.face_material.density +
+        face_density = self._get_face_density()
+
+        total_mass = (face_volume * face_density +
                      core_volume * self.core_material.density)
 
         return total_mass / total_volume
@@ -324,8 +353,12 @@ class SandwichPanel:
         Mass per unit area (kg/m²).
 
         m = 2*ρ_face*t_face + ρ_core*t_core (converting mm to m)
+
+        UPGRADE v2.2.2: Now handles composite laminate facesheets
         """
-        return (2 * self.face_material.density * self.face_thickness * 1e-3 +
+        face_density = self._get_face_density()
+
+        return (2 * face_density * self.face_thickness * 1e-3 +
                 self.core_material.density * self.core_thickness * 1e-3)
 
     def get_equivalent_properties(self) -> Dict[str, float]:
@@ -341,14 +374,69 @@ class SandwichPanel:
             - neutral_axis: Distance to neutral axis (mm)
 
         Reference: Allen, H.G. (1969). "Analysis and Design of Structural Sandwich Panels"
+
+        UPGRADE v2.2.1: Now handles both isotropic and orthotropic face materials
+        UPGRADE v2.2.2: Now handles composite laminate face materials
         """
         # Convert thicknesses to meters for calculations
         t_f = self.face_thickness * 1e-3  # m
         t_c = self.core_thickness * 1e-3  # m
         h = self.total_thickness * 1e-3  # m
 
-        E_f = self.face_material.youngs_modulus  # Pa
-        nu_f = self.face_material.poissons_ratio
+        # Extract material properties based on type
+        if isinstance(self.face_material, IsotropicMaterial):
+            E_f = self.face_material.youngs_modulus  # Pa
+            nu_f = self.face_material.poissons_ratio
+        elif isinstance(self.face_material, OrthotropicMaterial):
+            # For orthotropic: use primary direction (fiber direction) properties
+            E_f = self.face_material.e1  # Pa (primary modulus)
+            nu_f = self.face_material.nu12  # Poisson's ratio
+        elif isinstance(self.face_material, CompositeLaminate):
+            # For composite laminate: calculate smeared (averaged) properties
+            # Account for ply orientations using simplified transformation
+            total_laminate_thickness = sum(lamina.thickness for lamina in self.face_material.laminas)
+
+            if total_laminate_thickness == 0:
+                raise ValueError("Composite laminate has zero total thickness")
+
+            # Calculate orientation-weighted average properties
+            # For each ply, contribution to primary direction depends on orientation:
+            # - 0° ply: contributes E1 in primary direction
+            # - 90° ply: contributes E2 in primary direction
+            # - ±45° ply: contributes intermediate value
+            #
+            # Simplified transformation: E_x(θ) ≈ E1*cos⁴(θ) + E2*sin⁴(θ) + (2*E1*ν12 + 4*G12)*sin²(θ)*cos²(θ)
+            # For sandwich panel, we use simpler approximation: E_x(θ) ≈ E1*cos²(θ) + E2*sin²(θ)
+            import math
+
+            E_f_sum = 0.0
+            nu_f_sum = 0.0
+
+            for lamina in self.face_material.laminas:
+                weight = lamina.thickness / total_laminate_thickness
+                theta_rad = math.radians(lamina.orientation)
+                cos2 = math.cos(theta_rad)**2
+                sin2 = math.sin(theta_rad)**2
+
+                # Transformed modulus (simplified)
+                E_transformed = lamina.material.e1 * cos2 + lamina.material.e2 * sin2
+
+                E_f_sum += E_transformed * weight
+                nu_f_sum += lamina.material.nu12 * weight
+
+            E_f = E_f_sum  # Pa (smeared modulus accounting for orientations)
+            nu_f = nu_f_sum  # Smeared Poisson's ratio
+
+            # Update face thickness to match laminate if different (user may have entered wrong value)
+            if abs(t_f - total_laminate_thickness * 1e-3) > 1e-6:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Face thickness ({t_f*1000:.3f} mm) does not match laminate thickness "
+                             f"({total_laminate_thickness:.3f} mm). Using laminate thickness.")
+                t_f = total_laminate_thickness * 1e-3  # m
+                h = (2 * t_f + t_c)  # Recalculate total thickness
+        else:
+            raise ValueError(f"Unsupported face material type: {type(self.face_material)}")
 
         # Distance from neutral axis to face centroid
         d = (t_c + t_f) / 2
@@ -373,7 +461,8 @@ class SandwichPanel:
         m_sandwich = self.mass_per_area
         h_solid_cubed = 12 * D_total * (1 - nu_f**2) / E_f
         h_solid = h_solid_cubed ** (1/3)  # m
-        m_solid = self.face_material.density * h_solid  # kg/m²
+        face_density = self._get_face_density()  # Use helper method for all facesheet types
+        m_solid = face_density * h_solid  # kg/m²
         weight_saving = (1 - m_sandwich / m_solid) * 100 if m_solid > 0 else 0.0
 
         # Calculate first mode frequency estimate for standard test panel (508x254 mm)
@@ -575,8 +664,8 @@ class PredefinedMaterials:
         )
 
     @staticmethod
-    def create_composite_sandwich() -> SandwichPanel:
-        """Create composite face/honeycomb core sandwich panel."""
+    def create_aluminum_lithium_sandwich() -> SandwichPanel:
+        """Create aluminum-lithium face/honeycomb core sandwich panel."""
         return SandwichPanel(
             id=2,
             name="2050-T84 Sandwich Panel",
@@ -585,6 +674,62 @@ class PredefinedMaterials:
             core_material=PredefinedMaterials.nomex_honeycomb(),
             core_thickness=19.1,  # mm (0.75")
             description="Damage-tolerant aluminum-lithium sandwich for thick core"
+        )
+
+    @staticmethod
+    def create_composite_sandwich() -> SandwichPanel:
+        """Create carbon fiber composite face/honeycomb core sandwich panel."""
+        return SandwichPanel(
+            id=3,
+            name="IM7/M91 Composite Sandwich Panel",
+            face_material=PredefinedMaterials.im7_m91(),  # Carbon fiber orthotropic
+            face_thickness=0.194,  # mm (194 g/m² ply thickness)
+            core_material=PredefinedMaterials.aluminum_honeycomb_5052(),
+            core_thickness=12.7,  # mm (0.5")
+            description="High-modulus carbon/epoxy faces + aluminum honeycomb core (F/A-18 style)"
+        )
+
+    @staticmethod
+    def create_composite_sandwich_thick() -> SandwichPanel:
+        """Create thick carbon fiber composite sandwich for heavy loads."""
+        return SandwichPanel(
+            id=4,
+            name="AS4c/M21 Composite Sandwich Panel",
+            face_material=PredefinedMaterials.as4c_m21(),  # Fabric composite
+            face_thickness=0.285,  # mm (285 g/m² fabric thickness)
+            core_material=PredefinedMaterials.aluminum_honeycomb_5056(),
+            core_thickness=19.1,  # mm (0.75")
+            description="Carbon fabric/epoxy faces + high-density honeycomb (fighter wing skin)"
+        )
+
+    @staticmethod
+    def create_laminate_sandwich() -> SandwichPanel:
+        """Create sandwich panel with composite laminate facesheets."""
+        # Create example composite laminate using IM7/M91
+        carbon_fiber = PredefinedMaterials.im7_m91()
+
+        laminas = [
+            CompositeLamina(1, carbon_fiber, 0.125, 0),      # 0° ply
+            CompositeLamina(2, carbon_fiber, 0.125, 90),     # 90° ply
+            CompositeLamina(3, carbon_fiber, 0.125, 90),     # 90° ply
+            CompositeLamina(4, carbon_fiber, 0.125, 0),      # 0° ply
+        ]
+
+        laminate = CompositeLaminate(
+            id=10,
+            name="IM7/M91 [0/90]s Laminate",
+            laminas=laminas,
+            description="Symmetric cross-ply laminate"
+        )
+
+        return SandwichPanel(
+            id=5,
+            name="Laminate Facesheet Sandwich Panel",
+            face_material=laminate,
+            face_thickness=0.50,  # mm (4 plies × 0.125 mm)
+            core_material=PredefinedMaterials.aluminum_honeycomb_5052(),
+            core_thickness=12.7,  # mm (0.5")
+            description="Multi-ply laminate facesheets + aluminum honeycomb core"
         )
 
     @classmethod
@@ -662,9 +807,32 @@ def material_from_dict(data: Dict[str, Any]):
             description=data.get("description")
         )
     elif material_type == "sandwich":
-        # Deserialize face material
+        # Deserialize face material (can be isotropic, orthotropic, or composite laminate)
         face_data = data["face_material"]
-        face_material = IsotropicMaterial(**{k: v for k, v in face_data.items() if k != "type"})
+        face_type = face_data.get("type", "isotropic")
+        if face_type == "isotropic":
+            face_material = IsotropicMaterial(**{k: v for k, v in face_data.items() if k != "type"})
+        elif face_type == "orthotropic":
+            face_material = OrthotropicMaterial(**{k: v for k, v in face_data.items() if k != "type"})
+        elif face_type == "composite":
+            # Deserialize composite laminate
+            laminas = [
+                CompositeLamina(
+                    id=lamina_data["id"],
+                    material=OrthotropicMaterial(**{k: v for k, v in lamina_data["material"].items() if k != "type"}),
+                    thickness=lamina_data["thickness"],
+                    orientation=lamina_data["orientation"]
+                )
+                for lamina_data in face_data["laminas"]
+            ]
+            face_material = CompositeLaminate(
+                id=face_data["id"],
+                name=face_data["name"],
+                laminas=laminas,
+                description=face_data.get("description")
+            )
+        else:
+            raise ValueError(f"Unsupported sandwich face material type: {face_type}")
 
         # Deserialize core material
         core_data = data["core_material"]

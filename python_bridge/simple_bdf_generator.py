@@ -48,7 +48,8 @@ class SimpleBDFGenerator:
         boundary_conditions: str = "SSSS",
         n_modes: int = 20,
         aerodynamic_theory: Optional[str] = None,
-        material_object: Optional[Any] = None
+        material_object: Optional[Any] = None,
+        piston_theory_order: int = 1  # CRITICAL: Piston theory order for CAERO5 NTHRY field
     ) -> str:
         """
         Generate NASTRAN BDF file for flutter analysis.
@@ -69,6 +70,7 @@ class SimpleBDFGenerator:
             n_modes: Number of modes for analysis (default 20)
             aerodynamic_theory: Aerodynamic theory ('PISTON_THEORY' or 'DOUBLET_LATTICE', None=auto)
             material_object: Optional material object (e.g., SandwichPanel) - overrides individual properties
+            piston_theory_order: Piston theory order (1, 2, or 3) for CAERO5 NTHRY field (default 1)
 
         Returns:
             Path to generated BDF file
@@ -126,22 +128,6 @@ class SimpleBDFGenerator:
                 # Set dummy values to avoid errors in downstream code
                 youngs_modulus = 100e9  # Dummy value
                 poissons_ratio = 0.3     # Dummy value
-
-        # CRITICAL DEBUG v2.11.0: Check density value before conversion
-        print("\n" + "="*80)
-        print(">>> v2.11.0 DENSITY DEBUG - SimpleBDFGenerator.generate_flutter_bdf() <<<")
-        print(f"Input density (kg/m³): {density}")
-        print(f"Expected for aluminum: 2810 kg/m³")
-        print(f"After conversion (tonne/mm³): {density * 1e-12:.2E}")
-        print(f"Expected after conversion: 2.81E-09 tonne/mm³ (NASTRAN uses mm-tonne-s-N!)")
-        print("="*80 + "\n")
-
-        # CRITICAL DEBUG v2.5.0: Check Mach number
-        print("\n" + "="*80)
-        print(">>> v2.5.0 MACH NUMBER DEBUG - SimpleBDFGenerator.generate_flutter_bdf() <<<")
-        print(f"Input Mach number: {mach_number}")
-        print(f"Aerodynamic theory: {aerodynamic_theory if aerodynamic_theory else 'AUTO'}")
-        print("="*80 + "\n")
 
         logger.info(f"Generating BDF: {length}m x {width}m x {thickness}m, {nx}x{ny} mesh")
         logger.info(f"Material: E={youngs_modulus/1e9:.1f}GPa, rho={density:.0f}kg/m³")
@@ -201,7 +187,8 @@ class SimpleBDFGenerator:
                 n_modes=n_modes,
                 output_filename=output_file,
                 aerodynamic_theory=aerodynamic_theory,
-                material_object=material_object if is_composite else None  # Pass composite material object
+                material_object=material_object if is_composite else None,  # Pass composite material object
+                piston_theory_order=piston_theory_order  # CRITICAL: Pass piston theory order
             )
 
             logger.info(f"BDF file generated successfully: {bdf_path}")

@@ -474,7 +474,7 @@ class AerodynamicsPanel(BasePanel):
                 # Calculate flow properties
                 if mach < 0.8:
                     flow_type = "SUBSONIC"
-                elif mach < 1.2:
+                elif mach < 1.5:
                     flow_type = "TRANSONIC"
                 elif mach < 5.0:
                     flow_type = "SUPERSONIC"
@@ -487,13 +487,13 @@ class AerodynamicsPanel(BasePanel):
                 speed_of_sound = np.sqrt(gamma * R * temp)
                 velocity = mach * speed_of_sound
 
-                # Recommended theory
-                if mach < 0.6:
-                    recommended = "Doublet Lattice Method"
-                elif mach > 1.5:
+                # Recommended theory - user can choose either in transonic range
+                if mach < 1.0:
+                    recommended = "Doublet Lattice Method (DLM)"
+                elif mach >= 1.5:
                     recommended = "Piston Theory"
                 else:
-                    recommended = "Doublet Lattice Method (valid up to M=1.5)"
+                    recommended = "User Choice (1.0 ≤ M < 1.5: DLM or Piston Theory)"
 
                 self.flow_type_label.configure(text=f"Flow Type: {flow_type}")
                 self.velocity_label.configure(text=f"Flow Velocity: {velocity:.1f} m/s")
@@ -558,8 +558,8 @@ class AerodynamicsPanel(BasePanel):
     def _get_theory_description(self, theory: str) -> str:
         """Get description for aerodynamic theory."""
         descriptions = {
-            "PISTON_THEORY": "Piston Theory (CAERO5): Suitable for supersonic and hypersonic flows (M > 1.5). Computationally efficient for high Mach number flutter analysis.",
-            "DOUBLET_LATTICE": "Doublet Lattice Method (CAERO1): Valid for subsonic and low supersonic flows (M < 1.5). Uses potential flow theory for accurate flutter analysis.",
+            "PISTON_THEORY": "Piston Theory (CAERO5): Recommended for supersonic flows (M ≥ 1.5). Computationally efficient for high Mach number flutter analysis. User selectable for transonic (1.0 ≤ M < 1.5).",
+            "DOUBLET_LATTICE": "Doublet Lattice Method (CAERO1): Recommended for subsonic/transonic flows (M < 1.5). Uses potential flow theory for accurate flutter analysis. User selectable in transonic range.",
             "ZAERO": "ZAERO Advanced Aerodynamics: High-fidelity aerodynamic modeling for all Mach number ranges. Requires ZAERO license."
         }
         return descriptions.get(theory, "Advanced aerodynamic method")
@@ -625,17 +625,28 @@ class AerodynamicsPanel(BasePanel):
             # Theory-specific validation
             theory = AerodynamicTheory(self.theory_var.get())
 
-            # DLM/Piston Theory Mach number compatibility check (removed enforcement per user request)
-            if theory == AerodynamicTheory.DOUBLET_LATTICE and mach > 1.5:
+            # DLM/Piston Theory Mach number compatibility check - warn but respect user choice in transonic
+            if theory == AerodynamicTheory.DOUBLET_LATTICE and mach >= 1.5:
                 result = messagebox.askokcancel(
                     "Theory Selection Notice",
                     f"Doublet-Lattice Method selected for M={mach:.2f}.\n\n"
                     "Note: DLM is most accurate for M < 1.5 (subsonic/transonic).\n"
-                    "For M > 1.5, Piston Theory is typically recommended.\n\n"
+                    "For M ≥ 1.5 (supersonic), Piston Theory is typically recommended.\n\n"
                     "Continue with DLM anyway?"
                 )
                 if not result:
                     return
+            elif theory == AerodynamicTheory.PISTON_THEORY and mach < 1.0:
+                result = messagebox.askokcancel(
+                    "Theory Selection Notice",
+                    f"Piston Theory selected for M={mach:.2f}.\n\n"
+                    "Note: Piston Theory is designed for supersonic flows (M ≥ 1.5).\n"
+                    "For M < 1.0 (subsonic), Doublet Lattice Method is recommended.\n\n"
+                    "Continue with Piston Theory anyway?"
+                )
+                if not result:
+                    return
+            # Transonic range (1.0 ≤ M < 1.5): User can freely choose either theory without warning
 
             # Aerodynamic mesh validation
             nx_aero = int(self.nx_aero_var.get())
@@ -797,6 +808,49 @@ class AerodynamicsPanel(BasePanel):
             self.logger.warning(f"Could not calculate default velocities: {e}")
             return None
 
+    def _sync_gui_to_model(self):
+        """Sync GUI input values back to the model object.
+
+        CRITICAL: This method must be called before saving to ensure
+        GUI changes are reflected in the model object.
+        """
+        if not self.current_model:
+            return
+
+        try:
+            # Update flow conditions from GUI
+            mach = float(self.mach_var.get())
+            altitude = float(self.altitude_var.get())
+            temperature = float(self.temperature_var.get())
+            pressure = float(self.pressure_var.get())
+            density = float(self.density_var.get())
+
+            # Create new FlowConditions object with GUI values
+            from models.aerodynamic import FlowConditions
+            self.current_model.flow_conditions = FlowConditions(
+                mach_number=mach,
+                altitude=altitude,
+                dynamic_pressure=0.5 * density * (mach * (1.4 * 287.05 * temperature)**0.5)**2,
+                temperature=temperature,
+                pressure=pressure,
+                density=density
+            )
+
+            # Update aerodynamic theory from GUI dropdown
+            from models.aerodynamic import AerodynamicTheory
+            gui_theory_str = self.theory_var.get()
+            try:
+                self.current_model.theory = AerodynamicTheory[gui_theory_str]
+                self.logger.info(f"✓ Updated model theory to: {gui_theory_str}")
+            except (KeyError, AttributeError):
+                self.logger.warning(f"Could not set theory enum, using string: {gui_theory_str}")
+                self.current_model.theory = gui_theory_str
+
+            self.logger.info(f"Synced GUI to model: M={mach}, Theory={gui_theory_str}")
+
+        except Exception as e:
+            self.logger.error(f"Error syncing GUI to model: {e}")
+
     def _save_model(self):
         """Save the current aerodynamic model."""
         if not self.current_model:
@@ -806,6 +860,9 @@ class AerodynamicsPanel(BasePanel):
         try:
             if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
                 project = self.project_manager.current_project
+
+                # CRITICAL FIX: Sync GUI inputs to model object before saving
+                self._sync_gui_to_model()
 
                 # Save to both aerodynamic_model AND aerodynamic_config for compatibility
                 project.aerodynamic_model = self.current_model
@@ -818,6 +875,10 @@ class AerodynamicsPanel(BasePanel):
                     # The old auto-calculation was overriding user settings
                     # velocities = self._calculate_default_velocities(fc, project)
 
+                    # CRITICAL FIX: Read theory from GUI dropdown, not stale model object
+                    gui_theory = self.theory_var.get()
+                    self.logger.info(f"Saving theory from GUI: {gui_theory}")
+
                     aerodynamic_config = {
                         'flow_conditions': {
                             'mach_number': fc.mach_number,
@@ -826,7 +887,7 @@ class AerodynamicsPanel(BasePanel):
                             'pressure': getattr(fc, 'pressure', None),
                             'density': getattr(fc, 'density', None)
                         },
-                        'theory': self.current_model.theory.value if hasattr(self.current_model.theory, 'value') else str(self.current_model.theory),
+                        'theory': gui_theory,  # FIXED: Read from GUI dropdown, not model object
                         'mesh': {
                             'nx_aero': int(self.nx_aero_var.get()) if hasattr(self, 'nx_aero_var') else 4,
                             'ny_aero': int(self.ny_aero_var.get()) if hasattr(self, 'ny_aero_var') else 2,
@@ -837,7 +898,7 @@ class AerodynamicsPanel(BasePanel):
                     # Velocities are set by user in Analysis Panel, not auto-calculated here
 
                     project.aerodynamic_config = aerodynamic_config
-                    self.logger.info(f"Saved aerodynamic config: M={fc.mach_number}")
+                    self.logger.info(f"Saved aerodynamic config: M={fc.mach_number}, Theory={gui_theory}")
 
                 self.project_manager.save_current_project()
                 messagebox.showinfo("Success", "Aerodynamic model saved successfully!")

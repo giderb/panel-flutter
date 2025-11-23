@@ -48,6 +48,7 @@ class AeroConfig:
     altitude: float = 10000  # meters (for proper density calculation)
     reduced_frequencies: List[float] = None
     velocities: List[float] = None  # mm/s
+    piston_theory_order: int = 1  # CRITICAL: Piston theory order (1, 2, or 3) for CAERO5 NTHRY field
 
 
 class Sol145BDFGenerator:
@@ -66,12 +67,23 @@ class Sol145BDFGenerator:
         n_modes: int = 10,
         output_filename: str = "flutter_analysis.bdf",
         aerodynamic_theory: Optional[str] = None,
-        material_object: Optional[Any] = None
+        material_object: Optional[Any] = None,
+        piston_theory_order: int = 1  # CRITICAL: Piston theory order for CAERO5 NTHRY field
     ) -> str:
-        """Generate a NASTRAN BDF file for SOL145 flutter analysis with correct cards"""
+        """Generate a NASTRAN BDF file for SOL145 flutter analysis with correct cards
+
+        Args:
+            piston_theory_order: Piston theory order (1, 2, or 3) for CAERO5 NTHRY field.
+                                 Only used when aerodynamic_theory='PISTON_THEORY'.
+                                 Default: 1 (linear piston theory)
+        """
 
         filepath = self.output_dir / output_filename
         lines = []
+
+        # CRITICAL: Store piston theory order in aero config for CAERO5 generation
+        aero.piston_theory_order = piston_theory_order
+        logger.info(f"Piston Theory Order: {piston_theory_order}")
 
         # Check if we have a composite laminate
         is_composite = (material_object is not None and
@@ -721,16 +733,16 @@ class Sol145BDFGenerator:
             use_piston_theory = (aerodynamic_theory == "PISTON_THEORY")
             logger.info(f"✓ USER SELECTION: {'PISTON THEORY (CAERO5)' if use_piston_theory else 'DOUBLET LATTICE (CAERO1)'}")
         else:
-            # CRITICAL FIX v2.1.9: Auto-select based on Mach number
-            # Piston theory valid for M >= 1.2 (per validation requirements)
-            # DLM only valid for M < 1.0
-            use_piston_theory = (aero.mach_number >= 1.2)
+            # CRITICAL FIX: Auto-select based on Mach number (industry standard)
+            # DLM (Doublet Lattice): M < 1.5 (subsonic/transonic)
+            # Piston Theory: M >= 1.5 (supersonic)
+            use_piston_theory = (aero.mach_number >= 1.5)
             logger.info(f"AUTO-SELECT: {'PISTON THEORY (CAERO5)' if use_piston_theory else 'DOUBLET LATTICE (CAERO1)'} for M={aero.mach_number}")
 
         logger.info(f"=========================================")
 
         if use_piston_theory:
-            # CAERO5 - Piston Theory for supersonic flow (M >= 1.2)
+            # CAERO5 - Piston Theory for supersonic flow (M >= 1.5)
             lines.append("$ Piston Theory (CAERO5) - Supersonic Aerodynamics")
             lines.append("$ Reference: MSC Nastran Aeroelastic Analysis User's Guide, Example HA145HA")
             lines.append("$")
@@ -740,11 +752,13 @@ class Sol145BDFGenerator:
             lines.append(f"AEFACT  {10:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}{0.0:<8}")
             lines.append("$")
 
-            # AEFACT 20 for Mach/alpha combinations
-            # CRITICAL FIX v2.14.0: Use exact Mach number, not rounded!
-            # Was using .1f format which rounded 1.27 to 1.3, causing 6% error in aerodynamic forces
-            lines.append("$ Mach and Alpha Combinations")
-            lines.append(f"AEFACT  {20:<8}{aero.mach_number:<8.2f}{0.0:<8}{3.0:<8}{0.0:<8}")
+            # AEFACT 20 - Mach-Alpha array for PAERO5
+            # CRITICAL: NASTRAN Error 6171 if wrong count, Error 6185 if Mach not in range
+            # Format: Mach_min, alpha_min, Mach_max, alpha_max
+            # NASTRAN will interpolate for Mach numbers in [Mach_min, Mach_max]
+            # For piston theory, use Mach_max=3.0 to cover typical supersonic range
+            lines.append("$ PAERO5 Mach-Alpha Array (LALPHA reference)")
+            lines.append(f"AEFACT  {20:<8}{aero.mach_number:<8.2f}{0.0:<8}{3.0:<8.2f}{0.0:<8}")
             lines.append("$")
 
             # PAERO5 - Piston Theory Property (REQUIRED with two continuation lines)
@@ -756,59 +770,74 @@ class Sol145BDFGenerator:
             # Main card: PAERO5, PID, NALPHA, LALPHA, blank fields, then continuation in field 10 (position 72)
             # Fields: 1=PAERO5, 2=PID, 3=NALPHA, 4=LALPHA, 5-9=blank (40 chars), 10=continuation
             lines.append(f"PAERO5  {pid_aero:<8}{nalpha:<8}{lalpha:<8}{'':40}+PA5")
-            # First continuation: 8 CAOC values (control surface parameters, zeros for flat panel)
+            # CRITICAL FIX v2.15.1: Number of CAOC values MUST equal NTHICK from CAERO5!
+            # NASTRAN Error 6172: "NUMBER OF CAOCI ENTRIES MUST EQUAL THE NUMBER OF STRIPS"
+            # NTHICK = 10, so PAERO5 must have exactly 10 CAOC values (not 16!)
+            # First continuation (+PA5): CAOC1-CAOC8 (control surface corrections, zeros for flat panel)
             lines.append(f"+PA5    {0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}{0.0:<8.1f}+PA51")
-            # Second continuation: 2 more CAOC values
+            # Second continuation (+PA51): CAOC9-CAOC10 (remaining 2 values to reach NTHICK=10)
             lines.append(f"+PA51   {0.0:<8.1f}{0.0:<8.1f}")
             lines.append("$")
 
-            # CAERO5 - 10 separate panels following reference format
-            # Reference: MSC Nastran Example HA145HA uses 10 CAERO5 cards (EID 1001-10001)
+            # CRITICAL FIX v2.14.5: SINGLE CAERO5 card for panel (industry standard)
+            # Previous implementation used 10 non-contiguous CAERO5 cards which caused:
+            #   1. Non-standard NASTRAN practice
+            #   2. SPLINE1 box numbering errors
+            #   3. Aeroelastic coupling failures
+            # Reference: MSC NASTRAN Aeroelastic Analysis User's Guide - one CAERO5 per surface
             lines.append("$ PISTON THEORY PANEL (CAERO5)")
+            lines.append("$ CRITICAL: Single CAERO5 card with NSPAN divisions (industry standard)")
             lines.append("$")
 
-            nspan = 10  # Spanwise divisions per CAERO5 card
-            lspan = 1  # AEFACT ID for spanwise spacing (optional, leave blank)
+            # Single CAERO5 card parameters
+            eid = 1001  # Element ID (contiguous boxes start from here)
+            nspan = 10  # Spanwise divisions (creates 10 aerodynamic strips)
+            lspan = 0  # AEFACT ID for spanwise spacing (0=blank=uniform)
             nthick = 10  # AEFACT ID for thickness integrals
 
-            # Panel geometry
-            chord = panel.length
-            strip_width = panel.width / 10  # Divide width into 10 strips
+            # CRITICAL FIX: Get piston theory order from aero config
+            piston_order = getattr(aero, 'piston_theory_order', 1)
+            logger.info(f">>> CAERO5 NTHRY field = {piston_order} (Piston Theory Order) <<<")
 
-            # Generate 10 CAERO5 cards (EID 1001, 2001, 3001, ..., 10001)
-            for strip in range(10):
-                eid = 1001 + (strip * 1000)
-                y_start = strip * strip_width
-                y_end = (strip + 1) * strip_width
+            # Panel geometry (FULL PANEL, not strips)
+            # Point 1 (root leading edge): (0, 0, 0)
+            # Point 2 (root trailing edge): (chord, 0, 0) - specified by X12
+            # Point 4 (tip leading edge): (0, span, 0)
+            # Point 3 (tip trailing edge): (chord, span, 0) - specified by X43
+            x1, y1, z1 = 0.0, 0.0, 0.0  # Root leading edge
+            x12 = panel.length  # Chord length at root
+            x4, y4, z4 = 0.0, panel.width, 0.0  # Tip leading edge (span direction)
+            x43 = panel.length  # Chord length at tip (rectangular panel)
 
-                # Each strip: point 1 at (0, y_start, 0), point 4 at (0, y_end, 0)
-                x1, y1, z1 = 0.0, y_start, 0.0
-                x12 = chord  # Chord length in x-direction
-                x4, y4, z4 = 0.0, y_end, 0.0
-                x43 = chord  # Chord length in x-direction
+            # CAERO5 main card with CRITICAL NTHRY field
+            # Format: CAERO5 EID PID CP NSPAN LSPAN NTHRY NTHICK blank +continuation
+            # Field positions: 1-8, 9-16, 17-24, 25-32, 33-40, 41-48, 49-56, 57-64, 65-72, 73-80
+            lines.append(f"CAERO5  {eid:<8}{pid_aero:<8}        {nspan:<8}{'':8}{piston_order:<8}{nthick:<8}{'':8}+CA5")
+            #                 ^EID    ^PID     ^CP      ^NSPAN   ^LSPAN   ^NTHRY      ^NTHICK  ^blank  ^cont
+            #                                  (blank)           (ORDER!)
 
-                # CAERO5 main card: EID, PID, CP, NSPAN, LSPAN, NTHRY, NTHICK, blank, continuation
-                # Fields: 1=CAERO5, 2=EID, 3=PID, 4=CP, 5=NSPAN, 6=LSPAN, 7=NTHRY, 8=NTHICK, 9=blank, 10=continuation
-                cont_marker = f"+CA{strip:02d}"
-                lines.append(f"CAERO5  {eid:<8}{pid_aero:<8}        {nspan:<8}{'':8}        {nthick:<8}{'':8}{cont_marker}")
-                # Continuation: X1, Y1, Z1, X12, X4, Y4, Z4, X43
-                lines.append(f"+CA{strip:02d}   {x1:<8.1f}{y1:<8.1f}{z1:<8.1f}{x12:<8.1f}{x4:<8.1f}{y4:<8.1f}{z4:<8.1f}{x43:<8.1f}")
-
+            # Continuation: X1, Y1, Z1, X12, X4, Y4, Z4, X43
+            lines.append(f"+CA5    {x1:<8.1f}{y1:<8.1f}{z1:<8.1f}{x12:<8.1f}{x4:<8.1f}{y4:<8.1f}{z4:<8.1f}{x43:<8.1f}")
+            lines.append("$")
+            lines.append(f"$ CAERO5 creates boxes {eid} through {eid + nspan - 1} (10 contiguous boxes)")
             lines.append("$")
 
-            # SPLINE1 - Surface interpolation connecting aero panel to structural grids
-            # Create separate SPLINE for each CAERO5 since box numbers are non-contiguous
+            # CRITICAL FIX v2.14.5: SINGLE SPLINE1 for single CAERO5 with CORRECT box numbering
+            # Previous implementation created 10 SPLINE1 cards referencing non-existent boxes
+            # Now: ONE SPLINE1 card referencing contiguous boxes 1001-1010
             lines.append("$ SPLINE - SURFACE INTERPOLATION")
+            lines.append("$ CRITICAL: Single SPLINE1 for single CAERO5 (correct box numbering)")
             setg_id = 1  # SET1 with all structural grids
 
-            # Create one SPLINE for each CAERO5 card
-            for strip in range(10):
-                spline_id = strip + 1
-                caero_eid = 1001 + (strip * 1000)
-                box1 = caero_eid  # First box of this CAERO5
-                box2 = caero_eid + (nspan - 1)  # Last box of this CAERO5
+            # Box numbering for single CAERO5:
+            # - Boxes are numbered starting at EID (1001)
+            # - NSPAN divisions create NSPAN boxes
+            # - Box IDs: 1001, 1002, 1003, ..., 1010 (contiguous!)
+            spline_id = 1
+            box1 = eid  # First box = EID = 1001
+            box2 = eid + nspan - 1  # Last box = 1001 + 10 - 1 = 1010
 
-                lines.append(f"SPLINE1 {spline_id:<8}{caero_eid:<8}{box1:<8}{box2:<8}{setg_id:<8}")
+            lines.append(f"SPLINE1 {spline_id:<8}{eid:<8}{box1:<8}{box2:<8}{setg_id:<8}")
 
             # SET1 - All structural grid points
             lines.append(f"SET1    {setg_id:<8}{1:<8}THRU    {(panel.nx + 1) * (panel.ny + 1)}")

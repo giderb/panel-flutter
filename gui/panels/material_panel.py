@@ -858,22 +858,29 @@ class MaterialPanel(BasePanel):
         except Exception as e:
             self.show_error("Error", f"Failed to delete material: {e}")
 
-    def _update_layer_material_dropdown(self):
-        """Update the layer material dropdown to include custom prepregs."""
-        if not hasattr(self, 'mat_combo'):
-            return
+    def _get_available_ply_materials(self) -> List[str]:
+        """Get list of all available materials for ply builder (predefined + custom)."""
+        # Get predefined orthotropic materials from PredefinedMaterials class
+        # This includes: IM7/M91, AS4c/M21, Quartz/8552 from TF-X Stress Toolbox
+        predefined_ortho = PredefinedMaterials.get_all_orthotropic()
+        predefined_names = [mat.name for mat in predefined_ortho]
 
-        # Get predefined materials
-        predefined = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
-
-        # Add custom materials
+        # Add custom prepreg materials created by user
         custom_names = []
         if self.project_manager.current_project and \
            self.project_manager.current_project.custom_prepreg_materials:
             custom_names = [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
 
-        # Combine
-        all_materials = predefined + custom_names
+        # Combine: predefined orthotropic + custom materials only
+        return predefined_names + custom_names
+
+    def _update_layer_material_dropdown(self):
+        """Update the layer material dropdown to include custom prepregs."""
+        if not hasattr(self, 'mat_combo'):
+            return
+
+        # Get all available materials
+        all_materials = self._get_available_ply_materials()
 
         # Update dropdown
         try:
@@ -954,14 +961,8 @@ class MaterialPanel(BasePanel):
 
         # Material dropdown
         # Get available materials for layers (predefined + custom)
-        predefined_materials = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
-        custom_materials = []
-        if self.project_manager.current_project and \
-           self.project_manager.current_project.custom_prepreg_materials:
-            custom_materials = [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
-
-        layer_materials = predefined_materials + custom_materials
-        self.layer_material_var = ctk.StringVar(value=layer_materials[0])
+        layer_materials = self._get_available_ply_materials()
+        self.layer_material_var = ctk.StringVar(value=layer_materials[0] if layer_materials else "")
         self.mat_combo = ctk.CTkComboBox(
             input_row,
             variable=self.layer_material_var,
@@ -1479,37 +1480,17 @@ class MaterialPanel(BasePanel):
                     if custom_mat.name == actual_name:
                         return custom_mat
 
-        # Predefined properties for common composite materials
-        materials_db = {
-            "T300/5208 Carbon/Epoxy": {
-                "e1": 181e9, "e2": 10.3e9, "nu12": 0.28,
-                "g12": 7.17e9, "density": 1600
-            },
-            "E-Glass/Epoxy": {
-                "e1": 38.6e9, "e2": 8.27e9, "nu12": 0.26,
-                "g12": 4.14e9, "density": 1900
-            },
-            "S-Glass/Epoxy": {
-                "e1": 43.0e9, "e2": 8.9e9, "nu12": 0.27,
-                "g12": 4.5e9, "density": 2000
-            },
-            "Kevlar-49/Epoxy": {
-                "e1": 80e9, "e2": 5.5e9, "nu12": 0.34,
-                "g12": 2.2e9, "density": 1380
-            }
-        }
+        # Check if it's a predefined orthotropic material from PredefinedMaterials
+        # (IM7/M91, AS4c/M21, Quartz/8552)
+        predefined_ortho = PredefinedMaterials.get_all_orthotropic()
+        for mat in predefined_ortho:
+            if mat.name == name:
+                return mat
 
-        props = materials_db.get(name, materials_db["T300/5208 Carbon/Epoxy"])
-
-        return OrthotropicMaterial(
-            id=len(self.current_layer_materials) + 1,
-            name=name,
-            e1=props["e1"],
-            e2=props["e2"],
-            nu12=props["nu12"],
-            g12=props["g12"],
-            density=props["density"]
-        )
+        # Material not found - this shouldn't happen if GUI is working correctly
+        # Return a safe default (first predefined material)
+        self.logger.warning(f"Material '{name}' not found, using default: {predefined_ortho[0].name}")
+        return predefined_ortho[0]
 
     def _update_layer_display(self):
         """Update the layer stack display - FULLY EDITABLE VERSION."""
@@ -1558,10 +1539,7 @@ class MaterialPanel(BasePanel):
             num_btn.pack(side="left", padx=(8, 6), pady=6)
 
             # Editable material dropdown
-            materials_list = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
-            if self.project_manager.current_project and \
-               self.project_manager.current_project.custom_prepreg_materials:
-                materials_list += [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+            materials_list = self._get_available_ply_materials()
 
             material_var = ctk.StringVar(value=layer['material_name'])
             material_combo = ctk.CTkComboBox(
@@ -1892,10 +1870,7 @@ class MaterialPanel(BasePanel):
         )
         mat_label.pack(anchor="w", pady=(0, 5))
 
-        materials_list = ["T300/5208 Carbon/Epoxy", "E-Glass/Epoxy", "S-Glass/Epoxy", "Kevlar-49/Epoxy"]
-        if self.project_manager.current_project and \
-           self.project_manager.current_project.custom_prepreg_materials:
-            materials_list += [f"[Custom] {m.name}" for m in self.project_manager.current_project.custom_prepreg_materials]
+        materials_list = self._get_available_ply_materials()
 
         batch_mat_var = ctk.StringVar(value=self.layer_material_var.get())
         mat_combo = ctk.CTkComboBox(
@@ -2049,6 +2024,159 @@ class MaterialPanel(BasePanel):
         except Exception as e:
             self.show_error("Error", f"Failed to create laminate: {e}")
 
+    # ========== SANDWICH PANEL HELPER METHODS (v2.2.2) ==========
+
+    def _load_project_materials(self):
+        """Load all materials and laminates from current project."""
+        materials = []
+
+        if not self.project_manager.current_project:
+            return materials
+
+        project = self.project_manager.current_project
+
+        # Load custom isotropic materials
+        if hasattr(project, 'custom_isotropic_materials'):
+            for mat in project.custom_isotropic_materials:
+                materials.append(("CUSTOM_ISO", mat.name, mat))
+
+        # Load custom orthotropic materials
+        if hasattr(project, 'custom_orthotropic_materials'):
+            for mat in project.custom_orthotropic_materials:
+                materials.append(("CUSTOM_ORTHO", mat.name, mat))
+
+        # Load composite laminates
+        if hasattr(project, 'composite_laminates'):
+            for lam in project.composite_laminates:
+                materials.append(("LAMINATE", lam.name, lam))
+
+        return materials
+
+    def _build_material_dropdown_list(self):
+        """Build categorized material list for facesheet selection."""
+        items = [
+            "--- PREDEFINED METALS ---",
+            "7050-T7451",
+            "2050-T84",
+            "Ti-6Al-4V",
+            "--- PREDEFINED COMPOSITES ---",
+            "IM7/M91 (Carbon/Epoxy)",
+            "AS4c/M21 (Carbon Fabric)",
+            "Quartz/8552 (Quartz Fabric)",
+        ]
+
+        # Add custom materials and laminates from project
+        project_mats = self._load_project_materials()
+        if project_mats:
+            has_custom_iso = any(cat == "CUSTOM_ISO" for cat, _, _ in project_mats)
+            has_custom_ortho = any(cat == "CUSTOM_ORTHO" for cat, _, _ in project_mats)
+            has_laminates = any(cat == "LAMINATE" for cat, _, _ in project_mats)
+
+            if has_custom_iso or has_custom_ortho:
+                items.append("--- CUSTOM MATERIALS ---")
+                for category, name, mat in project_mats:
+                    if category == "CUSTOM_ISO":
+                        items.append(f"[Custom] {name}")
+                    elif category == "CUSTOM_ORTHO":
+                        items.append(f"[Custom] {name}")
+
+            if has_laminates:
+                items.append("--- COMPOSITE LAMINATES ---")
+                for category, name, lam in project_mats:
+                    if category == "LAMINATE":
+                        items.append(f"[Laminate] {name}")
+
+        return items
+
+    def _refresh_material_dropdown(self):
+        """Refresh the material dropdown with current project materials."""
+        if hasattr(self, 'face_material_dropdown'):
+            current_value = self.face_material_var.get()
+            new_values = self._build_material_dropdown_list()
+            self.face_material_dropdown.configure(values=new_values)
+
+            # Try to restore previous selection if still valid
+            if current_value in new_values:
+                self.face_material_var.set(current_value)
+            else:
+                self.face_material_var.set("7050-T7451")
+
+    def _resolve_face_material(self, selection: str):
+        """Resolve material from dropdown selection."""
+        from models.material import PredefinedMaterials
+
+        # Handle separator lines
+        if selection.startswith("---"):
+            raise ValueError("Please select a material, not a category separator")
+
+        # Check if this is a predefined laminate loaded from factory
+        if selection.startswith("[Predefined Laminate:"):
+            # Use the stored laminate from last predefined load
+            if hasattr(self, '_last_loaded_sandwich_material'):
+                return self._last_loaded_sandwich_material
+            else:
+                raise ValueError("Predefined laminate not available. Please reload from predefined options.")
+
+        # Predefined metals
+        if "7050" in selection:
+            return PredefinedMaterials.aluminum_7050_t7451()
+        elif "2050" in selection:
+            return PredefinedMaterials.aluminum_2050_t84()
+        elif "Ti-6Al-4V" in selection:
+            return PredefinedMaterials.titanium_6al4v()
+        # Predefined composites
+        elif "IM7/M91" in selection:
+            return PredefinedMaterials.im7_m91()
+        elif "AS4c/M21" in selection:
+            return PredefinedMaterials.as4c_m21()
+        elif "Quartz/8552" in selection:
+            return PredefinedMaterials.quartz_8552()
+        # Custom materials
+        elif selection.startswith("[Custom]"):
+            mat_name = selection.replace("[Custom] ", "")
+            return self._find_custom_material(mat_name)
+        # Composite laminates
+        elif selection.startswith("[Laminate]"):
+            lam_name = selection.replace("[Laminate] ", "")
+            return self._find_custom_laminate(lam_name)
+        else:
+            raise ValueError(f"Unknown material selection: {selection}")
+
+    def _find_custom_material(self, name: str):
+        """Find custom material in project."""
+        project = self.project_manager.current_project
+        if not project:
+            raise ValueError("No project loaded")
+
+        # Search in custom isotropic materials
+        if hasattr(project, 'custom_isotropic_materials'):
+            for mat in project.custom_isotropic_materials:
+                if mat.name == name:
+                    return mat
+
+        # Search in custom orthotropic materials
+        if hasattr(project, 'custom_orthotropic_materials'):
+            for mat in project.custom_orthotropic_materials:
+                if mat.name == name:
+                    return mat
+
+        raise ValueError(f"Custom material not found: {name}")
+
+    def _find_custom_laminate(self, name: str):
+        """Find composite laminate in project."""
+        project = self.project_manager.current_project
+        if not project:
+            raise ValueError("No project loaded")
+
+        if hasattr(project, 'composite_laminates'):
+            for lam in project.composite_laminates:
+                if lam.name == name:
+                    return lam
+
+        raise ValueError(f"Laminate not found: {name}")
+
+    # ========== SANDWICH PANEL CONTENT ==========
+
     def _show_sandwich_content(self):
         """Show honeycomb sandwich panel content."""
         self.current_material_type = MaterialType.SANDWICH
@@ -2085,8 +2213,11 @@ class MaterialPanel(BasePanel):
 
         # Predefined options
         predefined_options = [
-            ("Aluminum Sandwich (0.5\" core)", PredefinedMaterials.create_aluminum_sandwich),
-            ("Composite Sandwich (0.75\" core)", PredefinedMaterials.create_composite_sandwich)
+            ("Aluminum 7050 Sandwich (0.5\" core)", PredefinedMaterials.create_aluminum_sandwich),
+            ("Aluminum-Lithium 2050 Sandwich (0.75\" core)", PredefinedMaterials.create_aluminum_lithium_sandwich),
+            ("Carbon IM7/M91 Composite Sandwich (0.5\" core)", PredefinedMaterials.create_composite_sandwich),
+            ("Carbon AS4c/M21 Composite Sandwich (0.75\" core)", PredefinedMaterials.create_composite_sandwich_thick),
+            ("Laminate [0/90]s Facesheet Sandwich (0.5\" core)", PredefinedMaterials.create_laminate_sandwich)
         ]
 
         for name, factory_func in predefined_options:
@@ -2130,14 +2261,14 @@ class MaterialPanel(BasePanel):
         face_mat_label = self.theme_manager.create_styled_label(config_grid, text="Face Material:")
         face_mat_label.grid(row=1, column=0, sticky="w", padx=10, pady=5)
 
-        self.face_material_var = ctk.StringVar(value="Aluminum 6061-T6")
-        face_material_dropdown = ctk.CTkComboBox(
+        self.face_material_var = ctk.StringVar(value="7050-T7451")
+        self.face_material_dropdown = ctk.CTkComboBox(
             config_grid,
             variable=self.face_material_var,
-            values=["Aluminum 6061-T6", "Steel 4130", "Titanium Ti-6Al-4V"],
-            width=300
+            values=self._build_material_dropdown_list(),
+            width=400
         )
-        face_material_dropdown.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        self.face_material_dropdown.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
 
         # Face thickness
         face_thick_label = self.theme_manager.create_styled_label(config_grid, text="Face Thickness [mm]:")
@@ -2223,13 +2354,40 @@ class MaterialPanel(BasePanel):
     def _load_predefined_sandwich(self, factory_func):
         """Load a predefined sandwich panel."""
         try:
+            from models.material import IsotropicMaterial, OrthotropicMaterial, CompositeLaminate
+
             sandwich = factory_func()
 
             # Update UI fields
             self.sandwich_name_entry.delete(0, 'end')
             self.sandwich_name_entry.insert(0, sandwich.name)
 
-            self.face_material_var.set(sandwich.face_material.name)
+            # Map material to dropdown value (handle all types)
+            if isinstance(sandwich.face_material, CompositeLaminate):
+                # For laminates, store reference and set placeholder in dropdown
+                self._last_loaded_sandwich_material = sandwich.face_material
+                dropdown_value = f"[Predefined Laminate: {sandwich.face_material.name}]"
+                self.show_info("Note", f"This uses a composite laminate: {sandwich.face_material.name}\n"
+                             f"Total laminate thickness: {sandwich.face_material.total_thickness:.3f} mm\n"
+                             f"Number of plies: {len(sandwich.face_material.laminas)}")
+            elif isinstance(sandwich.face_material, OrthotropicMaterial):
+                # Composite materials: add description to match dropdown
+                face_mat_name = sandwich.face_material.name
+                if "IM7/M91" in face_mat_name:
+                    dropdown_value = "IM7/M91 (Carbon/Epoxy)"
+                elif "AS4c/M21" in face_mat_name:
+                    dropdown_value = "AS4c/M21 (Carbon Fabric)"
+                elif "Quartz/8552" in face_mat_name:
+                    dropdown_value = "Quartz/8552 (Quartz Fabric)"
+                else:
+                    dropdown_value = face_mat_name
+            elif isinstance(sandwich.face_material, IsotropicMaterial):
+                # Isotropic materials: use name directly
+                dropdown_value = sandwich.face_material.name
+            else:
+                dropdown_value = "Unknown Material Type"
+
+            self.face_material_var.set(dropdown_value)
             self.face_thickness_entry.delete(0, 'end')
             self.face_thickness_entry.insert(0, str(sandwich.face_thickness))
 
@@ -2237,7 +2395,7 @@ class MaterialPanel(BasePanel):
             self.core_thickness_entry.delete(0, 'end')
             self.core_thickness_entry.insert(0, str(sandwich.core_thickness))
 
-            # Calculate and display properties
+            # Calculate and display properties (works for all types)
             self._calculate_sandwich_properties()
 
             self.show_info("Loaded", f"Loaded predefined sandwich: {sandwich.name}")
@@ -2250,19 +2408,16 @@ class MaterialPanel(BasePanel):
         try:
             from models.material import (
                 PredefinedMaterials, SandwichPanel,
-                IsotropicMaterial, HoneycombCore
+                IsotropicMaterial, OrthotropicMaterial, CompositeLaminate, HoneycombCore
             )
 
-            # Get face material
+            # Get face material using resolver (supports all types)
             face_name = self.face_material_var.get()
-            if "7050" in face_name:
-                face_mat = PredefinedMaterials.aluminum_7050_t7451()
-            elif "2050" in face_name:
-                face_mat = PredefinedMaterials.aluminum_2050_t84()
-            elif "Ti-6Al-4V" in face_name:
-                face_mat = PredefinedMaterials.titanium_6al4v()
-            else:
-                face_mat = PredefinedMaterials.aluminum_7050_t7451()
+            try:
+                face_mat = self._resolve_face_material(face_name)
+            except ValueError as e:
+                self.show_error("Error", str(e))
+                return
 
             # Get core material
             core_name = self.core_material_var.get()
@@ -2323,16 +2478,13 @@ For 508×254 mm panel (estimated):
                 self.show_warning("Warning", "Please create a project first.\n\nClick 'Create Project' button at the top of this page.")
                 return
 
-            # Get face material
+            # Get face material using resolver (supports all types)
             face_name = self.face_material_var.get()
-            if "7050" in face_name:
-                face_mat = PredefinedMaterials.aluminum_7050_t7451()
-            elif "2050" in face_name:
-                face_mat = PredefinedMaterials.aluminum_2050_t84()
-            elif "Ti-6Al-4V" in face_name:
-                face_mat = PredefinedMaterials.titanium_6al4v()
-            else:
-                face_mat = PredefinedMaterials.aluminum_7050_t7451()
+            try:
+                face_mat = self._resolve_face_material(face_name)
+            except ValueError as e:
+                self.show_error("Error", str(e))
+                return
 
             # Get core material
             core_name = self.core_material_var.get()

@@ -287,9 +287,10 @@ class F06Parser:
 
                         if is_same_mode:
                             # Check for flutter onset (negative to positive damping)
-                            # CRITICAL FIX v2.14.2: Filter numerical noise - damping must be clearly positive
-                            # Values like 1E-14 are numerical noise, not real positive damping
-                            if m1.damping < 0 and m2.damping > 0.0001:  # Changed from > 0 to > 0.0001
+                            # CRITICAL FIX v2.14.4: Filter numerical noise - damping must be clearly positive
+                            # Values like 1E-4 (0.0001) are numerical noise, not real positive damping
+                            # Real flutter typically has damping > 0.001 (1E-3)
+                            if m1.damping < 0 and m2.damping > 0.001:  # Changed from 0.0001 to 0.001
                                 # CRITICAL FIX v2.14.1: Log detected crossings
                                 logger.info(f"DETECTED DAMPING CROSSING:")
                                 logger.info(f"  V1={v1/1000:.1f} m/s: g={m1.damping:.6f}, f={m1.frequency:.1f} Hz")
@@ -330,10 +331,11 @@ class F06Parser:
                                 logger.info(f"Flutter detected: V={candidate_velocity/1000:.1f} m/s, f={candidate_frequency:.1f} Hz")
                                 logger.info(f"  Transition: V1={v1/1000:.1f}m/s (g={d1:.4f}, f={f1:.1f}Hz), V2={v2/1000:.1f}m/s (g={d2:.4f}, f={f2:.1f}Hz)")
 
-                                # CRITICAL FIX v2.14.2: Additional validation - verify positive damping exists
+                                # CRITICAL FIX v2.14.4: Additional validation - verify positive damping exists
                                 # Check that at least one of the velocities has actual positive damping
                                 # (not just interpolation between two negative values or numerical noise)
-                                if d2 <= 0.0001:  # Changed from <= 0 to filter numerical noise
+                                # Real flutter has damping typically > 0.001 (not 1E-4)
+                                if d2 <= 0.001:  # Changed from 0.0001 to 0.001 to filter numerical noise
                                     logger.warning(f"FALSE CROSSING: d2={d2:.6e} is not clearly positive (noise)")
                                     logger.warning(f"  d1={d1:.6f}, d2={d2:.6e} - This is NOT flutter - skipping")
                                     continue
@@ -364,12 +366,12 @@ class F06Parser:
                         if mode.frequency <= 0.01:
                             continue
 
-                        # CRITICAL FIX v2.14.2: Properly filter numerical noise
+                        # CRITICAL FIX v2.14.4: Properly filter numerical noise
                         # Look for modes with clearly positive damping (unstable) and realistic frequency
                         # Filter out very low frequency modes (<5 Hz) which may be rigid body or spurious
-                        # CRITICAL: Damping must be > 0.0001 to avoid numerical noise (e.g., 1E-14)
-                        # Real flutter has damping typically > 0.0001
-                        if mode.damping > 0.0001 and mode.frequency >= 5.0:
+                        # CRITICAL: Damping must be > 0.001 to avoid numerical noise (e.g., 1E-4)
+                        # Real flutter has damping typically > 0.001 (not 1E-4 which is noise)
+                        if mode.damping > 0.001 and mode.frequency >= 5.0:
                             unstable_modes.append(mode)
                             logger.info(f"  Unstable mode at V={v/1000:.1f}m/s: g={mode.damping:.4f}, f={mode.frequency:.1f}Hz")
 
@@ -410,7 +412,7 @@ class F06Parser:
             has_positive_damping = False
             for v in sorted_velocities:
                 for mode in velocity_groups[v]:
-                    if mode.damping > 0.0001:  # Small threshold to avoid numerical noise (1E-4)
+                    if mode.damping > 0.001:  # Threshold 0.001 to avoid numerical noise (1E-3)
                         has_positive_damping = True
                         break
                 if has_positive_damping:
