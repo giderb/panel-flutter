@@ -995,6 +995,13 @@ Mesh Generated: {'✓ YES' if info['mesh_generated'] else '✗ NO'}
                 if 'altitude' in flow_conditions:
                     self._update_temperature_from_altitude()
 
+                # CRITICAL FIX: Load aerodynamic theory from saved config
+                if 'theory' in project.aerodynamic_config:
+                    saved_theory = project.aerodynamic_config['theory']
+                    self.theory_var.set(saved_theory)
+                    self._on_theory_changed()  # Update visibility and descriptions
+                    self.logger.info(f"Restored aerodynamic theory: {saved_theory}")
+
                 # Load mesh parameters if they exist
                 mesh_config = project.aerodynamic_config.get('mesh', {})
                 if 'nx_aero' in mesh_config and hasattr(self, 'nx_aero_var'):

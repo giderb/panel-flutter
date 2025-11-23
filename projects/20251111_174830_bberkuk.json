@@ -2,7 +2,7 @@
   "id": "20251111_174830_bberkuk",
   "name": "bberkuk",
   "created_at": "2025-11-11T17:48:30.131754",
-  "modified_at": "2025-11-13T07:11:59.108984",
+  "modified_at": "2025-11-24T00:31:31.855462",
   "description": null,
   "geometry": {
     "length": 0.45,
@@ -21,7 +21,7 @@
       "pressure": 101325,
       "density": 1.225
     },
-    "theory": "PISTON_THEORY",
+    "theory": "DOUBLET_LATTICE",
     "mesh": {
       "nx_aero": 20,
       "ny_aero": 20,
@@ -33,7 +33,7 @@
     "mesh_nx": "10",
     "mesh_ny": "10",
     "velocity_min": "100",
-    "velocity_max": "2500",
+    "velocity_max": "4500",
     "velocity_points": "50",
     "method": "nastran",
     "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
@@ -691,7 +691,7 @@
     "total_thickness": 5.888000000000003,
     "description": null
   },
-  "structural_model": "<models.structural.StructuralModel object at 0x0000021BA72E6A10>",
+  "structural_model": "<models.structural.StructuralModel object at 0x0000028A3FCE82D0>",
   "custom_prepreg_materials": [
     {
       "type": "orthotropic",

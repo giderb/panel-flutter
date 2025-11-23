@@ -171,6 +171,8 @@ class ResultsPanel(BasePanel):
         # Get physics result for additional parameters
         physics_result = self.analysis_results.get('physics_result', {})
         reduced_frequency = physics_result.get('reduced_frequency', 0)
+        uncertainty_upper = physics_result.get('uncertainty_upper', 0)
+        uncertainty_lower = physics_result.get('uncertainty_lower', 0)
 
         # Calculate flight condition parameters
         mach_number = config.get('mach_number', 0)
@@ -210,7 +212,7 @@ class ResultsPanel(BasePanel):
                 if label == "Clearance Status" and hasattr(value_label, 'configure'):
                     value_label.configure(
                         text_color=clearance_color,
-                        font=self.theme_manager.get_body_font(weight="bold", size=14)
+                        font=self.theme_manager.get_font(size=14, weight="bold")
                     )
                 elif label == "Safety Margin" and hasattr(value_label, 'configure'):
                     value_label.configure(
@@ -232,7 +234,7 @@ class ResultsPanel(BasePanel):
                     if hasattr(value_label, 'configure'):
                         value_label.configure(
                             text_color="green",
-                            font=self.theme_manager.get_body_font(weight="bold", size=14)
+                            font=self.theme_manager.get_font(size=14, weight="bold")
                         )
         else:
             # No target speed specified
@@ -261,14 +263,28 @@ class ResultsPanel(BasePanel):
             flutter_card.pack(fill="x", padx=10, pady=10)
 
             flutter_data = [
-                ("Flutter Speed", f"{actual_flutter_speed:.1f} m/s"),
+                ("Flutter Speed", f"{actual_flutter_speed:.1f} m/s ({actual_flutter_speed*3.6:.1f} km/h)"),
                 ("Flutter Frequency", f"{flutter_freq:.1f} Hz"),
                 ("Critical Mode", f"Mode {flutter_mode}"),
-                ("Dynamic Pressure", f"{dynamic_pressure:.0f} Pa" if dynamic_pressure > 0 else "N/A")
+                ("Dynamic Pressure", f"{dynamic_pressure:.0f} Pa ({dynamic_pressure/1000:.1f} kPa)" if dynamic_pressure > 0 else "N/A")
             ]
 
+            # Add uncertainty bounds if available
+            if uncertainty_upper > 0 or uncertainty_lower < 0:
+                flutter_data.append(
+                    ("Uncertainty Bounds", f"+{uncertainty_upper:.1f}% / {uncertainty_lower:.1f}%")
+                )
+
             for label, value in flutter_data:
-                self._add_info_row(flutter_card, label, value)
+                row = self._add_info_row(flutter_card, label, value)
+                # Highlight uncertainty bounds in orange if significant
+                if label == "Uncertainty Bounds":
+                    value_label = row.winfo_children()[-1]
+                    if hasattr(value_label, 'configure'):
+                        value_label.configure(
+                            text_color="orange",
+                            font=self.theme_manager.get_body_font(weight="bold")
+                        )
 
         # === CARD 3: ANALYSIS QUALITY (Confidence & Validation) ===
         quality_card = self._create_card(scroll_frame, "✓ Analysis Quality")
@@ -279,30 +295,90 @@ class ResultsPanel(BasePanel):
         nastran_speed = comparison.get('nastran_flutter_speed')
         confidence_level = self._determine_confidence_level()
 
+        # Get friendly method name
+        raw_method = self.analysis_results.get('method', 'Unknown')
+        friendly_method = self._get_friendly_method_name(raw_method)
+
         quality_data = [
-            ("Analysis Method", self.analysis_results.get('method', 'Unknown')),
+            ("Analysis Method", friendly_method),
             ("Convergence", "✅ Converged" if converged else "❌ Not Converged"),
         ]
 
-        # Add NASTRAN comparison if available
-        if nastran_speed and nastran_speed < 900000:
-            speed_diff = comparison.get('speed_difference_percent', 0)
-            quality_data.append(
-                ("NASTRAN Verification", f"{nastran_speed:.1f} m/s (±{abs(speed_diff):.1f}% diff)")
-            )
-
-        quality_data.append(("Overall Confidence", confidence_level))
-
         for label, value in quality_data:
-            row = self._add_info_row(quality_card, label, value)
-            value_label = row.winfo_children()[-1]
-            if label == "Overall Confidence" and hasattr(value_label, 'configure'):
-                if "HIGH" in confidence_level:
-                    value_label.configure(text_color="green", font=self.theme_manager.get_body_font(weight="bold"))
-                elif "MEDIUM" in confidence_level:
-                    value_label.configure(text_color="orange")
-                elif "LOW" in confidence_level:
-                    value_label.configure(text_color="red", font=self.theme_manager.get_body_font(weight="bold"))
+            self._add_info_row(quality_card, label, value)
+
+        # Add NASTRAN comparison table if available
+        if nastran_speed and nastran_speed < 900000:
+            # Create comparison header
+            comparison_header = ctk.CTkFrame(quality_card, fg_color="transparent")
+            comparison_header.pack(fill="x", padx=15, pady=(10, 5))
+
+            header_label = self.theme_manager.create_styled_label(
+                comparison_header,
+                text="NASTRAN vs. Physics Comparison:",
+                style="body"
+            )
+            header_label.configure(font=self.theme_manager.get_body_font(weight="bold"))
+            header_label.pack(anchor="w")
+
+            # Create comparison table
+            comparison_table = ctk.CTkFrame(quality_card, fg_color="transparent")
+            comparison_table.pack(fill="x", padx=15, pady=5)
+
+            # Header row
+            header_row = ctk.CTkFrame(comparison_table, fg_color="transparent")
+            header_row.pack(fill="x", pady=2)
+
+            for col_text in ["Parameter", "Physics", "NASTRAN", "Δ%", "Status"]:
+                col_label = self.theme_manager.create_styled_label(
+                    header_row, text=col_text
+                )
+                col_label.configure(font=self.theme_manager.get_body_font(weight="bold"))
+                col_label.pack(side="left", padx=5, expand=True)
+
+            # Data row
+            speed_diff = comparison.get('speed_difference_percent', 0)
+
+            # Determine status
+            if abs(speed_diff) < 5.0:
+                status_text = "✅ EXCELLENT"
+                status_color = "green"
+            elif abs(speed_diff) < 15.0:
+                status_text = "⚠️ ACCEPTABLE"
+                status_color = "orange"
+            else:
+                status_text = "❌ INVESTIGATE"
+                status_color = "red"
+
+            data_row = ctk.CTkFrame(comparison_table, fg_color="transparent")
+            data_row.pack(fill="x", pady=2)
+
+            values = [
+                "Flutter Speed",
+                f"{actual_flutter_speed:.1f} m/s",
+                f"{nastran_speed:.1f} m/s",
+                f"{speed_diff:+.1f}%",
+                status_text
+            ]
+
+            for i, val_text in enumerate(values):
+                val_label = self.theme_manager.create_styled_label(
+                    data_row, text=val_text
+                )
+                if i == 4:  # Status column
+                    val_label.configure(text_color=status_color)
+                val_label.pack(side="left", padx=5, expand=True)
+
+        # Overall confidence
+        confidence_row = self._add_info_row(quality_card, "Overall Confidence", confidence_level)
+        value_label = confidence_row.winfo_children()[-1]
+        if hasattr(value_label, 'configure'):
+            if "HIGH" in confidence_level:
+                value_label.configure(text_color="green", font=self.theme_manager.get_body_font(weight="bold"))
+            elif "MEDIUM" in confidence_level:
+                value_label.configure(text_color="orange")
+            elif "LOW" in confidence_level:
+                value_label.configure(text_color="red", font=self.theme_manager.get_body_font(weight="bold"))
 
         # === CARD 4: DESIGN GUIDANCE (Only if clearance failed) ===
         if target_flutter_speed and actual_flutter_speed < target_flutter_speed and actual_flutter_speed < 900000:
@@ -1199,6 +1275,27 @@ class ResultsPanel(BasePanel):
         true_airspeed = mach_number * speed_of_sound
 
         return true_airspeed
+
+    def _get_friendly_method_name(self, method: str) -> str:
+        """
+        Convert internal method name to user-friendly display name.
+
+        Args:
+            method: Internal method name (e.g., 'piston_theory_adaptive')
+
+        Returns:
+            User-friendly display name (e.g., 'Piston Theory (Adaptive)')
+        """
+        method_names = {
+            'piston_theory_adaptive': 'Piston Theory (Adaptive)',
+            'piston_theory': 'Piston Theory',
+            'doublet_lattice': 'Doublet Lattice Method (DLM)',
+            'dlm': 'Doublet Lattice Method',
+            'nastran_sol145': 'NASTRAN SOL145',
+            'pk_method': 'PK Flutter Method',
+            'k_method': 'K Flutter Method'
+        }
+        return method_names.get(method.lower(), method)
 
     def refresh(self):
         """Refresh the panel."""
