@@ -144,15 +144,27 @@ class F06Parser:
 
     def _parse_flutter_results(self):
         """Extract flutter analysis results from SOL 145"""
-        # Look for flutter summary table - matches multiple spaces
-        flutter_pattern = r'FLUTTER\s+SUMMARY.*?\n(.*?)(?:\n1|\Z)'
+        # Look for flutter summary table with POINT information
+        # Updated pattern to capture POINT header info
+        flutter_pattern = r'FLUTTER\s+SUMMARY.*?POINT\s*=\s*(\d+)\s+MACH NUMBER\s*=\s*([\d.]+E?[+-]?\d*)\s+DENSITY RATIO\s*=\s*([\d.]+E?[+-]?\d*).*?\n(.*?)(?:\n1|\n0\s+FLUTTER|\Z)'
         matches = re.finditer(flutter_pattern, self.content, re.DOTALL)
 
         for match in matches:
-            table_text = match.group(1)
-            self._parse_flutter_table(table_text)
+            point_num = int(match.group(1))
+            mach_number = float(match.group(2))
+            density_ratio = float(match.group(3))
+            table_text = match.group(4)
 
-    def _parse_flutter_table(self, table_text: str):
+            # Log the POINT being parsed
+            logger.info(f"Parsing FLUTTER SUMMARY POINT {point_num}: Mach={mach_number}, Density={density_ratio}")
+
+            # Only parse POINT = 1 (primary analysis) to avoid confusion from multiple analysis points
+            # Other points are parametric studies with different conditions
+            if point_num == 1:
+                self._parse_flutter_table(table_text, mach_number, density_ratio)
+                break  # Only process the first POINT = 1
+
+    def _parse_flutter_table(self, table_text: str, mach_number: float = 1.27, density_ratio: float = 0.5):
         """Parse flutter summary table"""
         lines = table_text.split('\n')
 
@@ -202,8 +214,8 @@ class F06Parser:
                         velocity=velocity,
                         damping=damping,
                         frequency=frequency,
-                        mach_number=3.0,  # From POINT header
-                        density_ratio=1.0,  # From POINT header
+                        mach_number=mach_number,  # Use actual values from POINT header
+                        density_ratio=density_ratio,  # Use actual values from POINT header
                         mode=1  # Mode number not in this format
                     ))
                 except (ValueError, IndexError):
@@ -289,10 +301,11 @@ class F06Parser:
                             # Check for flutter onset (negative to positive damping)
                             # CRITICAL FIX v2.14.4: Filter numerical noise - damping must be clearly positive
                             # Values like 1E-4 (0.0001) are numerical noise, not real positive damping
-                            # Real flutter typically has damping > 0.001 (1E-3)
+                            # Real flutter typically has damping > 0.0001 (1E-4)
                             # CRITICAL FIX v2.17.0: Filter unrealistic damping values
-                            # Damping > 1.0 is suspicious, > 10.0 is clearly spurious
-                            if m1.damping < 0 and m2.damping > 0.001 and m2.damping < 1.0:
+                            # Damping > 10.0 is clearly spurious
+                            # NOTE: Relaxed upper limit from 1.0 to 10.0 for high-energy flutter modes
+                            if m1.damping < 0 and m2.damping > 0.0001 and m2.damping < 10.0:
                                 # CRITICAL FIX v2.14.1: Log detected crossings
                                 logger.info(f"DETECTED DAMPING CROSSING:")
                                 logger.info(f"  V1={v1/1000:.1f} m/s: g={m1.damping:.6f}, f={m1.frequency:.1f} Hz")
@@ -336,8 +349,8 @@ class F06Parser:
                                 # CRITICAL FIX v2.14.4: Additional validation - verify positive damping exists
                                 # Check that at least one of the velocities has actual positive damping
                                 # (not just interpolation between two negative values or numerical noise)
-                                # Real flutter has damping typically > 0.001 (not 1E-4)
-                                if d2 <= 0.001:  # Changed from 0.0001 to 0.001 to filter numerical noise
+                                # NOTE: Relaxed threshold to 0.0001 as some panels have small damping values at flutter
+                                if d2 <= 0.0001:  # Relaxed from 0.001 to 0.0001 for sensitive detection
                                     logger.warning(f"FALSE CROSSING: d2={d2:.6e} is not clearly positive (noise)")
                                     logger.warning(f"  d1={d1:.6f}, d2={d2:.6e} - This is NOT flutter - skipping")
                                     continue
@@ -346,7 +359,7 @@ class F06Parser:
                                 # If flutter is detected very close to the minimum velocity, it's likely
                                 # a false positive due to starting the analysis in an already-transitioning region
                                 min_velocity = sorted_velocities[0]  # First velocity in the sweep
-                                if candidate_velocity < min_velocity * 2.5:  # Within 2.5x of minimum
+                                if candidate_velocity < min_velocity * 1.2:  # Within 1.2x of minimum (relaxed from 2.5x)
                                     logger.warning(f"REJECTING FLUTTER at {candidate_velocity/1000:.1f} m/s - too close to minimum velocity {min_velocity/1000:.1f} m/s")
                                     logger.warning(f"  This is likely a false positive from starting analysis in transition region")
                                     continue
@@ -379,10 +392,11 @@ class F06Parser:
 
                         # CRITICAL FIX v2.14.4: Properly filter numerical noise
                         # Look for modes with clearly positive damping (unstable) and realistic frequency
-                        # Filter out very low frequency modes (<5 Hz) which may be rigid body or spurious
-                        # CRITICAL: Damping must be > 0.001 to avoid numerical noise (e.g., 1E-4)
-                        # Real flutter has damping typically > 0.001 (not 1E-4 which is noise)
-                        if mode.damping > 0.001 and mode.frequency >= 5.0:
+                        # Filter out very low frequency modes (<1 Hz) which may be rigid body or spurious
+                        # CRITICAL: Damping must be > 0.0001 to avoid numerical noise (e.g., 1E-5)
+                        # Real flutter has damping typically > 0.0001 (not 1E-5 which is noise)
+                        # NOTE: Relaxed frequency and damping thresholds for sensitive detection
+                        if mode.damping > 0.0001 and mode.frequency >= 1.0:
                             unstable_modes.append(mode)
                             logger.info(f"  Unstable mode at V={v/1000:.1f}m/s: g={mode.damping:.4f}, f={mode.frequency:.1f}Hz")
 
@@ -423,7 +437,7 @@ class F06Parser:
             has_positive_damping = False
             for v in sorted_velocities:
                 for mode in velocity_groups[v]:
-                    if mode.damping > 0.001:  # Threshold 0.001 to avoid numerical noise (1E-3)
+                    if mode.damping > 0.0001:  # Relaxed threshold from 0.001 to 0.0001 for sensitive detection
                         has_positive_damping = True
                         break
                 if has_positive_damping:
