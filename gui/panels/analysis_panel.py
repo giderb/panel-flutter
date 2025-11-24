@@ -556,6 +556,13 @@ class AnalysisPanel(BasePanel):
 
             self.logger.info(f"Analysis completed. Results: {self.analysis_results.get('success', 'Unknown')}")
 
+            # CRITICAL DEBUG: Log what we received
+            self.logger.info("=" * 70)
+            self.logger.info("RECEIVED FROM EXECUTOR:")
+            self.logger.info(f"  critical_flutter_speed = {self.analysis_results.get('critical_flutter_speed', 'NOT FOUND')}")
+            self.logger.info(f"  critical_flutter_frequency = {self.analysis_results.get('critical_flutter_frequency', 'NOT FOUND')}")
+            self.logger.info("=" * 70)
+
             # Update GUI in main thread
             self.frame.after(0, self._handle_analysis_complete)
 

@@ -1,5 +1,74 @@
 [
   {
+    "id": "20251111_070749_metallic_panel",
+    "name": "Metallic Panel",
+    "created_at": "2025-11-11T07:07:49.561185",
+    "modified_at": "2025-11-24T14:31:38.214259",
+    "description": "Standard aluminum aircraft skin panel",
+    "geometry": {
+      "length": 0.5,
+      "width": 0.4,
+      "thickness": 0.003,
+      "n_chord": 10,
+      "n_span": 10,
+      "element_type": "CQUAD4"
+    },
+    "boundary_conditions": "SSSS",
+    "aerodynamic_config": {
+      "flow_conditions": {
+        "mach_number": 1.27,
+        "altitude": 0.0,
+        "temperature": 288.15,
+        "pressure": 101325,
+        "density": 1.225
+      },
+      "theory": "DOUBLET_LATTICE",
+      "mesh": {
+        "nx_aero": 20,
+        "ny_aero": 10,
+        "z_offset": 0.0
+      },
+      "velocities": [
+        61.8,
+        92.7,
+        123.6,
+        139.1,
+        154.5,
+        169.9,
+        185.4,
+        252.4,
+        319.3,
+        386.2
+      ]
+    },
+    "analysis_params": {
+      "n_modes": "10",
+      "mesh_nx": "10",
+      "mesh_ny": "10",
+      "velocity_min": "100",
+      "velocity_max": "3500",
+      "velocity_points": "100",
+      "method": "nastran",
+      "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
+    },
+    "results": null,
+    "project_directory": "projects\\20251111_070749_metallic_panel",
+    "bdf_file_path": null,
+    "f06_file_path": null,
+    "material": {
+      "type": "isotropic",
+      "id": 1,
+      "name": "Aluminum 6061-T6",
+      "youngs_modulus": 71700000000.0,
+      "poissons_ratio": 0.33,
+      "shear_modulus": 26900000000.0,
+      "density": 2810,
+      "thermal_expansion": 2.1e-05,
+      "description": "Common aerospace aluminum alloy"
+    },
+    "structural_model": "<models.structural.StructuralModel object at 0x00000226C766E4D0>"
+  },
+  {
     "id": "20251111_174830_bberkuk",
     "name": "bberkuk",
     "created_at": "2025-11-11T17:48:30.131754",
@@ -710,75 +779,6 @@
         "description": "Custom prepreg material"
       }
     ]
-  },
-  {
-    "id": "20251111_070749_metallic_panel",
-    "name": "Metallic Panel",
-    "created_at": "2025-11-11T07:07:49.561185",
-    "modified_at": "2025-11-12T17:47:39.692870",
-    "description": "Standard aluminum aircraft skin panel",
-    "geometry": {
-      "length": 0.5,
-      "width": 0.4,
-      "thickness": 0.003,
-      "n_chord": 10,
-      "n_span": 10,
-      "element_type": "CQUAD4"
-    },
-    "boundary_conditions": "SSSS",
-    "aerodynamic_config": {
-      "flow_conditions": {
-        "mach_number": 1.27,
-        "altitude": 0.0,
-        "temperature": 288.15,
-        "pressure": 101325,
-        "density": 1.225
-      },
-      "theory": "DOUBLET_LATTICE",
-      "mesh": {
-        "nx_aero": 20,
-        "ny_aero": 10,
-        "z_offset": 0.0
-      },
-      "velocities": [
-        61.8,
-        92.7,
-        123.6,
-        139.1,
-        154.5,
-        169.9,
-        185.4,
-        252.4,
-        319.3,
-        386.2
-      ]
-    },
-    "analysis_params": {
-      "n_modes": "10",
-      "mesh_nx": "10",
-      "mesh_ny": "10",
-      "velocity_min": "156",
-      "velocity_max": "1500",
-      "velocity_points": "100",
-      "method": "nastran",
-      "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
-    },
-    "results": null,
-    "project_directory": "projects\\20251111_070749_metallic_panel",
-    "bdf_file_path": null,
-    "f06_file_path": null,
-    "material": {
-      "type": "isotropic",
-      "id": 1,
-      "name": "Aluminum 6061-T6",
-      "youngs_modulus": 71700000000.0,
-      "poissons_ratio": 0.33,
-      "shear_modulus": 26900000000.0,
-      "density": 2810,
-      "thermal_expansion": 2.1e-05,
-      "description": "Common aerospace aluminum alloy"
-    },
-    "structural_model": "<models.structural.StructuralModel object at 0x0000022160794E10>"
   },
   {
     "id": "20251111_063916_metallic_panel",

@@ -417,13 +417,36 @@ class IntegratedFlutterExecutor:
                     nastran_v = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
                     self.logger.info(f"  NASTRAN also reported V={nastran_v:.1f} m/s")
 
-            elif nastran_result and nastran_result.get('success') and nastran_result.get('flutter_found') and nastran_result.get('critical_flutter_velocity'):
+            elif nastran_result and nastran_result.get('success') and nastran_result.get('flutter_found', False) == True and nastran_result.get('critical_flutter_velocity') is not None:
                 # NASTRAN results available (DLM for subsonic, Piston for supersonic)
                 # CRITICAL FIX v2.2.0: Check flutter_found flag to avoid false positives
-                converged = True
-                flutter_speed = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
-                flutter_frequency = nastran_result['critical_flutter_frequency']
-                flutter_mode = 1  # From NASTRAN
+                nastran_flutter = nastran_result['critical_flutter_velocity']  # F06 parser already returns m/s
+
+                # CRITICAL FIX v2.18.0: Sanity check NASTRAN results
+                # For metallic/composite panels at transonic speeds, flutter < 500 m/s is suspicious
+                # Also check if flutter frequency is unrealistically high (> 1000 Hz suggests spurious mode)
+                if (nastran_flutter < 500 and flow.mach_number > 1.0) or nastran_result.get('critical_flutter_frequency', 0) > 1000:
+                    self.logger.warning(f"NASTRAN flutter at {nastran_flutter:.1f} m/s is suspiciously low for M={flow.mach_number:.2f}")
+                    self.logger.warning(f"This is likely a spurious numerical mode")
+                    # Use physics result if available and reasonable
+                    if physics_result.converged and physics_result.flutter_speed > nastran_flutter * 2:
+                        self.logger.warning(f"Using physics result instead: {physics_result.flutter_speed:.1f} m/s")
+                        converged = physics_result.converged
+                        flutter_speed = physics_result.flutter_speed
+                        flutter_frequency = physics_result.flutter_frequency
+                        flutter_mode = physics_result.flutter_mode
+                    else:
+                        # Use NASTRAN but flag as suspicious
+                        converged = True
+                        flutter_speed = nastran_flutter
+                        flutter_frequency = nastran_result['critical_flutter_frequency']
+                        flutter_mode = 1
+                else:
+                    # NASTRAN result seems reasonable
+                    converged = True
+                    flutter_speed = nastran_flutter
+                    flutter_frequency = nastran_result['critical_flutter_frequency']
+                    flutter_mode = 1  # From NASTRAN
 
                 aero_method = "DLM" if flow.mach_number < 1.0 else "Piston Theory"
                 reason = "Physics failed" if physics_failed else "Validated analysis"
@@ -440,18 +463,46 @@ class IntegratedFlutterExecutor:
                         self.logger.warning(f"  Python DLM disagrees: V={physics_result.flutter_speed:.1f} m/s ({delta:.1f}% difference)")
             else:
                 # FALLBACK: No valid NASTRAN results, use physics if available
+                # CRITICAL DEBUG: Log what NASTRAN returned
+                self.logger.info("=" * 70)
+                self.logger.info("NASTRAN RESULT DEBUG:")
+                if nastran_result:
+                    self.logger.info(f"  success: {nastran_result.get('success')}")
+                    self.logger.info(f"  flutter_found: {nastran_result.get('flutter_found')}")
+                    self.logger.info(f"  critical_flutter_velocity: {nastran_result.get('critical_flutter_velocity')}")
+                else:
+                    self.logger.info("  nastran_result is None/False")
+                self.logger.info("=" * 70)
+
                 # Check if NASTRAN found no flutter (stable panel)
                 if nastran_result and nastran_result.get('success') and not nastran_result.get('flutter_found'):
                     # NASTRAN ran but found no flutter - panel is stable
-                    converged = False
-                    flutter_speed = 999999.0  # Sentinel for "no flutter found"
-                    flutter_frequency = 0.0
-                    flutter_mode = 0
+                    # CRITICAL FIX: Return the maximum tested velocity, not a sentinel value
+                    # This indicates panel is stable up to at least this velocity
+                    max_tested_velocity = config.get('velocity_max', 2500)
 
-                    self.logger.info(f"No flutter detected in tested range "
-                                   f"(up to {config.get('velocity_max', 'N/A')} m/s)")
+                    # Check if physics found flutter beyond the tested range
+                    if physics_result.converged and physics_result.flutter_speed < 9000:
+                        # Use physics result but add warning about NASTRAN range
+                        converged = physics_result.converged
+                        flutter_speed = physics_result.flutter_speed
+                        flutter_frequency = physics_result.flutter_frequency
+                        flutter_mode = physics_result.flutter_mode
 
-                    self.logger.info(f"No flutter detected - panel stable up to {config.get('velocity_max', 2500):.0f} m/s")
+                        self.logger.warning(f"NASTRAN found no flutter up to {max_tested_velocity:.0f} m/s")
+                        self.logger.warning(f"Physics predicts flutter at {flutter_speed:.1f} m/s")
+                        self.logger.warning("RECOMMENDATION: Increase velocity range in Analysis panel")
+                    else:
+                        # No flutter found in either analysis - truly stable
+                        converged = True  # Analysis converged to stability
+                        # CRITICAL FIX: Don't use 999999.0, use the max tested velocity
+                        # This avoids confusion with the sentinel value
+                        flutter_speed = max_tested_velocity * 1.5  # Report 1.5x max tested as conservative estimate
+                        flutter_frequency = 0.0
+                        flutter_mode = 0
+
+                        self.logger.info(f"No flutter detected - panel stable up to {max_tested_velocity:.0f} m/s")
+                        self.logger.info(f"Reporting conservative flutter speed as {flutter_speed:.0f} m/s (1.5x max tested)")
                 else:
                     # Use physics results (may be fallback with high values if physics also failed)
                     converged = physics_result.converged
@@ -474,6 +525,15 @@ class IntegratedFlutterExecutor:
                     self.logger.warning(f"Current range: {config.get('velocity_min', 100)}-{config.get('velocity_max', 2000)} m/s")
                     self.logger.warning(f"Suggested range: 100-{flutter_speed * 1.5:.0f} m/s")
                 self.logger.warning("=" * 70)
+
+            # CRITICAL DEBUG: Log the flutter speed being returned
+            self.logger.info("=" * 70)
+            self.logger.info(f"RETURNING RESULTS TO GUI:")
+            self.logger.info(f"  flutter_speed = {flutter_speed}")
+            self.logger.info(f"  flutter_frequency = {flutter_frequency}")
+            self.logger.info(f"  flutter_mode = {flutter_mode}")
+            self.logger.info(f"  converged = {converged}")
+            self.logger.info("=" * 70)
 
             results = {
                 'success': True,

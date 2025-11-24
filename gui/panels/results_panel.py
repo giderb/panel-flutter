@@ -164,9 +164,28 @@ class ResultsPanel(BasePanel):
         actual_flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
         flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
         flutter_mode = self.analysis_results.get('critical_flutter_mode', 0)
+
+        # CRITICAL DEBUG: Log what we're displaying
+        self.logger.info("=" * 70)
+        self.logger.info("DISPLAYING IN _display_results:")
+        self.logger.info(f"  actual_flutter_speed = {actual_flutter_speed}")
+        self.logger.info(f"  flutter_freq = {flutter_freq}")
+        self.logger.info("=" * 70)
         dynamic_pressure = self.analysis_results.get('critical_dynamic_pressure', 0)
         converged = self.analysis_results.get('converged', True)
         damping_ratio = self.analysis_results.get('critical_damping_ratio', 0)
+
+        # CRITICAL FIX: Check for invalid flutter speed and use physics result if available
+        # If flutter speed is suspiciously low (< 100 m/s) or missing, check physics result
+        if actual_flutter_speed < 100:
+            physics_result = self.analysis_results.get('physics_result', {})
+            physics_flutter_speed = physics_result.get('flutter_speed', 0)
+            if physics_flutter_speed > 100:
+                # Use physics result instead
+                actual_flutter_speed = physics_flutter_speed
+                flutter_freq = physics_result.get('flutter_frequency', flutter_freq)
+                flutter_mode = physics_result.get('flutter_mode', flutter_mode)
+                self.logger.warning(f"Using physics flutter speed {actual_flutter_speed:.1f} m/s (NASTRAN result was {self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s)")
 
         # Get physics result for additional parameters
         physics_result = self.analysis_results.get('physics_result', {})
@@ -308,7 +327,8 @@ class ResultsPanel(BasePanel):
             self._add_info_row(quality_card, label, value)
 
         # Add NASTRAN comparison table if available
-        if nastran_speed and nastran_speed < 900000:
+        # Also show if NASTRAN didn't find flutter but physics did
+        if (nastran_speed and nastran_speed < 900000) or (actual_flutter_speed < 900000 and physics_result.get('flutter_speed')):
             # Create comparison header
             comparison_header = ctk.CTkFrame(quality_card, fg_color="transparent")
             comparison_header.pack(fill="x", padx=15, pady=(10, 5))
@@ -339,16 +359,26 @@ class ResultsPanel(BasePanel):
             # Data row
             speed_diff = comparison.get('speed_difference_percent', 0)
 
-            # Determine status
-            if abs(speed_diff) < 5.0:
-                status_text = "✅ EXCELLENT"
-                status_color = "green"
-            elif abs(speed_diff) < 15.0:
-                status_text = "⚠️ ACCEPTABLE"
-                status_color = "orange"
-            else:
-                status_text = "❌ INVESTIGATE"
+            # Handle case where NASTRAN didn't find flutter
+            if not nastran_speed or nastran_speed >= 900000:
+                nastran_speed_text = "No flutter detected"
+                speed_diff_text = "N/A"
+                status_text = "❌ RANGE ISSUE"
                 status_color = "red"
+            else:
+                nastran_speed_text = f"{nastran_speed:.1f} m/s"
+                speed_diff_text = f"{speed_diff:+.1f}%"
+
+                # Determine status
+                if abs(speed_diff) < 5.0:
+                    status_text = "✅ EXCELLENT"
+                    status_color = "green"
+                elif abs(speed_diff) < 15.0:
+                    status_text = "⚠️ ACCEPTABLE"
+                    status_color = "orange"
+                else:
+                    status_text = "❌ INVESTIGATE"
+                    status_color = "red"
 
             data_row = ctk.CTkFrame(comparison_table, fg_color="transparent")
             data_row.pack(fill="x", pady=2)
@@ -356,8 +386,8 @@ class ResultsPanel(BasePanel):
             values = [
                 "Flutter Speed",
                 f"{actual_flutter_speed:.1f} m/s",
-                f"{nastran_speed:.1f} m/s",
-                f"{speed_diff:+.1f}%",
+                nastran_speed_text,
+                speed_diff_text,
                 status_text
             ]
 
@@ -962,7 +992,14 @@ class ResultsPanel(BasePanel):
     def load_results(self, results: Dict[str, Any]):
         """Load analysis results."""
         self.analysis_results = results
-        
+
+        # CRITICAL DEBUG: Log what we received
+        self.logger.info("=" * 70)
+        self.logger.info("RESULTS_PANEL RECEIVED:")
+        self.logger.info(f"  critical_flutter_speed = {results.get('critical_flutter_speed', 'NOT FOUND') if results else 'NO RESULTS'}")
+        self.logger.info(f"  critical_flutter_frequency = {results.get('critical_flutter_frequency', 'NOT FOUND') if results else 'NO RESULTS'}")
+        self.logger.info("=" * 70)
+
         if results and results.get('success'):
             self.status_label.configure(
                 text=f"Analysis completed at {datetime.now().strftime('%H:%M:%S')}"

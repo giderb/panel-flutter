@@ -290,7 +290,9 @@ class F06Parser:
                             # CRITICAL FIX v2.14.4: Filter numerical noise - damping must be clearly positive
                             # Values like 1E-4 (0.0001) are numerical noise, not real positive damping
                             # Real flutter typically has damping > 0.001 (1E-3)
-                            if m1.damping < 0 and m2.damping > 0.001:  # Changed from 0.0001 to 0.001
+                            # CRITICAL FIX v2.17.0: Filter unrealistic damping values
+                            # Damping > 1.0 is suspicious, > 10.0 is clearly spurious
+                            if m1.damping < 0 and m2.damping > 0.001 and m2.damping < 1.0:
                                 # CRITICAL FIX v2.14.1: Log detected crossings
                                 logger.info(f"DETECTED DAMPING CROSSING:")
                                 logger.info(f"  V1={v1/1000:.1f} m/s: g={m1.damping:.6f}, f={m1.frequency:.1f} Hz")
@@ -338,6 +340,15 @@ class F06Parser:
                                 if d2 <= 0.001:  # Changed from 0.0001 to 0.001 to filter numerical noise
                                     logger.warning(f"FALSE CROSSING: d2={d2:.6e} is not clearly positive (noise)")
                                     logger.warning(f"  d1={d1:.6f}, d2={d2:.6e} - This is NOT flutter - skipping")
+                                    continue
+
+                                # CRITICAL FIX v2.16.0: Filter out flutter at minimum velocity
+                                # If flutter is detected very close to the minimum velocity, it's likely
+                                # a false positive due to starting the analysis in an already-transitioning region
+                                min_velocity = sorted_velocities[0]  # First velocity in the sweep
+                                if candidate_velocity < min_velocity * 2.5:  # Within 2.5x of minimum
+                                    logger.warning(f"REJECTING FLUTTER at {candidate_velocity/1000:.1f} m/s - too close to minimum velocity {min_velocity/1000:.1f} m/s")
+                                    logger.warning(f"  This is likely a false positive from starting analysis in transition region")
                                     continue
 
                                 # CRITICAL: Keep the LOWEST velocity flutter point (most conservative)

@@ -2,7 +2,7 @@
   "id": "20251111_070749_metallic_panel",
   "name": "Metallic Panel",
   "created_at": "2025-11-11T07:07:49.561185",
-  "modified_at": "2025-11-12T17:47:39.692870",
+  "modified_at": "2025-11-24T14:31:38.214259",
   "description": "Standard aluminum aircraft skin panel",
   "geometry": {
     "length": 0.5,
@@ -44,9 +44,9 @@
     "n_modes": "10",
     "mesh_nx": "10",
     "mesh_ny": "10",
-    "velocity_min": "156",
-    "velocity_max": "973",
-    "velocity_points": "10",
+    "velocity_min": "100",
+    "velocity_max": "3500",
+    "velocity_points": "100",
     "method": "nastran",
     "nastran_path": "C:\\MSC.Software\\MSC_Nastran\\20190\\bin\\nastran.exe"
   },
@@ -65,5 +65,5 @@
     "thermal_expansion": 2.1e-05,
     "description": "Common aerospace aluminum alloy"
   },
-  "structural_model": "<models.structural.StructuralModel object at 0x000002D6375E8490>"
+  "structural_model": "<models.structural.StructuralModel object at 0x00000226C766E4D0>"
 }
