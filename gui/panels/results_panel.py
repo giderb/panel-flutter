@@ -314,12 +314,27 @@ class ResultsPanel(BasePanel):
         nastran_speed = comparison.get('nastran_flutter_speed')
         confidence_level = self._determine_confidence_level()
 
-        # Get friendly method name
+        # Get friendly method name and determine aerodynamic theory
         raw_method = self.analysis_results.get('method', 'Unknown')
-        friendly_method = self._get_friendly_method_name(raw_method)
+
+        # Determine actual aerodynamic theory based on Mach number
+        if mach_number < 1.5:
+            aero_theory = "Doublet Lattice Method (DLM)"
+        else:
+            aero_theory = "Piston Theory"
+
+        # Check if NASTRAN was used
+        if comparison.get('nastran_flutter_speed'):
+            analysis_method = f"NASTRAN SOL145 ({aero_theory})"
+        elif 'piston' in raw_method.lower():
+            analysis_method = "Piston Theory"
+        elif 'dlm' in raw_method.lower() or 'doublet' in raw_method.lower():
+            analysis_method = "Doublet Lattice Method (DLM)"
+        else:
+            analysis_method = self._get_friendly_method_name(raw_method)
 
         quality_data = [
-            ("Analysis Method", friendly_method),
+            ("Analysis Method", analysis_method),
             ("Convergence", "✅ Converged" if converged else "❌ Not Converged"),
         ]
 
@@ -357,7 +372,8 @@ class ResultsPanel(BasePanel):
                 col_label.pack(side="left", padx=5, expand=True)
 
             # Data row
-            speed_diff = comparison.get('speed_difference_percent', 0)
+            # Get the actual physics result for comparison
+            physics_speed = physics_result.get('flutter_speed', 0)
 
             # Handle case where NASTRAN didn't find flutter
             if not nastran_speed or nastran_speed >= 900000:
@@ -367,25 +383,40 @@ class ResultsPanel(BasePanel):
                 status_color = "red"
             else:
                 nastran_speed_text = f"{nastran_speed:.1f} m/s"
-                speed_diff_text = f"{speed_diff:+.1f}%"
 
-                # Determine status
-                if abs(speed_diff) < 5.0:
-                    status_text = "✅ EXCELLENT"
-                    status_color = "green"
-                elif abs(speed_diff) < 15.0:
-                    status_text = "⚠️ ACCEPTABLE"
-                    status_color = "orange"
+                # Calculate the actual difference between physics and NASTRAN
+                if physics_speed > 100 and physics_speed < 900000:
+                    actual_diff = ((nastran_speed - physics_speed) / physics_speed) * 100
+                    speed_diff_text = f"{actual_diff:+.1f}%"
+
+                    # Determine status based on actual difference
+                    if abs(actual_diff) < 5.0:
+                        status_text = "✅ EXCELLENT"
+                        status_color = "green"
+                    elif abs(actual_diff) < 15.0:
+                        status_text = "⚠️ ACCEPTABLE"
+                        status_color = "orange"
+                    else:
+                        status_text = "❌ INVESTIGATE"
+                        status_color = "red"
                 else:
-                    status_text = "❌ INVESTIGATE"
-                    status_color = "red"
+                    speed_diff_text = "N/A"
+                    status_text = "⚠️ NO PHYSICS"
+                    status_color = "orange"
 
             data_row = ctk.CTkFrame(comparison_table, fg_color="transparent")
             data_row.pack(fill="x", pady=2)
 
+            # Get the actual physics result (not the final selected value)
+            physics_speed = physics_result.get('flutter_speed', actual_flutter_speed)
+            if physics_speed < 100 or physics_speed >= 900000:
+                physics_speed_text = "No flutter detected"
+            else:
+                physics_speed_text = f"{physics_speed:.1f} m/s"
+
             values = [
                 "Flutter Speed",
-                f"{actual_flutter_speed:.1f} m/s",
+                physics_speed_text,
                 nastran_speed_text,
                 speed_diff_text,
                 status_text
@@ -964,11 +995,19 @@ class ResultsPanel(BasePanel):
         converged = self.analysis_results.get('converged', False)
         validation_status = self.analysis_results.get('validation_status', '')
         comparison = self.analysis_results.get('comparison', {})
-        nastran_available = comparison.get('nastran_flutter_speed') is not None
+        nastran_speed = comparison.get('nastran_flutter_speed')
+        physics_result = self.analysis_results.get('physics_result', {})
+        physics_speed = physics_result.get('flutter_speed', 0)
 
         # High confidence: Converged + NASTRAN validated + good agreement
-        if converged and nastran_available:
-            speed_diff = abs(comparison.get('speed_difference_percent', 100))
+        if converged and nastran_speed is not None and nastran_speed > 100 and nastran_speed < 900000:
+            # Calculate actual difference between physics and NASTRAN
+            if physics_speed > 100 and physics_speed < 900000:
+                speed_diff = abs((nastran_speed - physics_speed) / physics_speed * 100)
+            else:
+                # No valid physics result, but NASTRAN found flutter
+                return "⚠️ MEDIUM (NASTRAN only)"
+
             if speed_diff < 5.0:
                 return "✅ HIGH (NASTRAN validated)"
             elif speed_diff < 15.0:
