@@ -185,6 +185,10 @@ class ResultsPanel(BasePanel):
                 actual_flutter_speed = physics_flutter_speed
                 flutter_freq = physics_result.get('flutter_frequency', flutter_freq)
                 flutter_mode = physics_result.get('flutter_mode', flutter_mode)
+                # Also update dynamic pressure for physics result
+                physics_dynamic_pressure = physics_result.get('critical_dynamic_pressure', 0)
+                if physics_dynamic_pressure > 0:
+                    dynamic_pressure = physics_dynamic_pressure
                 self.logger.warning(f"Using physics flutter speed {actual_flutter_speed:.1f} m/s (NASTRAN result was {self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s)")
 
         # Get physics result for additional parameters
@@ -281,6 +285,11 @@ class ResultsPanel(BasePanel):
             flutter_card = self._create_card(scroll_frame, "⚡ Flutter Characteristics")
             flutter_card.pack(fill="x", padx=10, pady=10)
 
+            # Calculate dynamic pressure if not provided
+            if dynamic_pressure <= 0 and actual_flutter_speed > 0:
+                # q = 0.5 * rho * V^2
+                dynamic_pressure = 0.5 * air_density * actual_flutter_speed**2
+
             flutter_data = [
                 ("Flutter Speed", f"{actual_flutter_speed:.1f} m/s ({actual_flutter_speed*3.6:.1f} km/h)"),
                 ("Flutter Frequency", f"{flutter_freq:.1f} Hz"),
@@ -314,24 +323,22 @@ class ResultsPanel(BasePanel):
         nastran_speed = comparison.get('nastran_flutter_speed')
         confidence_level = self._determine_confidence_level()
 
-        # Get friendly method name and determine aerodynamic theory
-        raw_method = self.analysis_results.get('method', 'Unknown')
-
-        # Determine actual aerodynamic theory based on Mach number
+        # Determine aerodynamic theory based on Mach number (this is what's actually used)
         if mach_number < 1.5:
             aero_theory = "Doublet Lattice Method (DLM)"
         else:
             aero_theory = "Piston Theory"
 
-        # Check if NASTRAN was used
-        if comparison.get('nastran_flutter_speed'):
+        # Determine what analysis was run
+        raw_method = self.analysis_results.get('method', 'Unknown')
+        nastran_used = bool(comparison.get('nastran_flutter_speed'))
+
+        # Set the analysis method display
+        if nastran_used:
             analysis_method = f"NASTRAN SOL145 ({aero_theory})"
-        elif 'piston' in raw_method.lower():
-            analysis_method = "Piston Theory"
-        elif 'dlm' in raw_method.lower() or 'doublet' in raw_method.lower():
-            analysis_method = "Doublet Lattice Method (DLM)"
         else:
-            analysis_method = self._get_friendly_method_name(raw_method)
+            # For physics-only runs, show the aerodynamic theory used
+            analysis_method = aero_theory
 
         quality_data = [
             ("Analysis Method", analysis_method),
