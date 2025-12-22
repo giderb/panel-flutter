@@ -1044,7 +1044,9 @@ class IntegratedFlutterExecutor:
                         'damping': damping,
                         'frequencies': frequencies,
                         'critical_velocity': critical_v,
-                        'critical_frequency': critical_f
+                        'critical_frequency': critical_f,
+                        'data_source': 'NASTRAN F06',  # Track data source
+                        'data_source_detail': f'{len(flutter_points)} flutter points from SOL145'
                     }
 
         # Fallback: Generate synthetic curves based on physics results
@@ -1078,7 +1080,9 @@ class IntegratedFlutterExecutor:
             'damping': damping,
             'frequencies': frequencies,
             'critical_velocity': result.flutter_speed if result.flutter_speed < 9000 else None,
-            'critical_frequency': result.flutter_frequency if result.flutter_speed < 9000 else None
+            'critical_frequency': result.flutter_frequency if result.flutter_speed < 9000 else None,
+            'data_source': 'Physics (Synthetic)',  # Track data source
+            'data_source_detail': 'Estimated curves from physics-based analysis'
         }
 
 

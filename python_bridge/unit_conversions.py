@@ -1,15 +1,35 @@
 """
-NASTRAN Unit System Conversions for mm-kg-s-N
+NASTRAN Unit System Conversions
 ==============================================
 CRITICAL: These conversions are used for flight safety calculations
 
-Unit System: NASTRAN mm-kg-s-N
-- Length: millimeters (mm)
-- Mass: kilograms (kg)
-- Time: seconds (s)
-- Force: Newtons (N)
+TWO NASTRAN UNIT SYSTEMS:
+========================
 
-Derived Units:
+1. mm-kg-s-N (documented in this module):
+   - Length: millimeters (mm)
+   - Mass: kilograms (kg)
+   - Time: seconds (s)
+   - Force: 0.001 N (NOT force-consistent!)
+   - Density: kg/mm^3 = kg/m^3 × 1e-9
+
+2. mm-tonne-s-N (used by BDF generators):
+   - Length: millimeters (mm)
+   - Mass: tonnes (Mg = 1000 kg)
+   - Time: seconds (s)
+   - Force: N (force-consistent: F = ma = 1 tonne × 1 mm/s² = 1 N)
+   - Density: tonne/mm^3 = kg/m^3 × 1e-12
+   - Modulus: MPa = N/mm²
+
+IMPORTANT: The BDF generators (simple_bdf_generator.py, bdf_generator_sol145_fixed.py)
+use mm-tonne-s-N system for force consistency with E in MPa.
+The functions in this module use mm-kg-s-N for legacy compatibility.
+
+For BDF generation, use:
+- Material density: kg/m³ × 1e-12 → tonne/mm³
+- Air density: kg/m³ × 1e-12 → tonne/mm³
+
+Derived Units (mm-kg-s-N):
 - Stress/Pressure: N/mm^2 = MPa
 - Density: kg/mm^3
 - Velocity: mm/s
@@ -62,6 +82,57 @@ def density_nastran_to_si(density_kg_mm3: float) -> float:
     ρ[kg/m^3] = ρ[kg/mm^3] × (10⁹ mm^3 / 1 m^3) = ρ[kg/mm^3] × 10⁹
     """
     return density_kg_mm3 * 1e9  # kg/mm^3 × (10⁹ mm^3 / 1 m^3) = kg/m^3
+
+
+def density_si_to_nastran_tonne(density_kg_m3: float) -> float:
+    """
+    Convert density from SI (kg/m^3) to NASTRAN mm-tonne-s-N (tonne/mm^3)
+
+    This is the preferred conversion for BDF generation where E is in MPa.
+    Use this for both material density and air density to maintain consistency.
+
+    Args:
+        density_kg_m3: Density in kg/m^3 (e.g., 2810 for aluminum)
+
+    Returns:
+        Density in tonne/mm^3 (e.g., 2.81e-9 for aluminum)
+
+    Examples:
+        >>> density_si_to_nastran_tonne(2810)  # Aluminum
+        2.81e-09
+        >>> density_si_to_nastran_tonne(1.225)  # Air at sea level
+        1.225e-12
+
+    CRITICAL SAFETY NOTE:
+    1 tonne = 1000 kg, and 1 m^3 = 10^9 mm^3
+    Factor = (1 tonne / 1000 kg) × (1 m^3 / 10^9 mm^3) = 10^-3 × 10^-9 = 10^-12
+
+    Conversion formula:
+    ρ[tonne/mm^3] = ρ[kg/m^3] × 10^-12
+    """
+    return density_kg_m3 * 1e-12  # kg/m^3 → tonne/mm^3
+
+
+def density_nastran_tonne_to_si(density_tonne_mm3: float) -> float:
+    """
+    Convert density from NASTRAN mm-tonne-s-N (tonne/mm^3) to SI (kg/m^3)
+
+    Args:
+        density_tonne_mm3: Density in tonne/mm^3 (e.g., 2.81e-9 for aluminum)
+
+    Returns:
+        Density in kg/m^3 (e.g., 2810 for aluminum)
+
+    Examples:
+        >>> density_nastran_tonne_to_si(2.81e-9)
+        2810.0
+        >>> density_nastran_tonne_to_si(1.225e-12)
+        1.225
+
+    Conversion formula:
+    ρ[kg/m^3] = ρ[tonne/mm^3] × 10^12
+    """
+    return density_tonne_mm3 * 1e12  # tonne/mm^3 → kg/m^3
 
 
 def velocity_si_to_nastran(velocity_m_s: float) -> float:

@@ -164,9 +164,11 @@ class Sol145BDFGenerator:
                 g12_mpa = mat.g12 / 1e6
                 g1z_mpa = (mat.g1z / 1e6) if mat.g1z else g12_mpa
                 g2z_mpa = (mat.g2z / 1e6) if mat.g2z else (g12_mpa * 0.5)
-                rho_kg_mm3 = mat.density * 1e-9  # kg/m³ to kg/mm³
+                # CRITICAL FIX: Use 1e-12 for tonne/mm³ (consistent with MAT1)
+                # Previous bug used 1e-9 (kg/mm³) which was inconsistent with isotropic materials
+                rho_tonne_mm3 = mat.density * 1e-12  # kg/m³ to tonne/mm³
 
-                lines.append(f"MAT8    {mid:<8}{e1_mpa:<8.1f}{e2_mpa:<8.1f}{mat.nu12:<8.3f}{g12_mpa:<8.1f}{g1z_mpa:<8.1f}{g2z_mpa:<8.1f}{rho_kg_mm3:<8.2E}")
+                lines.append(f"MAT8    {mid:<8}{e1_mpa:<8.1f}{e2_mpa:<8.1f}{mat.nu12:<8.3f}{g12_mpa:<8.1f}{g1z_mpa:<8.1f}{g2z_mpa:<8.1f}{rho_tonne_mm3:<8.2E}")
             lines.append("$")
 
             # Write PCOMP card - NASTRAN 2017 compatible format
@@ -689,10 +691,10 @@ class Sol145BDFGenerator:
         lines.append("$   ACSID=0: Basic coordinate system")
         lines.append("$   VELOCITY=1.0: Reference velocity (actual velocities in FLFACT)")
         lines.append(f"$   REFC={panel.length:.1f}: Reference chord length (mm)")
-        lines.append(f"$   RHOREF: Reference density (kg/mm³ = kg/m³ × 1e-9)")
-        # AERO card with correct air density in kg/mm³
+        lines.append(f"$   RHOREF: Reference density (tonne/mm³ = kg/m³ × 1e-12)")
+        # AERO card with correct air density in tonne/mm³
         # Format: AERO ACSID VELOCITY REFC RHOREF
-        # Use compact NASTRAN scientific notation (e.g., 1.225-9 instead of 1.225E-09)
+        # Use compact NASTRAN scientific notation (e.g., 1.225-12 instead of 1.225E-12)
         import math
         if aero.reference_density != 0:
             exponent = int(math.floor(math.log10(abs(aero.reference_density))))
@@ -1036,14 +1038,16 @@ def create_sol145_flutter_bdf(config: Dict[str, Any], output_dir: str = ".") -> 
         # Use exponential decay approximation
         rho_at_alt_kg_m3 = rho_sea_level_kg_m3 * (2.71828 ** (-altitude / 8500.0))
 
-    rho_at_alt_kg_mm3 = rho_at_alt_kg_m3 * 1e-9  # Convert kg/m³ to kg/mm³
+    # CRITICAL FIX: Use 1e-12 for tonne/mm³ (consistent with MaterialConfig.density)
+    # Previous bug used 1e-9 (kg/mm³) which caused 1000x density ratio error
+    rho_at_alt_tonne_mm3 = rho_at_alt_kg_m3 * 1e-12  # Convert kg/m³ to tonne/mm³
     logger.info(f"ISA atmosphere at {altitude}m: rho = {rho_at_alt_kg_m3:.4f} kg/m^3")
 
     aero = AeroConfig(
         mach_number=config.get('mach_number', 3.0),
         reference_velocity=config.get('velocity', 1.0e6),  # mm/s
         reference_chord=config.get('panel_length', 1000.0),  # mm
-        reference_density=rho_at_alt_kg_mm3,  # kg/mm³ at specified altitude (CORRECTED)
+        reference_density=rho_at_alt_tonne_mm3,  # tonne/mm³ at specified altitude
         altitude=altitude,
         reduced_frequencies=config.get('reduced_frequencies', [0.0, 0.001, 0.01, 0.1, 0.2]),
         velocities=config.get('velocities')  # mm/s

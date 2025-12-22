@@ -159,37 +159,19 @@ class ResultsPanel(BasePanel):
         )
         scroll_frame.pack(fill="both", expand=True)
 
-        # Get key data
+        # Get key data with fallback correction
         config = self.analysis_results.get('configuration', {})
-        actual_flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
-        flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
-        flutter_mode = self.analysis_results.get('critical_flutter_mode', 0)
+        actual_flutter_speed, flutter_freq, flutter_mode, dynamic_pressure = self._get_corrected_flutter_values()
 
         # CRITICAL DEBUG: Log what we're displaying
         self.logger.info("=" * 70)
-        self.logger.info("DISPLAYING IN _display_results:")
+        self.logger.info("DISPLAYING IN _show_summary:")
         self.logger.info(f"  actual_flutter_speed = {actual_flutter_speed}")
         self.logger.info(f"  flutter_freq = {flutter_freq}")
         self.logger.info("=" * 70)
-        dynamic_pressure = self.analysis_results.get('critical_dynamic_pressure', 0)
+
         converged = self.analysis_results.get('converged', True)
         damping_ratio = self.analysis_results.get('critical_damping_ratio', 0)
-
-        # CRITICAL FIX: Check for invalid flutter speed and use physics result if available
-        # If flutter speed is suspiciously low (< 100 m/s) or missing, check physics result
-        if actual_flutter_speed < 100:
-            physics_result = self.analysis_results.get('physics_result', {})
-            physics_flutter_speed = physics_result.get('flutter_speed', 0)
-            if physics_flutter_speed > 100:
-                # Use physics result instead
-                actual_flutter_speed = physics_flutter_speed
-                flutter_freq = physics_result.get('flutter_frequency', flutter_freq)
-                flutter_mode = physics_result.get('flutter_mode', flutter_mode)
-                # Also update dynamic pressure for physics result
-                physics_dynamic_pressure = physics_result.get('critical_dynamic_pressure', 0)
-                if physics_dynamic_pressure > 0:
-                    dynamic_pressure = physics_dynamic_pressure
-                self.logger.warning(f"Using physics flutter speed {actual_flutter_speed:.1f} m/s (NASTRAN result was {self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s)")
 
         # Get physics result for additional parameters
         physics_result = self.analysis_results.get('physics_result', {})
@@ -290,10 +272,13 @@ class ResultsPanel(BasePanel):
                 # q = 0.5 * rho * V^2
                 dynamic_pressure = 0.5 * air_density * actual_flutter_speed**2
 
+            # Format mode display - Mode 0 means not identified
+            mode_display = f"Mode {flutter_mode}" if flutter_mode > 0 else "Not Identified"
+
             flutter_data = [
                 ("Flutter Speed", f"{actual_flutter_speed:.1f} m/s ({actual_flutter_speed*3.6:.1f} km/h)"),
                 ("Flutter Frequency", f"{flutter_freq:.1f} Hz"),
-                ("Critical Mode", f"Mode {flutter_mode}"),
+                ("Critical Mode", mode_display),
                 ("Dynamic Pressure", f"{dynamic_pressure:.0f} Pa ({dynamic_pressure/1000:.1f} kPa)" if dynamic_pressure > 0 else "N/A")
             ]
 
@@ -340,9 +325,14 @@ class ResultsPanel(BasePanel):
             # For physics-only runs, show the aerodynamic theory used
             analysis_method = aero_theory
 
+        # Get V-g/V-f data source
+        flutter_data = self.analysis_results.get('flutter_data', {})
+        vg_data_source = flutter_data.get('data_source', 'Unknown')
+
         quality_data = [
             ("Analysis Method", analysis_method),
             ("Convergence", "✅ Converged" if converged else "❌ Not Converged"),
+            ("V-g/V-f Data", vg_data_source),
         ]
 
         for label, value in quality_data:
@@ -414,8 +404,7 @@ class ResultsPanel(BasePanel):
             data_row = ctk.CTkFrame(comparison_table, fg_color="transparent")
             data_row.pack(fill="x", pady=2)
 
-            # Get the actual physics result (not the final selected value)
-            physics_speed = physics_result.get('flutter_speed', actual_flutter_speed)
+            # Format physics speed for display (physics_speed already extracted at line 386)
             if physics_speed < 100 or physics_speed >= 900000:
                 physics_speed_text = "No flutter detected"
             else:
@@ -607,8 +596,11 @@ class ResultsPanel(BasePanel):
             else:
                 freq_11 = 0
 
+            # Format mode display - Mode 0 means not identified
+            modal_mode_display = f"Mode {flutter_mode}" if flutter_mode > 0 else "Not Identified"
+
             modal_data = [
-                ("Critical Flutter Mode", f"Mode {flutter_mode}"),
+                ("Critical Flutter Mode", modal_mode_display),
                 ("Flutter Frequency", f"{flutter_freq:.2f} Hz"),
                 ("1st Natural Freq. (Est.)", f"{freq_11:.2f} Hz" if freq_11 > 0 else "N/A"),
                 ("Frequency Ratio", f"{flutter_freq/freq_11:.2f}" if (freq_11 > 0 and flutter_freq > 0) else "N/A"),
@@ -670,16 +662,25 @@ class ResultsPanel(BasePanel):
         velocities = flutter_data.get('velocities', [])
         damping = flutter_data.get('damping', [])
 
+        # Get data source info
+        data_source = flutter_data.get('data_source', 'Unknown')
+        data_source_detail = flutter_data.get('data_source_detail', '')
+
         if velocities and damping:
             # Convert to numpy arrays for safer operations
             velocities_arr = np.array(velocities)
             damping_arr = np.array(damping)
 
-            # Plot damping curve
-            ax.plot(velocities_arr, damping_arr, 'b-', linewidth=2, label='Damping')
+            # Plot damping curve with source-appropriate styling
+            if 'NASTRAN' in data_source:
+                ax.plot(velocities_arr, damping_arr, 'b-', linewidth=2, label='Damping (NASTRAN F06)')
+                line_style = 'solid'
+            else:
+                ax.plot(velocities_arr, damping_arr, 'b--', linewidth=2, label='Damping (Physics Est.)')
+                line_style = 'dashed'
 
             # Add zero line
-            ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+            ax.axhline(y=0, color='k', linestyle='--', alpha=0.5, label='Flutter Boundary')
 
             # Mark flutter point
             critical_v = flutter_data.get('critical_velocity')
@@ -693,9 +694,13 @@ class ResultsPanel(BasePanel):
 
             ax.set_xlabel('Velocity (m/s)', fontsize=12)
             ax.set_ylabel('Damping (g)', fontsize=12)
-            ax.set_title('V-g Diagram: Damping vs Velocity', fontsize=14, fontweight='bold')
+
+            # Title includes data source
+            title = f'V-g Diagram: Damping vs Velocity\n[Data: {data_source}]'
+            ax.set_title(title, fontsize=14, fontweight='bold')
+
             ax.grid(True, alpha=0.3)
-            ax.legend()
+            ax.legend(loc='upper right', fontsize=9)
 
             # Add stability regions - only if data length matches
             if len(velocities_arr) == len(damping_arr):
@@ -712,6 +717,11 @@ class ResultsPanel(BasePanel):
                                        color='red', alpha=0.1, interpolate=True)
                 except Exception as e:
                     self.logger.warning(f"Could not draw stability regions: {e}")
+
+            # Add data source note at bottom
+            if 'Physics' in data_source:
+                fig.text(0.5, 0.02, '⚠️ Synthetic curves estimated from physics analysis - for reference only',
+                        ha='center', fontsize=9, style='italic', color='orange')
 
         # Embed in tkinter
         canvas = FigureCanvasTkAgg(fig, self.content_container)
@@ -732,13 +742,20 @@ class ResultsPanel(BasePanel):
         velocities = flutter_data.get('velocities', [])
         frequencies = flutter_data.get('frequencies', [])
 
+        # Get data source info
+        data_source = flutter_data.get('data_source', 'Unknown')
+        data_source_detail = flutter_data.get('data_source_detail', '')
+
         if velocities and frequencies:
             # Convert to numpy arrays for safer operations
             velocities_arr = np.array(velocities)
             frequencies_arr = np.array(frequencies)
 
-            # Plot frequency curve
-            ax.plot(velocities_arr, frequencies_arr, 'g-', linewidth=2, label='Frequency')
+            # Plot frequency curve with source-appropriate styling
+            if 'NASTRAN' in data_source:
+                ax.plot(velocities_arr, frequencies_arr, 'g-', linewidth=2, label='Frequency (NASTRAN F06)')
+            else:
+                ax.plot(velocities_arr, frequencies_arr, 'g--', linewidth=2, label='Frequency (Physics Est.)')
 
             # Mark flutter point
             critical_v = flutter_data.get('critical_velocity')
@@ -751,9 +768,18 @@ class ResultsPanel(BasePanel):
 
             ax.set_xlabel('Velocity (m/s)', fontsize=12)
             ax.set_ylabel('Frequency (Hz)', fontsize=12)
-            ax.set_title('V-f Diagram: Frequency vs Velocity', fontsize=14, fontweight='bold')
+
+            # Title includes data source
+            title = f'V-f Diagram: Frequency vs Velocity\n[Data: {data_source}]'
+            ax.set_title(title, fontsize=14, fontweight='bold')
+
             ax.grid(True, alpha=0.3)
-            ax.legend()
+            ax.legend(loc='upper right', fontsize=9)
+
+            # Add data source note at bottom
+            if 'Physics' in data_source:
+                fig.text(0.5, 0.02, '⚠️ Synthetic curves estimated from physics analysis - for reference only',
+                        ha='center', fontsize=9, style='italic', color='orange')
 
         # Embed in tkinter
         canvas = FigureCanvasTkAgg(fig, self.content_container)
@@ -772,15 +798,41 @@ class ResultsPanel(BasePanel):
         )
         scroll_frame.pack(fill="both", expand=True)
 
-        # Get data
+        # Get data with fallback correction (same logic as Summary tab)
         config = self.analysis_results.get('configuration', {})
-        flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
-        flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
-        flutter_mode = self.analysis_results.get('critical_flutter_mode', 0)
-        dynamic_pressure = self.analysis_results.get('critical_dynamic_pressure', 0)
+        flutter_speed, flutter_freq, flutter_mode, dynamic_pressure = self._get_corrected_flutter_values()
 
         mach_number = config.get('mach_number', 0)
         temperature = config.get('temperature', 288.15)
+
+        # Data Source Card - shows where V-g/V-f data comes from
+        source_card = self._create_card(scroll_frame, "📊 Analysis Data Source")
+        source_card.pack(fill="x", padx=10, pady=10)
+
+        flutter_data = self.analysis_results.get('flutter_data', {})
+        data_source = flutter_data.get('data_source', 'Unknown')
+        data_source_detail = flutter_data.get('data_source_detail', '')
+
+        # Determine analysis type
+        comparison = self.analysis_results.get('comparison', {})
+        nastran_used = bool(comparison.get('nastran_flutter_speed'))
+        physics_result = self.analysis_results.get('physics_result', {})
+
+        if nastran_used and 'NASTRAN' in data_source:
+            analysis_type = "NASTRAN SOL145 (Primary)"
+            source_status = "✅ Using actual NASTRAN F06 flutter data"
+        elif nastran_used:
+            analysis_type = "NASTRAN SOL145 + Physics Curves"
+            source_status = "⚠️ NASTRAN ran but V-g/V-f from physics (F06 parsing issue)"
+        else:
+            analysis_type = "Physics-Based Analysis"
+            source_status = "⚠️ Using synthetic curves (no NASTRAN data)"
+
+        self._add_info_row(source_card, "Analysis Type", analysis_type)
+        self._add_info_row(source_card, "V-g/V-f Data Source", data_source)
+        self._add_info_row(source_card, "Status", source_status)
+        if data_source_detail:
+            self._add_info_row(source_card, "Details", data_source_detail)
 
         # Physics validation
         physics_card = self._create_card(scroll_frame, "🔬 Physics Validation")
@@ -789,7 +841,6 @@ class ResultsPanel(BasePanel):
         validation_status = self.analysis_results.get('validation_status', 'Not validated')
         self._add_info_row(physics_card, "Status", validation_status)
 
-        physics_result = self.analysis_results.get('physics_result', {})
         if physics_result:
             self._add_info_row(physics_card, "Method", physics_result.get('method', 'Unknown'))
             converged = physics_result.get('converged', False)
@@ -1034,6 +1085,43 @@ class ResultsPanel(BasePanel):
         # Low confidence: Not converged
         else:
             return "❌ LOW (Did not converge)"
+
+    def _get_corrected_flutter_values(self) -> tuple:
+        """
+        Get corrected flutter values with fallback logic.
+
+        If NASTRAN result is suspiciously low (< 100 m/s), substitutes physics result
+        if available. This ensures consistency between Summary and Validation tabs.
+
+        Returns:
+            Tuple of (flutter_speed, flutter_freq, flutter_mode, dynamic_pressure)
+        """
+        if not self.analysis_results:
+            return 0, 0, 0, 0
+
+        # Get original values
+        flutter_speed = self.analysis_results.get('critical_flutter_speed', 0)
+        flutter_freq = self.analysis_results.get('critical_flutter_frequency', 0)
+        flutter_mode = self.analysis_results.get('critical_flutter_mode', 0)
+        dynamic_pressure = self.analysis_results.get('critical_dynamic_pressure', 0)
+
+        # Apply fallback: if flutter speed is suspiciously low, use physics result
+        if flutter_speed < 100:
+            physics_result = self.analysis_results.get('physics_result', {})
+            physics_flutter_speed = physics_result.get('flutter_speed', 0)
+            if physics_flutter_speed > 100:
+                flutter_speed = physics_flutter_speed
+                flutter_freq = physics_result.get('flutter_frequency', flutter_freq)
+                flutter_mode = physics_result.get('flutter_mode', flutter_mode)
+                physics_dynamic_pressure = physics_result.get('critical_dynamic_pressure', 0)
+                if physics_dynamic_pressure > 0:
+                    dynamic_pressure = physics_dynamic_pressure
+                self.logger.warning(
+                    f"Using physics flutter speed {flutter_speed:.1f} m/s "
+                    f"(original was {self.analysis_results.get('critical_flutter_speed', 0):.1f} m/s)"
+                )
+
+        return flutter_speed, flutter_freq, flutter_mode, dynamic_pressure
 
     def load_results(self, results: Dict[str, Any]):
         """Load analysis results."""

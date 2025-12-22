@@ -170,7 +170,7 @@ class SimpleBDFGenerator:
             mach_number=mach_number,
             reference_velocity=reference_velocity * 1000,  # m/s → mm/s
             reference_chord=reference_chord,  # mm
-            reference_density=reference_density,  # kg/mm³
+            reference_density=reference_density,  # tonne/mm³
             reduced_frequencies=reduced_frequencies,
             velocities=velocities_mm  # mm/s
         )
