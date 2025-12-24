@@ -1636,26 +1636,85 @@ class PanelProperties:
 
         return M
 
+    def _get_bc_frequency_factor(self) -> float:
+        """
+        Get boundary condition frequency correction factor.
+
+        The physics-based modal analysis uses SSSS (simply-supported) formulas.
+        For other BCs, natural frequencies differ significantly:
+
+        BC Type    | Factor | Description
+        -----------|--------|------------------------------------------
+        SSSS       | 1.00   | Reference (simply-supported all edges)
+        CCCC       | 1.95   | Clamped all edges (higher stiffness)
+        CFFF       | 0.56   | Cantilever (lower first mode freq)
+        CFCF       | 1.50   | Clamped opposite edges
+        SFSF       | 0.70   | Simply-supported opposite edges
+        FFFF       | 0.50   | Free-free (rigid body modes)
+
+        Reference: Leissa, A.W., "Vibration of Plates", NASA SP-160, 1969
+
+        Returns:
+            Frequency squared multiplier (ω²_BC / ω²_SSSS)
+        """
+        bc = self.boundary_conditions.upper() if self.boundary_conditions else 'SSSS'
+
+        # Frequency squared correction factors (relative to SSSS)
+        # These affect stiffness since K ~ ω²
+        bc_factors = {
+            'SSSS': 1.00,   # Reference
+            'CCCC': 3.80,   # (1.95)² ≈ 3.80 - clamped is much stiffer
+            'CFFF': 0.31,   # (0.56)² ≈ 0.31 - cantilever first mode is lower
+            'CFCF': 2.25,   # (1.50)² ≈ 2.25 - clamped opposite edges
+            'SFSF': 0.49,   # (0.70)² ≈ 0.49 - SS opposite edges
+            'FSFS': 0.49,   # Same as SFSF
+            'SCSC': 2.80,   # Mixed SS/C
+            'CSCS': 2.80,   # Mixed C/SS
+            'FFFF': 0.25,   # Free-free (very low)
+            'CCCF': 3.00,   # Three clamped, one free
+            'SSSF': 0.80,   # Three SS, one free
+        }
+
+        factor = bc_factors.get(bc, 1.0)
+
+        # Log warning if BC is not SSSS (physics analysis has reduced accuracy)
+        if bc != 'SSSS' and factor != 1.0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Physics analysis uses SSSS modal formulas with BC correction factor {factor:.2f} for {bc}. "
+                f"Recommend NASTRAN verification for non-SSSS boundary conditions."
+            )
+
+        return factor
+
     def stiffness_matrix(self) -> np.ndarray:
         """
         Generate modal stiffness matrix for plate vibration
-        Uses classical plate theory for simply-supported rectangular plates
+        Uses classical plate theory with BC-specific corrections.
+
+        IMPORTANT: Base formulas are for simply-supported rectangular plates.
+        A correction factor is applied for other boundary conditions.
         """
         n_modes = 10
         D = self.flexural_rigidity()
         K = np.zeros((n_modes, n_modes))
 
+        # Get BC-specific correction factor
+        bc_factor = self._get_bc_frequency_factor()
+
         # Populate diagonal with modal stiffnesses
-        # K_mn = D * π^4 * [(m/a)^2 + (n/b)^2]^2 * (a*b/4)
+        # K_mn = D * π^4 * [(m/a)^2 + (n/b)^2]^2 * (a*b/4) * bc_factor
         for i in range(n_modes):
             m = (i // 3) + 1  # Mode number in x-direction
             n = (i % 3) + 1   # Mode number in y-direction
 
-            # Modal stiffness from plate theory
+            # Modal stiffness from plate theory (SSSS base)
             wave_number_squared = (m * np.pi / self.length)**2 + (n * np.pi / self.width)**2
             modal_stiffness = D * wave_number_squared**2 * (self.length * self.width / 4.0)
 
-            K[i, i] = modal_stiffness
+            # Apply BC correction
+            K[i, i] = modal_stiffness * bc_factor
 
         return K
 
